@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CATEGORIAS } from "@/lib/categorias";
+import CategoriaSelect from "@/components/CategoriaSelect";
 
 interface Regra {
   id: number;
@@ -68,13 +68,10 @@ export default function MemoriaIAPage() {
             onChange={(e) => setNova({ ...nova, descricao: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && salvar()}
           />
-          <select
+          <CategoriaSelect
             value={nova.categoriaCorreta}
-            onChange={(e) => setNova({ ...nova, categoriaCorreta: e.target.value })}
-          >
-            <option value="">Selecione a categoria…</option>
-            {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+            onChange={(v) => setNova({ ...nova, categoriaCorreta: v })}
+          />
           <button
             className="btn btn-primary"
             onClick={salvar}

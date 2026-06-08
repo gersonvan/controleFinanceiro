@@ -50,6 +50,44 @@ export const CATEGORIAS_RECEITA = [
   "Estorno",
 ];
 
+/** Categorias de entrada (receitas), em ordem alfabética */
+export const CATEGORIAS_ENTRADA = [
+  "Estorno",
+  "Outras Entradas",
+  "Receita de Aluguel",
+  "Rendimento Investimentos",
+  "Salário",
+  "Transferência Recebida",
+];
+
+/** Categorias de saída (despesas), em ordem alfabética */
+export const CATEGORIAS_SAIDA = [
+  "Academia e Bem-estar",
+  "Aluguel",
+  "Automóvel",
+  "Casa: Manutenção e Móveis",
+  "Compras",
+  "Condomínio",
+  "Consultas e Terapias",
+  "Contas de Consumo",
+  "Delivery e iFood",
+  "Farmácia",
+  "Investimentos (Aportes)",
+  "Lazer e Entretenimento",
+  "Mensalidades e Cursos",
+  "Pagamento de Cartão de Crédito",
+  "Pagamento de Empréstimo",
+  "Restaurantes e Lanches",
+  "Seguros",
+  "Serviços Domésticos",
+  "Supermercado e Mercearia",
+  "Taxas e Anuidades",
+  "Transferência entre Contas",
+  "Transferência para Terceiros",
+  "Transporte por App",
+  "Viagem",
+];
+
 export const CATEGORIAS_FIXAS = [
   "Aluguel",
   "Condomínio",

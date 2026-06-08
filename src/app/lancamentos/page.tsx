@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { CATEGORIAS } from "@/lib/categorias";
+import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA } from "@/lib/categorias";
+import CategoriaSelect from "@/components/CategoriaSelect";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -21,6 +22,9 @@ interface Lancamento {
 }
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
+const TODAS_CATEGORIAS = [...CATEGORIAS_SAIDA, ...CATEGORIAS_ENTRADA].sort((a, b) =>
+  a.localeCompare(b, "pt-BR")
+);
 
 export default function LancamentosPage() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
@@ -30,6 +34,8 @@ export default function LancamentosPage() {
   const [editando, setEditando] = useState<number | null>(null);
   const [categoriaEdit, setCategoriaEdit] = useState("");
   const [categorizando, setCategorizando] = useState(false);
+  const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
+  const [toastMsg, setToastMsg] = useState("");
   const limit = 50;
 
   const [filtros, setFiltros] = useState({
@@ -40,6 +46,11 @@ export default function LancamentosPage() {
     dataInicio: "",
     dataFim: "",
   });
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 2500);
+  };
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -75,6 +86,23 @@ export default function LancamentosPage() {
     carregar();
   };
 
+  const salvarNaMemoria = async (l: Lancamento) => {
+    if (!l.categoria) {
+      showToast("⚠️ Defina uma categoria antes de salvar na Memória da IA.");
+      return;
+    }
+    setSalvandoMemoria(l.id);
+    const res = await fetch("/api/memoria-ia", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descricao: l.descricao, categoriaCorreta: l.categoria }),
+    });
+    setSalvandoMemoria(null);
+    if (res.ok) {
+      showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória da IA!`);
+    }
+  };
+
   const categorizarSemCategoria = async () => {
     setCategorizando(true);
     await fetch("/api/categorizar", {
@@ -90,6 +118,13 @@ export default function LancamentosPage() {
 
   return (
     <div className="space-y-4 max-w-full">
+      {/* Toast */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
+          {toastMsg}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">
           Lançamentos <span className="text-base font-normal text-slate-400">({total})</span>
@@ -116,10 +151,10 @@ export default function LancamentosPage() {
             <option value="">Todas as contas</option>
             {CONTAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          {/* Filtro de categoria: flat + alfabética para facilitar busca */}
           <select value={filtros.categoria} onChange={(e) => { setFiltros({ ...filtros, categoria: e.target.value }); setPage(1); }}>
             <option value="">Todas as categorias</option>
-            <option value="">Sem categoria</option>
-            {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+            {TODAS_CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={filtros.tipo} onChange={(e) => { setFiltros({ ...filtros, tipo: e.target.value }); setPage(1); }}>
             <option value="">Entrada e Saída</option>
@@ -156,16 +191,14 @@ export default function LancamentosPage() {
                       <td className="max-w-xs truncate" title={l.descricao}>{l.descricao}</td>
                       <td>
                         {editando === l.id ? (
-                          <div className="flex gap-1">
-                            <select
+                          <div className="flex gap-1 items-center">
+                            <CategoriaSelect
                               value={categoriaEdit}
-                              onChange={(e) => setCategoriaEdit(e.target.value)}
+                              onChange={setCategoriaEdit}
+                              placeholder="Sem categoria"
                               className="text-xs py-0.5"
                               autoFocus
-                            >
-                              <option value="">Sem categoria</option>
-                              {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            />
                             <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
                             <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
                           </div>
@@ -192,7 +225,25 @@ export default function LancamentosPage() {
                         {l.mesReferencia ? fmtData(l.mesReferencia) : "-"}
                       </td>
                       <td>
-                        <button onClick={() => excluir(l.id)} className="text-slate-300 hover:text-red-500 text-lg leading-none">×</button>
+                        <div className="flex items-center gap-1">
+                          {/* Salvar na Memória da IA */}
+                          <button
+                            title="Salvar regra na Memória da IA"
+                            onClick={() => salvarNaMemoria(l)}
+                            disabled={salvandoMemoria === l.id}
+                            className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50"
+                          >
+                            {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
+                          </button>
+                          {/* Excluir */}
+                          <button
+                            title="Excluir lançamento"
+                            onClick={() => excluir(l.id)}
+                            className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
