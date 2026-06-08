@@ -3,65 +3,111 @@ import { prisma } from "@/lib/db";
 import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
 
 export async function POST(req: NextRequest) {
-  const { ids } = await req.json() as { ids?: number[] };
+  const body = await req.json() as { ids?: number[]; usarGemini?: boolean };
+  const { ids, usarGemini = false } = body;
 
+  // Carrega Memória da IA
   const memoria = await prisma.memoriaIA.findMany();
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
+  // Busca apenas lançamentos sem categoria
   const where = ids?.length
-    ? { id: { in: ids } }
+    ? { id: { in: ids }, categoria: null as null }
     : { categoria: null as null };
 
   const lancamentos = await prisma.lancamento.findMany({ where });
 
-  let categorizadosRegras = 0;
-  let categorizadosIA = 0;
-  let semCategoria = 0;
+  const porMemoria: { id: number; categoria: string }[] = [];
+  const porRegras:  { id: number; categoria: string }[] = [];
+  const semCategoria: number[] = [];
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  const categoriasStr = CATEGORIAS.join(", ");
+  // --- Fase 1: Memória da IA (match exato) ---
+  const restantes: typeof lancamentos = [];
 
   for (const l of lancamentos) {
-    // Tenta regras e memória primeiro
-    const cat = mapearCategoria(l.descricao, "", l.tipo, memoriaMap);
-
-    if (cat) {
-      await prisma.lancamento.update({
-        where: { id: l.id },
-        data: { categoria: cat },
-      });
-      categorizadosRegras++;
-      continue;
+    const descLower = l.descricao.toLowerCase();
+    if (memoriaMap.has(descLower)) {
+      porMemoria.push({ id: l.id, categoria: memoriaMap.get(descLower)! });
+    } else {
+      restantes.push(l);
     }
+  }
 
-    // Fallback: API do Gemini (se chave disponível)
+  // --- Fase 2: Regras manuais (padrões de texto) ---
+  const aindaSemCategoria: typeof lancamentos = [];
+
+  for (const l of restantes) {
+    // passa memoriaMap vazio para garantir que só usa as regras, memória já foi processada
+    const cat = mapearCategoria(l.descricao, "", l.tipo, new Map());
+    if (cat) {
+      porRegras.push({ id: l.id, categoria: cat });
+    } else {
+      aindaSemCategoria.push(l);
+    }
+  }
+
+  // --- Batch update: Memória da IA ---
+  if (porMemoria.length > 0) {
+    await Promise.all(
+      porMemoria.map((item) =>
+        prisma.lancamento.update({
+          where: { id: item.id },
+          data: { categoria: item.categoria },
+        })
+      )
+    );
+  }
+
+  // --- Batch update: Regras manuais ---
+  if (porRegras.length > 0) {
+    await Promise.all(
+      porRegras.map((item) =>
+        prisma.lancamento.update({
+          where: { id: item.id },
+          data: { categoria: item.categoria },
+        })
+      )
+    );
+  }
+
+  // --- Fase 3: Gemini (só se solicitado explicitamente) ---
+  let categorizadosGemini = 0;
+
+  if (usarGemini && aindaSemCategoria.length > 0) {
+    const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
-      try {
-        const catIA = await chamarGemini(l.descricao, categoriasStr, apiKey);
-        if (catIA && CATEGORIAS.includes(catIA as never)) {
-          await prisma.lancamento.update({
-            where: { id: l.id },
-            data: { categoria: catIA },
-          });
-          categorizadosIA++;
+      const categoriasStr = CATEGORIAS.join(", ");
+      for (const l of aindaSemCategoria) {
+        try {
+          const catIA = await chamarGemini(l.descricao, categoriasStr, apiKey);
+          if (catIA && CATEGORIAS.includes(catIA as never)) {
+            await prisma.lancamento.update({
+              where: { id: l.id },
+              data: { categoria: catIA },
+            });
+            categorizadosGemini++;
+            semCategoria.splice(semCategoria.indexOf(l.id), 1);
+          }
           await sleep(1100);
-          continue;
+        } catch {
+          // ignora erro, deixa sem categoria
         }
-      } catch {
-        // ignora erro da IA, deixa sem categoria
       }
     }
+  }
 
-    semCategoria++;
+  for (const l of aindaSemCategoria) {
+    semCategoria.push(l.id);
   }
 
   return NextResponse.json({
     total: lancamentos.length,
-    categorizadosRegras,
-    categorizadosIA,
-    semCategoria,
+    porMemoria: porMemoria.length,
+    porRegras: porRegras.length,
+    porGemini: categorizadosGemini,
+    semCategoria: semCategoria.length - categorizadosGemini,
   });
 }
 
@@ -73,28 +119,17 @@ async function chamarGemini(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
 
   const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `Descrição da transação: "${descricao}"` }],
-      },
-    ],
+    contents: [{ role: "user", parts: [{ text: `Descrição da transação: "${descricao}"` }] }],
     systemInstruction: {
-      parts: [
-        {
-          text: `Você é um assistente de finanças pessoais brasileiro. Analise a descrição de transação bancária e retorne UMA categoria da lista. Responda APENAS com o JSON.
-
-Categorias válidas: [${categoriasStr}]`,
-        },
-      ],
+      parts: [{
+        text: `Você é um assistente de finanças pessoais brasileiro. Analise a descrição de transação bancária e retorne UMA categoria da lista. Responda APENAS com o JSON.\n\nCategorias válidas: [${categoriasStr}]`,
+      }],
     },
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: {
         type: "OBJECT",
-        properties: {
-          categoria_sugerida: { type: "STRING" },
-        },
+        properties: { categoria_sugerida: { type: "STRING" } },
         required: ["categoria_sugerida"],
       },
       temperature: 0.0,

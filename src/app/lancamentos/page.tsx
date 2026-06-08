@@ -103,15 +103,23 @@ export default function LancamentosPage() {
     }
   };
 
-  const categorizarSemCategoria = async () => {
+  const categorizarSemCategoria = async (usarGemini = false) => {
     setCategorizando(true);
-    await fetch("/api/categorizar", {
+    const res = await fetch("/api/categorizar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ usarGemini }),
     });
+    const json = await res.json();
     setCategorizando(false);
     carregar();
+
+    const partes: string[] = [];
+    if (json.porMemoria > 0) partes.push(`🧠 ${json.porMemoria} pela Memória da IA`);
+    if (json.porRegras > 0)  partes.push(`📏 ${json.porRegras} pelas regras`);
+    if (json.porGemini > 0)  partes.push(`🤖 ${json.porGemini} pelo Gemini`);
+    if (json.semCategoria > 0) partes.push(`⚠️ ${json.semCategoria} sem categoria`);
+    showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria encontrada.");
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -129,14 +137,26 @@ export default function LancamentosPage() {
         <h1 className="text-2xl font-bold text-slate-800">
           Lançamentos <span className="text-base font-normal text-slate-400">({total})</span>
         </h1>
-        <button
-          className="btn btn-secondary"
-          onClick={categorizarSemCategoria}
-          disabled={categorizando}
-        >
-          {categorizando ? <span className="spinner" /> : "🤖"}
-          Categorizar sem categoria
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-secondary"
+            onClick={() => categorizarSemCategoria(false)}
+            disabled={categorizando}
+            title="Aplica Memória da IA + regras manuais (rápido, sem API)"
+          >
+            {categorizando ? <span className="spinner" /> : "🧠"}
+            Categorizar (Memória + Regras)
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => categorizarSemCategoria(true)}
+            disabled={categorizando}
+            title="Usa Memória da IA, regras e Gemini para os que restarem (lento)"
+          >
+            {categorizando ? <span className="spinner" /> : "🤖"}
+            + Gemini
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
