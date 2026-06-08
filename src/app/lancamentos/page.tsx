@@ -357,50 +357,70 @@ function LancamentosContent() {
 
 function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const [aberto, setAberto] = useState<"entradas" | "saidas" | null>(null);
+
+  const toggle = (tipo: "entradas" | "saidas") =>
+    setAberto((prev) => (prev === tipo ? null : tipo));
+
+  const catsEntrada = resumo.categorias.filter((c) => resumo.entradas[c]).sort((a, b) => resumo.entradas[b] - resumo.entradas[a]);
+  const catsSaida   = resumo.categorias.filter((c) => resumo.saidas[c]).sort((a, b) => resumo.saidas[b] - resumo.saidas[a]);
 
   return (
-    <div className="card p-0 overflow-hidden">
-      <table>
-        <thead>
-          <tr>
-            <th className="w-full">Categoria</th>
-            <th className="text-right whitespace-nowrap min-w-36">↑ Entradas</th>
-            <th className="text-right whitespace-nowrap min-w-36">↓ Saídas</th>
-            <th className="text-right whitespace-nowrap min-w-36">Saldo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resumo.categorias.map((c) => {
-            const e = resumo.entradas[c] || 0;
-            const s = resumo.saidas[c]   || 0;
-            const saldo = e - s;
-            return (
-              <tr key={c}>
-                <td className="text-slate-700">{c}</td>
-                <td className="text-right">
-                  {e ? <span className="valor-positivo">{fmt(e)}</span> : <span className="text-slate-300">—</span>}
-                </td>
-                <td className="text-right">
-                  {s ? <span className="valor-negativo">{fmt(s)}</span> : <span className="text-slate-300">—</span>}
-                </td>
-                <td className="text-right font-medium">
-                  <span className={saldo >= 0 ? "valor-positivo" : "valor-negativo"}>{fmt(saldo)}</span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
-            <td className="text-slate-700">Total</td>
-            <td className="text-right valor-positivo">{fmt(resumo.totalEntradas)}</td>
-            <td className="text-right valor-negativo">{fmt(resumo.totalSaidas)}</td>
-            <td className={`text-right ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
-              {fmt(resumo.saldo)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+    <div className="card p-0 overflow-hidden divide-y divide-slate-100">
+
+      {/* Linha Entradas */}
+      <button
+        onClick={() => toggle("entradas")}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-green-50/50 transition-colors group"
+      >
+        <div className="flex items-center gap-2">
+          <span className={`text-xs transition-transform ${aberto === "entradas" ? "rotate-90" : ""}`}>▶</span>
+          <span className="font-semibold text-green-700">↑ Entradas</span>
+          <span className="text-xs text-slate-400">({catsEntrada.length} categorias)</span>
+        </div>
+        <span className="font-bold valor-positivo">{fmt(resumo.totalEntradas)}</span>
+      </button>
+      {aberto === "entradas" && (
+        <div className="bg-green-50/30">
+          {catsEntrada.map((c) => (
+            <div key={c} className="flex items-center justify-between px-8 py-1.5 text-sm border-b border-green-100/60 last:border-0">
+              <span className="text-slate-600">{c}</span>
+              <span className="valor-positivo">{fmt(resumo.entradas[c])}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Linha Saídas */}
+      <button
+        onClick={() => toggle("saidas")}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-red-50/50 transition-colors group"
+      >
+        <div className="flex items-center gap-2">
+          <span className={`text-xs transition-transform ${aberto === "saidas" ? "rotate-90" : ""}`}>▶</span>
+          <span className="font-semibold text-red-700">↓ Saídas</span>
+          <span className="text-xs text-slate-400">({catsSaida.length} categorias)</span>
+        </div>
+        <span className="font-bold valor-negativo">{fmt(resumo.totalSaidas)}</span>
+      </button>
+      {aberto === "saidas" && (
+        <div className="bg-red-50/20">
+          {catsSaida.map((c) => (
+            <div key={c} className="flex items-center justify-between px-8 py-1.5 text-sm border-b border-red-100/60 last:border-0">
+              <span className="text-slate-600">{c}</span>
+              <span className="valor-negativo">{fmt(resumo.saidas[c])}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Saldo */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50">
+        <span className="font-bold text-slate-700">Saldo</span>
+        <span className={`font-bold text-lg ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
+          {fmt(resumo.saldo)}
+        </span>
+      </div>
     </div>
   );
 }
