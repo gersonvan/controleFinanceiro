@@ -1,0 +1,217 @@
+import { mapearCategoria } from "./categorias";
+
+export interface LancamentoImportado {
+  data: Date;
+  descricao: string;
+  categoria: string;
+  valor: number;
+  tipo: "Entrada" | "Saída";
+  conta: string;
+  mesReferencia: Date;
+  fonte: string;
+}
+
+function parseDateBR(str: string): Date | null {
+  const parts = str.split("/");
+  if (parts.length === 3) {
+    const [d, m, y] = parts.map(Number);
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y))
+      return new Date(y, m - 1, d);
+  }
+  return null;
+}
+
+export function parseFaturaC6(
+  rows: string[][],
+  fileName: string,
+  memoriaIA: Map<string, string>
+): LancamentoImportado[] {
+  const lancamentos: LancamentoImportado[] = [];
+  const ano = fileName.substring(7, 11);
+  const mes = fileName.substring(12, 14);
+  const mesReferencia = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+
+  for (const row of rows) {
+    if (row.length < 9 || row[4]?.includes("Inclusao de Pagamento")) continue;
+
+    const valorCsv = parseFloat(row[8]?.replace(",", "."));
+    if (isNaN(valorCsv)) continue;
+
+    let valor: number;
+    let tipo: "Entrada" | "Saída";
+    let categoria = row[3] || "";
+
+    if (valorCsv > 0) {
+      valor = -valorCsv;
+      tipo = "Saída";
+    } else {
+      valor = Math.abs(valorCsv);
+      tipo = "Entrada";
+      if (categoria === "-") categoria = "Estorno";
+    }
+
+    let descricao = row[4] || "";
+    const parcela = row[5];
+    if (parcela && parcela !== "Única") descricao = `${descricao} (${parcela})`;
+
+    const dataStr = row[0];
+    const data = parseDateBR(dataStr);
+    if (!data) continue;
+
+    categoria = mapearCategoria(descricao, categoria, tipo, memoriaIA);
+
+    lancamentos.push({
+      data,
+      descricao,
+      categoria,
+      valor,
+      tipo,
+      conta: "C6 Crédito",
+      mesReferencia,
+      fonte: `Importado C6Crédito`,
+    });
+  }
+  return lancamentos;
+}
+
+export function parseExtratoC6(
+  rows: string[][],
+  memoriaIA: Map<string, string>
+): LancamentoImportado[] {
+  const lancamentos: LancamentoImportado[] = [];
+
+  for (const row of rows) {
+    if (row.length < 7) continue;
+
+    const entradaStr = row[4]?.replace(/,/g, "");
+    const saidaStr = row[5]?.replace(/,/g, "");
+    const entrada = parseFloat(entradaStr);
+    const saida = parseFloat(saidaStr);
+
+    let valor = 0;
+    if (!isNaN(entrada) && entrada > 0) {
+      valor = entrada;
+    } else if (!isNaN(saida) && saida > 0) {
+      valor = -saida;
+    } else {
+      continue;
+    }
+
+    const dataStr = row[0];
+    const data = parseDateBR(dataStr);
+    if (!data) continue;
+
+    const titulo = row[2] || "";
+    const detalhe = row[3] || "";
+    let descricao = titulo;
+    if (titulo.toLowerCase().includes("debito de cartao")) descricao = detalhe;
+
+    const tipo: "Entrada" | "Saída" = valor > 0 ? "Entrada" : "Saída";
+    const categoria = mapearCategoria(descricao, "", tipo, memoriaIA);
+
+    const [, mesStr, anoStr] = dataStr.split("/");
+    const mesReferencia = new Date(parseInt(anoStr), parseInt(mesStr) - 1, 1);
+
+    lancamentos.push({
+      data,
+      descricao,
+      categoria,
+      valor,
+      tipo,
+      conta: "C6 Débito",
+      mesReferencia,
+      fonte: `Importado C6Débito`,
+    });
+  }
+  return lancamentos;
+}
+
+export function parseFaturaNubank(
+  rows: string[][],
+  fileName: string,
+  memoriaIA: Map<string, string>
+): LancamentoImportado[] {
+  const lancamentos: LancamentoImportado[] = [];
+  const anoArquivo = fileName.substring(7, 11);
+  const mesArquivo = fileName.substring(12, 14);
+  const mesReferencia = new Date(parseInt(anoArquivo), parseInt(mesArquivo) - 1, 1);
+
+  for (const row of rows) {
+    if (row.length < 3) continue;
+
+    const descricao = row[1] || "";
+    if (descricao === "Pagamento recebido") continue;
+
+    const valorCsv = parseFloat(row[2]);
+    if (isNaN(valorCsv)) continue;
+
+    let valor: number;
+    let tipo: "Entrada" | "Saída";
+    let categoria = "";
+
+    if (valorCsv > 0) {
+      valor = -valorCsv;
+      tipo = "Saída";
+    } else {
+      valor = Math.abs(valorCsv);
+      tipo = "Entrada";
+      categoria = "Estorno";
+    }
+
+    const dateParts = row[0]?.split("-");
+    if (!dateParts || dateParts.length < 3) continue;
+    const [anoCsv, mesCsv, diaCsv] = dateParts.map(Number);
+    const data = new Date(anoCsv, mesCsv - 1, diaCsv);
+
+    categoria = mapearCategoria(descricao, categoria, tipo, memoriaIA);
+
+    lancamentos.push({
+      data,
+      descricao,
+      categoria,
+      valor,
+      tipo,
+      conta: "Nubank Crédito",
+      mesReferencia,
+      fonte: `Importado NubankCrédito`,
+    });
+  }
+  return lancamentos;
+}
+
+export function parseExtratoNubank(
+  rows: string[][],
+  memoriaIA: Map<string, string>
+): LancamentoImportado[] {
+  const lancamentos: LancamentoImportado[] = [];
+
+  for (const row of rows) {
+    if (row.length < 4) continue;
+
+    const valor = parseFloat(row[1]);
+    if (isNaN(valor)) continue;
+
+    const dataStr = row[0];
+    const descricao = row[3] || "";
+    const tipo: "Entrada" | "Saída" = valor > 0 ? "Entrada" : "Saída";
+    const categoria = mapearCategoria(descricao, "", tipo, memoriaIA);
+
+    const data = parseDateBR(dataStr);
+    if (!data) continue;
+
+    const [, mesStr, anoStr] = dataStr.split("/");
+    const mesReferencia = new Date(parseInt(anoStr), parseInt(mesStr) - 1, 1);
+
+    lancamentos.push({
+      data,
+      descricao,
+      categoria,
+      valor,
+      tipo,
+      conta: "Nubank Débito",
+      mesReferencia,
+      fonte: `Importado NubankDébito`,
+    });
+  }
+  return lancamentos;
+}

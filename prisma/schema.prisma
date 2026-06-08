@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Lancamento {
+  id            Int       @id @default(autoincrement())
+  data          DateTime
+  descricao     String
+  categoria     String?
+  valor         Float
+  tipo          String
+  conta         String
+  status        String    @default("Paga")
+  fonte         String?
+  mesReferencia DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([data])
+  @@index([categoria])
+  @@index([conta])
+  @@index([tipo])
+}
+
+model MemoriaIA {
+  id               Int      @id @default(autoincrement())
+  descricao        String   @unique
+  categoriaCorreta String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
