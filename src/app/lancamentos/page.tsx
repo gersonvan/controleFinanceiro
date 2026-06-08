@@ -358,86 +358,49 @@ function LancamentosContent() {
 function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  // Separa categorias com entradas das com saídas
-  const catsEntrada = resumo.categorias.filter((c) => resumo.entradas[c]);
-  const catsSaida   = resumo.categorias.filter((c) => resumo.saidas[c]);
-
   return (
     <div className="card p-0 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table>
-          <thead>
-            <tr>
-              <th className="sticky left-0 bg-slate-50 z-10 min-w-24">Tipo</th>
-              {resumo.categorias.map((c) => (
-                <th key={c} className="text-right whitespace-nowrap font-medium text-xs normal-case tracking-normal">
-                  {c}
-                </th>
-              ))}
-              <th className="text-right sticky right-0 bg-slate-50 z-10 min-w-28">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Linha Entradas */}
-            {catsEntrada.length > 0 && (
-              <tr className="bg-green-50/50">
-                <td className="sticky left-0 bg-green-50 z-10 font-semibold text-green-700 text-sm whitespace-nowrap">
-                  ↑ Entradas
+      <table>
+        <thead>
+          <tr>
+            <th className="w-full">Categoria</th>
+            <th className="text-right whitespace-nowrap min-w-36">↑ Entradas</th>
+            <th className="text-right whitespace-nowrap min-w-36">↓ Saídas</th>
+            <th className="text-right whitespace-nowrap min-w-36">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {resumo.categorias.map((c) => {
+            const e = resumo.entradas[c] || 0;
+            const s = resumo.saidas[c]   || 0;
+            const saldo = e - s;
+            return (
+              <tr key={c}>
+                <td className="text-slate-700">{c}</td>
+                <td className="text-right">
+                  {e ? <span className="valor-positivo">{fmt(e)}</span> : <span className="text-slate-300">—</span>}
                 </td>
-                {resumo.categorias.map((c) => (
-                  <td key={c} className="text-right text-sm">
-                    {resumo.entradas[c]
-                      ? <span className="valor-positivo">{fmt(resumo.entradas[c])}</span>
-                      : <span className="text-slate-200">—</span>}
-                  </td>
-                ))}
-                <td className="text-right sticky right-0 bg-green-50 z-10 font-bold valor-positivo whitespace-nowrap">
-                  {fmt(resumo.totalEntradas)}
+                <td className="text-right">
+                  {s ? <span className="valor-negativo">{fmt(s)}</span> : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="text-right font-medium">
+                  <span className={saldo >= 0 ? "valor-positivo" : "valor-negativo"}>{fmt(saldo)}</span>
                 </td>
               </tr>
-            )}
-
-            {/* Linha Saídas */}
-            {catsSaida.length > 0 && (
-              <tr className="bg-red-50/40">
-                <td className="sticky left-0 bg-red-50/60 z-10 font-semibold text-red-700 text-sm whitespace-nowrap">
-                  ↓ Saídas
-                </td>
-                {resumo.categorias.map((c) => (
-                  <td key={c} className="text-right text-sm">
-                    {resumo.saidas[c]
-                      ? <span className="valor-negativo">{fmt(resumo.saidas[c])}</span>
-                      : <span className="text-slate-200">—</span>}
-                  </td>
-                ))}
-                <td className="text-right sticky right-0 bg-red-50/60 z-10 font-bold valor-negativo whitespace-nowrap">
-                  {fmt(resumo.totalSaidas)}
-                </td>
-              </tr>
-            )}
-
-            {/* Linha Saldo */}
-            <tr className="border-t-2 border-slate-200 bg-slate-50">
-              <td className="sticky left-0 bg-slate-100 z-10 font-bold text-slate-700 text-sm whitespace-nowrap">
-                Saldo
-              </td>
-              {resumo.categorias.map((c) => {
-                const s = (resumo.entradas[c] || 0) - (resumo.saidas[c] || 0);
-                return (
-                  <td key={c} className="text-right text-xs font-medium">
-                    {resumo.entradas[c] || resumo.saidas[c]
-                      ? <span className={s >= 0 ? "valor-positivo" : "valor-negativo"}>{fmt(s)}</span>
-                      : <span className="text-slate-200">—</span>}
-                  </td>
-                );
-              })}
-              <td className={`text-right sticky right-0 bg-slate-100 z-10 font-bold whitespace-nowrap ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
-                {fmt(resumo.saldo)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+            <td className="text-slate-700">Total</td>
+            <td className="text-right valor-positivo">{fmt(resumo.totalEntradas)}</td>
+            <td className="text-right valor-negativo">{fmt(resumo.totalSaidas)}</td>
+            <td className={`text-right ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
+              {fmt(resumo.saldo)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
