@@ -3,24 +3,30 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
+import type { ResumoFiltro } from "@/app/api/resumo/route";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
 const fmtData = (d: string) =>
   new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+const toISO = (d: Date) => d.toISOString().slice(0, 10);
+
+function mesAtual()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth(), 1)),      f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
+function mesAnterior()  { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 1, 1)),  f: toISO(new Date(h.getFullYear(), h.getMonth(), 0)) }; }
+function ultimos3()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 2, 1)),  f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
+function esteAno()      { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), 0, 1)),                 f: toISO(new Date(h.getFullYear(), 11, 31)) }; }
+
+const PRESETS = [
+  { label: "Este mês",      fn: mesAtual },
+  { label: "Mês anterior",  fn: mesAnterior },
+  { label: "Últimos 3m",    fn: ultimos3 },
+  { label: "Este ano",      fn: esteAno },
+];
 
 interface Lancamento {
-  id: number;
-  data: string;
-  descricao: string;
-  categoria: string | null;
-  valor: number;
-  tipo: string;
-  conta: string;
-  status: string;
-  mesReferencia: string | null;
-  pessoa: string | null;
+  id: number; data: string; descricao: string; categoria: string | null;
+  valor: number; tipo: string; conta: string; status: string;
+  mesReferencia: string | null; pessoa: string | null;
 }
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
@@ -28,8 +34,8 @@ const TODAS_CATEGORIAS = [...CATEGORIAS_SAIDA, ...CATEGORIAS_ENTRADA].sort((a, b
   a.localeCompare(b, "pt-BR")
 );
 
-function isEmprestimo(categoria: string | null) {
-  return CATEGORIAS_EMPRESTIMO.includes(categoria as never);
+function isEmprestimo(cat: string | null) {
+  return CATEGORIAS_EMPRESTIMO.includes(cat as never);
 }
 
 export default function LancamentosPage() {
@@ -42,17 +48,19 @@ export default function LancamentosPage() {
 
 function LancamentosContent() {
   const searchParams = useSearchParams();
+  const initMes = mesAtual(); // padrão: mês atual
 
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [editando, setEditando] = useState<number | null>(null);
+  const [lancamentos, setLancamentos]     = useState<Lancamento[]>([]);
+  const [total, setTotal]                 = useState(0);
+  const [page, setPage]                   = useState(1);
+  const [loading, setLoading]             = useState(true);
+  const [resumo, setResumo]               = useState<ResumoFiltro | null>(null);
+  const [editando, setEditando]           = useState<number | null>(null);
   const [categoriaEdit, setCategoriaEdit] = useState("");
-  const [pessoaEdit, setPessoaEdit] = useState("");
+  const [pessoaEdit, setPessoaEdit]       = useState("");
   const [categorizando, setCategorizando] = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
-  const [toastMsg, setToastMsg] = useState("");
+  const [toastMsg, setToastMsg]           = useState("");
   const limit = 50;
 
   const [filtros, setFiltros] = useState({
@@ -60,34 +68,54 @@ function LancamentosContent() {
     conta: "",
     categoria: "",
     tipo: "",
-    dataInicio: "",
-    dataFim: "",
+    dataInicio: initMes.i,
+    dataFim:    initMes.f,
     pessoa: searchParams.get("pessoa") || "",
   });
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 2500);
+    setTimeout(() => setToastMsg(""), 2800);
   };
+
+  const buildParams = useCallback((extra?: Record<string, string>) => {
+    const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (filtros.busca)      p.set("busca",      filtros.busca);
+    if (filtros.conta)      p.set("conta",      filtros.conta);
+    if (filtros.categoria)  p.set("categoria",  filtros.categoria);
+    if (filtros.tipo)       p.set("tipo",       filtros.tipo);
+    if (filtros.pessoa)     p.set("pessoa",     filtros.pessoa);
+    if (filtros.dataInicio) p.set("dataInicio", filtros.dataInicio);
+    if (filtros.dataFim)    p.set("dataFim",    filtros.dataFim);
+    if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    return p;
+  }, [page, filtros]);
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-    if (filtros.busca) params.set("busca", filtros.busca);
-    if (filtros.conta) params.set("conta", filtros.conta);
-    if (filtros.categoria) params.set("categoria", filtros.categoria);
-    if (filtros.tipo) params.set("tipo", filtros.tipo);
-    if (filtros.pessoa) params.set("pessoa", filtros.pessoa);
-    if (filtros.dataInicio) params.set("dataInicio", filtros.dataInicio);
-    if (filtros.dataFim) params.set("dataFim", filtros.dataFim);
-    const res = await fetch(`/api/lancamentos?${params}`);
-    const json = await res.json();
-    setLancamentos(json.lancamentos);
-    setTotal(json.total);
+    const [resL, resR] = await Promise.all([
+      fetch(`/api/lancamentos?${buildParams()}`),
+      fetch(`/api/resumo?${buildParams({ page: "1", limit: "9999" })}`),
+    ]);
+    const [jsonL, jsonR] = await Promise.all([resL.json(), resR.json()]);
+    setLancamentos(jsonL.lancamentos);
+    setTotal(jsonL.total);
+    setResumo(jsonR);
     setLoading(false);
-  }, [page, filtros]);
+  }, [buildParams]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const aplicarPreset = (fn: () => { i: string; f: string }) => {
+    const { i, f } = fn();
+    setFiltros((prev) => ({ ...prev, dataInicio: i, dataFim: f }));
+    setPage(1);
+  };
+
+  const setFiltro = (key: string, value: string) => {
+    setFiltros((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
 
   const salvarCategoria = async (id: number) => {
     await fetch("/api/lancamentos", {
@@ -110,10 +138,7 @@ function LancamentosContent() {
   };
 
   const salvarNaMemoria = async (l: Lancamento) => {
-    if (!l.categoria) {
-      showToast("⚠️ Defina uma categoria antes de salvar na Memória da IA.");
-      return;
-    }
+    if (!l.categoria) { showToast("⚠️ Defina uma categoria antes de salvar na Memória da IA."); return; }
     setSalvandoMemoria(l.id);
     const res = await fetch("/api/memoria-ia", {
       method: "POST",
@@ -135,24 +160,25 @@ function LancamentosContent() {
     setCategorizando(false);
     carregar();
     const partes: string[] = [];
-    if (json.porMemoria > 0) partes.push(`🧠 ${json.porMemoria} pela Memória da IA`);
-    if (json.porRegras > 0)  partes.push(`📏 ${json.porRegras} pelas regras`);
-    if (json.porGemini > 0)  partes.push(`🤖 ${json.porGemini} pelo Gemini`);
+    if (json.porMemoria > 0)   partes.push(`🧠 ${json.porMemoria} pela Memória`);
+    if (json.porRegras > 0)    partes.push(`📏 ${json.porRegras} pelas regras`);
+    if (json.porGemini > 0)    partes.push(`🤖 ${json.porGemini} pelo Gemini`);
     if (json.semCategoria > 0) partes.push(`⚠️ ${json.semCategoria} sem categoria`);
-    showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria encontrada.");
+    showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
   };
 
-  const totalPages = Math.ceil(total / limit);
+  const totalPages  = Math.ceil(total / limit);
   const filtrandoPessoa = !!filtros.pessoa;
 
   return (
     <div className="space-y-4 max-w-full">
       {toastMsg && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-lg text-center">
           {toastMsg}
         </div>
       )}
 
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-800">
@@ -161,62 +187,78 @@ function LancamentosContent() {
           {filtrandoPessoa && (
             <span className="badge bg-purple-100 text-purple-700 text-sm">
               🤝 {filtros.pessoa}
-              <button
-                className="ml-1.5 hover:text-purple-900"
-                onClick={() => setFiltros({ ...filtros, pessoa: "" })}
-              >×</button>
+              <button className="ml-1.5 hover:text-purple-900" onClick={() => setFiltro("pessoa", "")}>×</button>
             </span>
           )}
         </div>
         <div className="flex gap-2">
-          <button
-            className="btn btn-secondary"
-            onClick={() => categorizarSemCategoria(false)}
-            disabled={categorizando}
-            title="Aplica Memória da IA + regras manuais (rápido, sem API)"
-          >
-            {categorizando ? <span className="spinner" /> : "🧠"}
-            Categorizar (Memória + Regras)
+          <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Memória da IA + regras (rápido)">
+            {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => categorizarSemCategoria(true)}
-            disabled={categorizando}
-            title="Usa Memória da IA, regras e Gemini para os que restarem (lento)"
-          >
-            {categorizando ? <span className="spinner" /> : "🤖"}
-            + Gemini
+          <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
+            {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
           </button>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="card">
+      <div className="card space-y-3">
+        {/* Presets rápidos */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400 shrink-0">Período:</span>
+          {PRESETS.map((p) => {
+            const { i, f } = p.fn();
+            const ativo = filtros.dataInicio === i && filtros.dataFim === f;
+            return (
+              <button
+                key={p.label}
+                onClick={() => aplicarPreset(p.fn)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                  ativo
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setFiltros((p) => ({ ...p, dataInicio: "", dataFim: "" }))}
+            className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-400 hover:border-slate-400 transition-all"
+          >
+            Limpar datas
+          </button>
+        </div>
+
+        {/* Filtros detalhados */}
         <div className="grid grid-cols-3 gap-3">
-          <input
-            placeholder="Buscar descrição…"
-            value={filtros.busca}
-            onChange={(e) => { setFiltros({ ...filtros, busca: e.target.value }); setPage(1); }}
-          />
-          <select value={filtros.conta} onChange={(e) => { setFiltros({ ...filtros, conta: e.target.value }); setPage(1); }}>
+          <input placeholder="Buscar descrição…" value={filtros.busca} onChange={(e) => setFiltro("busca", e.target.value)} />
+          <select value={filtros.conta} onChange={(e) => setFiltro("conta", e.target.value)}>
             <option value="">Todas as contas</option>
             {CONTAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={filtros.categoria} onChange={(e) => { setFiltros({ ...filtros, categoria: e.target.value }); setPage(1); }}>
+          <select value={filtros.categoria} onChange={(e) => setFiltro("categoria", e.target.value)}>
             <option value="">Todas as categorias</option>
             <option value="__sem__">⚠️ Sem categoria</option>
             {TODAS_CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={filtros.tipo} onChange={(e) => { setFiltros({ ...filtros, tipo: e.target.value }); setPage(1); }}>
+          <select value={filtros.tipo} onChange={(e) => setFiltro("tipo", e.target.value)}>
             <option value="">Entrada e Saída</option>
             <option value="Entrada">Entradas</option>
             <option value="Saída">Saídas</option>
           </select>
-          <input type="date" value={filtros.dataInicio} onChange={(e) => { setFiltros({ ...filtros, dataInicio: e.target.value }); setPage(1); }} />
-          <input type="date" value={filtros.dataFim} onChange={(e) => { setFiltros({ ...filtros, dataFim: e.target.value }); setPage(1); }} />
+          <input type="date" value={filtros.dataInicio} onChange={(e) => setFiltro("dataInicio", e.target.value)} />
+          <input type="date" value={filtros.dataFim}    onChange={(e) => setFiltro("dataFim",    e.target.value)} />
         </div>
       </div>
 
+      {/* ── Tabela resumo ── */}
+      {resumo && !loading && resumo.categorias.length > 0 && (
+        <TabelaResumo resumo={resumo} />
+      )}
+
+      {/* ── Lançamentos ── */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><div className="spinner" /></div>
@@ -226,13 +268,8 @@ function LancamentosContent() {
               <table>
                 <thead>
                   <tr>
-                    <th>Data</th>
-                    <th>Descrição</th>
-                    <th>Categoria</th>
-                    <th className="text-right">Valor</th>
-                    <th>Conta</th>
-                    <th>Mês Ref.</th>
-                    <th></th>
+                    <th>Data</th><th>Descrição</th><th>Categoria</th>
+                    <th className="text-right">Valor</th><th>Conta</th><th>Mês Ref.</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,9 +278,7 @@ function LancamentosContent() {
                       <td className="whitespace-nowrap text-slate-500">{fmtData(l.data)}</td>
                       <td className="max-w-xs">
                         <div className="truncate" title={l.descricao}>{l.descricao}</div>
-                        {l.pessoa && (
-                          <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>
-                        )}
+                        {l.pessoa && <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>}
                       </td>
                       <td>
                         {editando === l.id ? (
@@ -271,17 +306,11 @@ function LancamentosContent() {
                           </div>
                         ) : (
                           <button
-                            onClick={() => {
-                              setEditando(l.id);
-                              setCategoriaEdit(l.categoria || "");
-                              setPessoaEdit(l.pessoa || "");
-                            }}
+                            onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); setPessoaEdit(l.pessoa || ""); }}
                             className={`badge cursor-pointer hover:opacity-80 ${
-                              isEmprestimo(l.categoria)
-                                ? "bg-purple-50 text-purple-700"
-                                : l.categoria
-                                  ? "bg-blue-50 text-blue-700"
-                                  : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
+                              isEmprestimo(l.categoria) ? "bg-purple-50 text-purple-700"
+                              : l.categoria ? "bg-blue-50 text-blue-700"
+                              : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
                             }`}
                           >
                             {l.categoria || "Sem categoria"}
@@ -291,27 +320,16 @@ function LancamentosContent() {
                       <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
                         {fmt(l.valor)}
                       </td>
-                      <td>
-                        <span className="badge bg-slate-100 text-slate-600">{l.conta}</span>
-                      </td>
-                      <td className="text-slate-400 text-xs">
-                        {l.mesReferencia ? fmtData(l.mesReferencia) : "-"}
-                      </td>
+                      <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
+                      <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtData(l.mesReferencia) : "-"}</td>
                       <td>
                         <div className="flex items-center gap-1">
-                          <button
-                            title="Salvar regra na Memória da IA"
-                            onClick={() => salvarNaMemoria(l)}
-                            disabled={salvandoMemoria === l.id}
-                            className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50"
-                          >
+                          <button title="Salvar na Memória da IA" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
+                            className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50">
                             {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
                           </button>
-                          <button
-                            title="Excluir lançamento"
-                            onClick={() => excluir(l.id)}
-                            className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors"
-                          >×</button>
+                          <button title="Excluir" onClick={() => excluir(l.id)}
+                            className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors">×</button>
                         </div>
                       </td>
                     </tr>
@@ -321,17 +339,104 @@ function LancamentosContent() {
             </div>
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-                <span className="text-sm text-slate-500">
-                  Página {page} de {totalPages} ({total} registros)
-                </span>
+                <span className="text-sm text-slate-500">Página {page} de {totalPages} ({total} registros)</span>
                 <div className="flex gap-1">
-                  <button className="btn btn-secondary text-xs" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Anterior</button>
+                  <button className="btn btn-secondary text-xs" disabled={page <= 1}          onClick={() => setPage(page - 1)}>← Anterior</button>
                   <button className="btn btn-secondary text-xs" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Próxima →</button>
                 </div>
               </div>
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Componente da tabela resumo ──────────────────────────────────────────────
+
+function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // Separa categorias com entradas das com saídas
+  const catsEntrada = resumo.categorias.filter((c) => resumo.entradas[c]);
+  const catsSaida   = resumo.categorias.filter((c) => resumo.saidas[c]);
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table>
+          <thead>
+            <tr>
+              <th className="sticky left-0 bg-slate-50 z-10 min-w-24">Tipo</th>
+              {resumo.categorias.map((c) => (
+                <th key={c} className="text-right whitespace-nowrap font-medium text-xs normal-case tracking-normal">
+                  {c}
+                </th>
+              ))}
+              <th className="text-right sticky right-0 bg-slate-50 z-10 min-w-28">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Linha Entradas */}
+            {catsEntrada.length > 0 && (
+              <tr className="bg-green-50/50">
+                <td className="sticky left-0 bg-green-50 z-10 font-semibold text-green-700 text-sm whitespace-nowrap">
+                  ↑ Entradas
+                </td>
+                {resumo.categorias.map((c) => (
+                  <td key={c} className="text-right text-sm">
+                    {resumo.entradas[c]
+                      ? <span className="valor-positivo">{fmt(resumo.entradas[c])}</span>
+                      : <span className="text-slate-200">—</span>}
+                  </td>
+                ))}
+                <td className="text-right sticky right-0 bg-green-50 z-10 font-bold valor-positivo whitespace-nowrap">
+                  {fmt(resumo.totalEntradas)}
+                </td>
+              </tr>
+            )}
+
+            {/* Linha Saídas */}
+            {catsSaida.length > 0 && (
+              <tr className="bg-red-50/40">
+                <td className="sticky left-0 bg-red-50/60 z-10 font-semibold text-red-700 text-sm whitespace-nowrap">
+                  ↓ Saídas
+                </td>
+                {resumo.categorias.map((c) => (
+                  <td key={c} className="text-right text-sm">
+                    {resumo.saidas[c]
+                      ? <span className="valor-negativo">{fmt(resumo.saidas[c])}</span>
+                      : <span className="text-slate-200">—</span>}
+                  </td>
+                ))}
+                <td className="text-right sticky right-0 bg-red-50/60 z-10 font-bold valor-negativo whitespace-nowrap">
+                  {fmt(resumo.totalSaidas)}
+                </td>
+              </tr>
+            )}
+
+            {/* Linha Saldo */}
+            <tr className="border-t-2 border-slate-200 bg-slate-50">
+              <td className="sticky left-0 bg-slate-100 z-10 font-bold text-slate-700 text-sm whitespace-nowrap">
+                Saldo
+              </td>
+              {resumo.categorias.map((c) => {
+                const s = (resumo.entradas[c] || 0) - (resumo.saidas[c] || 0);
+                return (
+                  <td key={c} className="text-right text-xs font-medium">
+                    {resumo.entradas[c] || resumo.saidas[c]
+                      ? <span className={s >= 0 ? "valor-positivo" : "valor-negativo"}>{fmt(s)}</span>
+                      : <span className="text-slate-200">—</span>}
+                  </td>
+                );
+              })}
+              <td className={`text-right sticky right-0 bg-slate-100 z-10 font-bold whitespace-nowrap ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
+                {fmt(resumo.saldo)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
