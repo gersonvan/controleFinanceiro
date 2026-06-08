@@ -124,6 +124,9 @@ export function mapearCategoria(
     return categoriaOriginal || "Outras Entradas";
   }
 
+  // Educação (antes das regras de moradia para evitar falso-positivo)
+  if (d.includes("melimais")) return "Mensalidades e Cursos";
+
   // Moradia
   if (d.includes("enel") || d.includes("brisanet")) return "Contas de Consumo";
   if (d.includes("his emp imobiliarios ltda")) return "Aluguel";

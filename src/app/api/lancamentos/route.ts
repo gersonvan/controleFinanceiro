@@ -61,3 +61,22 @@ export async function PATCH(req: NextRequest) {
   });
   return NextResponse.json(lancamento);
 }
+
+/** Corrige em massa categorias erradas no banco */
+export async function PUT(req: NextRequest) {
+  const { descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
+    descricaoContem: string;
+    categoriaErrada: string;
+    categoriaCorreta: string;
+  };
+
+  const result = await prisma.lancamento.updateMany({
+    where: {
+      descricao: { contains: descricaoContem, mode: "insensitive" },
+      categoria: categoriaErrada,
+    },
+    data: { categoria: categoriaCorreta },
+  });
+
+  return NextResponse.json({ corrigidos: result.count });
+}
