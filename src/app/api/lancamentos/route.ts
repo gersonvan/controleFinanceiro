@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const categoria = searchParams.get("categoria");
   const tipo = searchParams.get("tipo");
   const busca = searchParams.get("busca");
+  const pessoa = searchParams.get("pessoa");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
 
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest) {
   if (categoria === "__sem__") where.categoria = null;
   else if (categoria) where.categoria = categoria;
   if (tipo) where.tipo = tipo;
+  if (pessoa) where.pessoa = { contains: pessoa, mode: "insensitive" };
   if (busca) where.descricao = { contains: busca, mode: "insensitive" };
   if (dataInicio || dataFim) {
     where.data = {};

@@ -17,6 +17,7 @@ model Lancamento {
   status        String    @default("Paga")
   fonte         String?
   mesReferencia DateTime?
+  pessoa        String?
   createdAt     DateTime  @default(now())
 
   @@index([data])

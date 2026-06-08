@@ -7,6 +7,7 @@ const links = [
   { href: "/lancamentos", label: "Lançamentos", icon: "📋" },
   { href: "/importar", label: "Importar CSV", icon: "📂" },
   { href: "/previsao", label: "Previsão", icon: "🔮" },
+  { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
   { href: "/memoria-ia", label: "Memória da IA", icon: "🧠" },
 ];
 

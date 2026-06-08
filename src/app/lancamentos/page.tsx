@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA } from "@/lib/categorias";
+import { useSearchParams } from "next/navigation";
+import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
 
 const fmt = (v: number) =>
@@ -19,6 +20,7 @@ interface Lancamento {
   conta: string;
   status: string;
   mesReferencia: string | null;
+  pessoa: string | null;
 }
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
@@ -26,13 +28,20 @@ const TODAS_CATEGORIAS = [...CATEGORIAS_SAIDA, ...CATEGORIAS_ENTRADA].sort((a, b
   a.localeCompare(b, "pt-BR")
 );
 
+function isEmprestimo(categoria: string | null) {
+  return CATEGORIAS_EMPRESTIMO.includes(categoria as never);
+}
+
 export default function LancamentosPage() {
+  const searchParams = useSearchParams();
+
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<number | null>(null);
   const [categoriaEdit, setCategoriaEdit] = useState("");
+  const [pessoaEdit, setPessoaEdit] = useState("");
   const [categorizando, setCategorizando] = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState("");
@@ -45,6 +54,7 @@ export default function LancamentosPage() {
     tipo: "",
     dataInicio: "",
     dataFim: "",
+    pessoa: searchParams.get("pessoa") || "",
   });
 
   const showToast = (msg: string) => {
@@ -59,6 +69,7 @@ export default function LancamentosPage() {
     if (filtros.conta) params.set("conta", filtros.conta);
     if (filtros.categoria) params.set("categoria", filtros.categoria);
     if (filtros.tipo) params.set("tipo", filtros.tipo);
+    if (filtros.pessoa) params.set("pessoa", filtros.pessoa);
     if (filtros.dataInicio) params.set("dataInicio", filtros.dataInicio);
     if (filtros.dataFim) params.set("dataFim", filtros.dataFim);
     const res = await fetch(`/api/lancamentos?${params}`);
@@ -74,7 +85,11 @@ export default function LancamentosPage() {
     await fetch("/api/lancamentos", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, categoria: categoriaEdit }),
+      body: JSON.stringify({
+        id,
+        categoria: categoriaEdit || null,
+        pessoa: isEmprestimo(categoriaEdit) ? (pessoaEdit || null) : null,
+      }),
     });
     setEditando(null);
     carregar();
@@ -98,9 +113,7 @@ export default function LancamentosPage() {
       body: JSON.stringify({ descricao: l.descricao, categoriaCorreta: l.categoria }),
     });
     setSalvandoMemoria(null);
-    if (res.ok) {
-      showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória da IA!`);
-    }
+    if (res.ok) showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória da IA!`);
   };
 
   const categorizarSemCategoria = async (usarGemini = false) => {
@@ -113,7 +126,6 @@ export default function LancamentosPage() {
     const json = await res.json();
     setCategorizando(false);
     carregar();
-
     const partes: string[] = [];
     if (json.porMemoria > 0) partes.push(`🧠 ${json.porMemoria} pela Memória da IA`);
     if (json.porRegras > 0)  partes.push(`📏 ${json.porRegras} pelas regras`);
@@ -123,10 +135,10 @@ export default function LancamentosPage() {
   };
 
   const totalPages = Math.ceil(total / limit);
+  const filtrandoPessoa = !!filtros.pessoa;
 
   return (
     <div className="space-y-4 max-w-full">
-      {/* Toast */}
       {toastMsg && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {toastMsg}
@@ -134,9 +146,20 @@ export default function LancamentosPage() {
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">
-          Lançamentos <span className="text-base font-normal text-slate-400">({total})</span>
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-800">
+            Lançamentos <span className="text-base font-normal text-slate-400">({total})</span>
+          </h1>
+          {filtrandoPessoa && (
+            <span className="badge bg-purple-100 text-purple-700 text-sm">
+              🤝 {filtros.pessoa}
+              <button
+                className="ml-1.5 hover:text-purple-900"
+                onClick={() => setFiltros({ ...filtros, pessoa: "" })}
+              >×</button>
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             className="btn btn-secondary"
@@ -171,7 +194,6 @@ export default function LancamentosPage() {
             <option value="">Todas as contas</option>
             {CONTAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          {/* Filtro de categoria */}
           <select value={filtros.categoria} onChange={(e) => { setFiltros({ ...filtros, categoria: e.target.value }); setPage(1); }}>
             <option value="">Todas as categorias</option>
             <option value="__sem__">⚠️ Sem categoria</option>
@@ -207,29 +229,51 @@ export default function LancamentosPage() {
                 </thead>
                 <tbody>
                   {lancamentos.map((l) => (
-                    <tr key={l.id}>
+                    <tr key={l.id} className={isEmprestimo(l.categoria) ? "bg-purple-50/40" : ""}>
                       <td className="whitespace-nowrap text-slate-500">{fmtData(l.data)}</td>
-                      <td className="max-w-xs truncate" title={l.descricao}>{l.descricao}</td>
+                      <td className="max-w-xs">
+                        <div className="truncate" title={l.descricao}>{l.descricao}</div>
+                        {l.pessoa && (
+                          <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>
+                        )}
+                      </td>
                       <td>
                         {editando === l.id ? (
-                          <div className="flex gap-1 items-center">
-                            <CategoriaSelect
-                              value={categoriaEdit}
-                              onChange={setCategoriaEdit}
-                              placeholder="Sem categoria"
-                              className="text-xs py-0.5"
-                              autoFocus
-                            />
-                            <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
-                            <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex gap-1 items-center">
+                              <CategoriaSelect
+                                value={categoriaEdit}
+                                onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
+                                placeholder="Sem categoria"
+                                className="text-xs py-0.5"
+                                autoFocus
+                              />
+                              <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
+                              <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+                            </div>
+                            {isEmprestimo(categoriaEdit) && (
+                              <input
+                                className="text-xs py-0.5 w-full"
+                                placeholder="Nome da pessoa…"
+                                value={pessoaEdit}
+                                onChange={(e) => setPessoaEdit(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && salvarCategoria(l.id)}
+                              />
+                            )}
                           </div>
                         ) : (
                           <button
-                            onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); }}
+                            onClick={() => {
+                              setEditando(l.id);
+                              setCategoriaEdit(l.categoria || "");
+                              setPessoaEdit(l.pessoa || "");
+                            }}
                             className={`badge cursor-pointer hover:opacity-80 ${
-                              l.categoria
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
+                              isEmprestimo(l.categoria)
+                                ? "bg-purple-50 text-purple-700"
+                                : l.categoria
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
                             }`}
                           >
                             {l.categoria || "Sem categoria"}
@@ -247,7 +291,6 @@ export default function LancamentosPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
-                          {/* Salvar na Memória da IA */}
                           <button
                             title="Salvar regra na Memória da IA"
                             onClick={() => salvarNaMemoria(l)}
@@ -256,14 +299,11 @@ export default function LancamentosPage() {
                           >
                             {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
                           </button>
-                          {/* Excluir */}
                           <button
                             title="Excluir lançamento"
                             onClick={() => excluir(l.id)}
                             className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors"
-                          >
-                            ×
-                          </button>
+                          >×</button>
                         </div>
                       </td>
                     </tr>

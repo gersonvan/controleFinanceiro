@@ -4,6 +4,7 @@ export const CATEGORIAS = [
   "Receita de Aluguel",
   "Rendimento Investimentos",
   "Transferência Recebida",
+  "Recebimento de Empréstimo",
   "Outras Entradas",
   "Estorno",
   // Moradia
@@ -29,6 +30,8 @@ export const CATEGORIAS = [
   // Pessoal e Lazer
   "Compras",
   "Lazer e Entretenimento",
+  // Empréstimos
+  "Empréstimo",
   // Financeiro e Transferências
   "Pagamento de Cartão de Crédito",
   "Investimentos (Aportes)",
@@ -55,6 +58,7 @@ export const CATEGORIAS_ENTRADA = [
   "Estorno",
   "Outras Entradas",
   "Receita de Aluguel",
+  "Recebimento de Empréstimo",
   "Rendimento Investimentos",
   "Salário",
   "Transferência Recebida",
@@ -64,6 +68,7 @@ export const CATEGORIAS_ENTRADA = [
 export const CATEGORIAS_SAIDA = [
   "Academia e Bem-estar",
   "Aluguel",
+  "Empréstimo",
   "Automóvel",
   "Casa: Manutenção e Móveis",
   "Compras",
@@ -87,6 +92,9 @@ export const CATEGORIAS_SAIDA = [
   "Transporte por App",
   "Viagem",
 ];
+
+/** Categorias que pertencem ao módulo de empréstimos */
+export const CATEGORIAS_EMPRESTIMO = ["Empréstimo", "Recebimento de Empréstimo"] as const;
 
 export const CATEGORIAS_FIXAS = [
   "Aluguel",
