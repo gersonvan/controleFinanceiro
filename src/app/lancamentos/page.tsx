@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
@@ -33,6 +33,14 @@ function isEmprestimo(categoria: string | null) {
 }
 
 export default function LancamentosPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="spinner" /></div>}>
+      <LancamentosContent />
+    </Suspense>
+  );
+}
+
+function LancamentosContent() {
   const searchParams = useSearchParams();
 
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
