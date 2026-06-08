@@ -6,8 +6,8 @@ export async function POST(req: NextRequest) {
   const { ids } = await req.json() as { ids?: number[] };
 
   const memoria = await prisma.memoriaIA.findMany();
-  const memoriaMap = new Map(
-    memoria.map((m) => [m.descricao.toLowerCase(), m.categoriaCorreta])
+  const memoriaMap = new Map<string, string>(
+    memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
   const where = ids?.length

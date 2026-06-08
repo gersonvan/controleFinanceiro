@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
 
   // Carrega memória da IA
   const memoria = await prisma.memoriaIA.findMany();
-  const memoriaMap = new Map(
-    memoria.map((m) => [m.descricao.toLowerCase(), m.categoriaCorreta])
+  const memoriaMap = new Map<string, string>(
+    memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
   let lancamentos;
