@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {};
   if (conta) where.conta = conta;
-  if (categoria) where.categoria = categoria;
+  if (categoria === "__sem__") where.categoria = null;
+  else if (categoria) where.categoria = categoria;
   if (tipo) where.tipo = tipo;
   if (busca) where.descricao = { contains: busca, mode: "insensitive" };
   if (dataInicio || dataFim) {

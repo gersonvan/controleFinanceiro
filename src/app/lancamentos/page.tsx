@@ -171,9 +171,10 @@ export default function LancamentosPage() {
             <option value="">Todas as contas</option>
             {CONTAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          {/* Filtro de categoria: flat + alfabética para facilitar busca */}
+          {/* Filtro de categoria */}
           <select value={filtros.categoria} onChange={(e) => { setFiltros({ ...filtros, categoria: e.target.value }); setPage(1); }}>
             <option value="">Todas as categorias</option>
+            <option value="__sem__">⚠️ Sem categoria</option>
             {TODAS_CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={filtros.tipo} onChange={(e) => { setFiltros({ ...filtros, tipo: e.target.value }); setPage(1); }}>
