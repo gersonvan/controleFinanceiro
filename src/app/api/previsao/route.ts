@@ -4,6 +4,21 @@ import { CATEGORIAS_FIXAS } from "@/lib/categorias";
 
 const REGEX_PARCELA = /\((\d+)\/(\d+)\)/;
 
+export interface HistoricoItem {
+  mes: string;
+  valor: number;
+}
+
+export interface PrevisaoItem {
+  mes: string;
+  descricao: string;
+  categoria: string;
+  valor: number;
+  tipoPrevisao: string;
+  detalhe: string;
+  historico?: HistoricoItem[];
+}
+
 export async function GET() {
   const hoje = new Date();
   hoje.setDate(1);
@@ -15,18 +30,12 @@ export async function GET() {
       categoria: true,
       valor: true,
       tipo: true,
+      data: true,
       mesReferencia: true,
     },
   });
 
-  const previsoes: Array<{
-    mes: string;
-    descricao: string;
-    categoria: string;
-    valor: number;
-    tipoPrevisao: string;
-    detalhe: string;
-  }> = [];
+  const previsoes: PrevisaoItem[] = [];
 
   // --- 1. Parcelamentos ---
   const parcelasProcessadas = new Set<string>();
@@ -66,20 +75,34 @@ export async function GET() {
           valor,
           tipoPrevisao: "Parcelamento",
           detalhe: `Parcela ${proximaParcela}/${parcelaTotal}`,
+          historico: [{ mes: toMesStr(l.mesReferencia!), valor }],
         });
       }
     }
   }
 
   // --- 2. Gastos Fixos (média) ---
-  const gastosFixos: Record<string, { soma: number; contagem: number }> = {};
+  const gastosFixos: Record<string, {
+    soma: number;
+    contagem: number;
+    registros: HistoricoItem[];
+  }> = {};
 
   for (const l of lancamentos) {
     if (l.tipo === "Saída" && l.categoria && CATEGORIAS_FIXAS.includes(l.categoria)) {
-      if (!gastosFixos[l.categoria]) gastosFixos[l.categoria] = { soma: 0, contagem: 0 };
-      gastosFixos[l.categoria].soma += Math.abs(l.valor);
+      if (!gastosFixos[l.categoria]) gastosFixos[l.categoria] = { soma: 0, contagem: 0, registros: [] };
+      const valor = Math.abs(l.valor);
+      const ref = l.mesReferencia || l.data;
+      gastosFixos[l.categoria].soma += valor;
       gastosFixos[l.categoria].contagem++;
+      gastosFixos[l.categoria].registros.push({ mes: toMesStr(ref), valor });
     }
+  }
+
+  // Ordena registros por mês desc e mantém só os últimos 12
+  for (const dados of Object.values(gastosFixos)) {
+    dados.registros.sort((a, b) => b.mes.localeCompare(a.mes));
+    dados.registros = dados.registros.slice(0, 12);
   }
 
   for (let i = 1; i <= 12; i++) {
@@ -94,7 +117,8 @@ export async function GET() {
         categoria: cat,
         valor: parseFloat(media.toFixed(2)),
         tipoPrevisao: "Fixo",
-        detalhe: "Baseado na média",
+        detalhe: `Média de ${dados.contagem} lançamento${dados.contagem !== 1 ? "s" : ""}`,
+        historico: dados.registros,
       });
     }
   }
@@ -102,4 +126,9 @@ export async function GET() {
   previsoes.sort((a, b) => a.mes.localeCompare(b.mes));
 
   return NextResponse.json(previsoes);
+}
+
+function toMesStr(date: Date | string): string {
+  const d = new Date(date);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }

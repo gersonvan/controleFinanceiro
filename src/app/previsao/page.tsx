@@ -1,23 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { PrevisaoItem } from "@/app/api/previsao/route";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-interface PrevisaoItem {
-  mes: string;
-  descricao: string;
-  categoria: string;
-  valor: number;
-  tipoPrevisao: string;
-  detalhe: string;
-}
 
 export default function PrevisaoPage() {
   const [itens, setItens] = useState<PrevisaoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroMes, setFiltroMes] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [expandido, setExpandido] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/previsao")
@@ -38,6 +31,9 @@ export default function PrevisaoPage() {
   }
 
   const totalGeral = filtrado.reduce((acc, i) => acc + i.valor, 0);
+
+  // Chave única por linha para controlar qual está expandida
+  const rowKey = (item: PrevisaoItem, idx: number) => `${item.mes}|${item.descricao}|${idx}`;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -101,26 +97,77 @@ export default function PrevisaoPage() {
                 {filtrado.length === 0 ? (
                   <tr><td colSpan={6} className="text-center text-slate-400 py-8">Nenhuma previsão encontrada</td></tr>
                 ) : (
-                  filtrado.map((item, i) => (
-                    <tr key={i}>
-                      <td className="font-medium text-slate-700">{item.mes}</td>
-                      <td className="max-w-xs truncate text-slate-600" title={item.descricao}>{item.descricao}</td>
-                      <td>
-                        <span className="badge bg-blue-50 text-blue-700">{item.categoria}</span>
-                      </td>
-                      <td className="text-right font-medium valor-negativo">{fmt(item.valor)}</td>
-                      <td>
-                        <span className={`badge ${
-                          item.tipoPrevisao === "Parcelamento"
-                            ? "bg-orange-50 text-orange-700"
-                            : "bg-purple-50 text-purple-700"
-                        }`}>
-                          {item.tipoPrevisao}
-                        </span>
-                      </td>
-                      <td className="text-slate-400 text-xs">{item.detalhe}</td>
-                    </tr>
-                  ))
+                  filtrado.map((item, i) => {
+                    const key = rowKey(item, i);
+                    const aberto = expandido === key;
+                    const temHistorico = item.historico && item.historico.length > 0;
+
+                    return (
+                      <>
+                        <tr key={key} className={aberto ? "bg-slate-50" : ""}>
+                          <td className="font-medium text-slate-700">{item.mes}</td>
+                          <td className="max-w-xs">
+                            {temHistorico ? (
+                              <button
+                                onClick={() => setExpandido(aberto ? null : key)}
+                                className="flex items-center gap-1.5 text-left hover:text-blue-600 transition-colors group"
+                                title="Ver histórico de valores"
+                              >
+                                <span className={`text-xs text-slate-400 group-hover:text-blue-400 transition-transform ${aberto ? "rotate-90" : ""}`}>▶</span>
+                                <span className="truncate">{item.descricao}</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-600 truncate block">{item.descricao}</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className="badge bg-blue-50 text-blue-700">{item.categoria}</span>
+                          </td>
+                          <td className="text-right font-medium valor-negativo">{fmt(item.valor)}</td>
+                          <td>
+                            <span className={`badge ${
+                              item.tipoPrevisao === "Parcelamento"
+                                ? "bg-orange-50 text-orange-700"
+                                : "bg-purple-50 text-purple-700"
+                            }`}>
+                              {item.tipoPrevisao}
+                            </span>
+                          </td>
+                          <td className="text-slate-400 text-xs">{item.detalhe}</td>
+                        </tr>
+
+                        {/* Linha expandida com histórico */}
+                        {aberto && temHistorico && (
+                          <tr key={`${key}|hist`} className="bg-slate-50">
+                            <td colSpan={6} className="px-8 py-3">
+                              <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                                {item.tipoPrevisao === "Fixo"
+                                  ? `Histórico de lançamentos usados na média`
+                                  : `Parcela registrada`}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {item.historico!.map((h, hi) => (
+                                  <div key={hi} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+                                    <span className="text-slate-400 text-xs">{h.mes}</span>
+                                    <span className="font-medium text-slate-700">{fmt(h.valor)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {item.tipoPrevisao === "Fixo" && item.historico!.length > 1 && (
+                                <div className="mt-2 text-xs text-slate-400">
+                                  Média: <span className="font-semibold text-slate-600">{fmt(item.valor)}</span>
+                                  {" · "}
+                                  Mín: <span className="text-slate-600">{fmt(Math.min(...item.historico!.map(h => h.valor)))}</span>
+                                  {" · "}
+                                  Máx: <span className="text-slate-600">{fmt(Math.max(...item.historico!.map(h => h.valor)))}</span>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })
                 )}
               </tbody>
             </table>
