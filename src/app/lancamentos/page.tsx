@@ -167,19 +167,6 @@ function LancamentosContent() {
     showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
   };
 
-  const forcarRegras = async () => {
-    if (!confirm("Isso vai re-aplicar as regras de categorização em TODOS os lançamentos, sobrescrevendo as categorias atuais (exceto as salvas na Memória da IA).\n\nDeseja continuar?")) return;
-    setCategorizando(true);
-    const res = await fetch("/api/categorizar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ forcarRegras: true }),
-    });
-    const json = await res.json();
-    setCategorizando(false);
-    carregar();
-    showToast(`📏 Regras re-aplicadas: ${json.porRegras} atualizados · ${json.semCategoria} sem categoria`);
-  };
 
   const totalPages  = Math.ceil(total / limit);
   const filtrandoPessoa = !!filtros.pessoa;
@@ -211,9 +198,6 @@ function LancamentosContent() {
           </button>
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
             {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
-          </button>
-          <button className="btn btn-secondary" onClick={forcarRegras} disabled={categorizando} title="Re-aplica as regras em todos os lançamentos, corrigindo categorizações erradas">
-            {categorizando ? <span className="spinner" /> : "🔁"} Reprocessar regras
           </button>
         </div>
       </div>
