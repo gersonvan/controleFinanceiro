@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db";
 import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as { ids?: number[]; usarGemini?: boolean };
-  const { ids, usarGemini = false } = body;
+  const body = await req.json() as { ids?: number[]; usarGemini?: boolean; forcarRegras?: boolean };
+  const { ids, usarGemini = false, forcarRegras = false } = body;
 
   // Carrega Memória da IA
   const memoria = await prisma.memoriaIA.findMany();
@@ -12,10 +12,11 @@ export async function POST(req: NextRequest) {
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
-  // Busca apenas lançamentos sem categoria
+  // forcarRegras = re-aplica regras em TODOS os lançamentos (ignora categoria existente)
+  // modo normal  = só processa lançamentos sem categoria
   const where = ids?.length
-    ? { id: { in: ids }, categoria: null as null }
-    : { categoria: null as null };
+    ? { id: { in: ids }, ...(forcarRegras ? {} : { categoria: null as null }) }
+    : (forcarRegras ? {} : { categoria: null as null });
 
   const lancamentos = await prisma.lancamento.findMany({ where });
 
