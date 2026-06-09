@@ -122,6 +122,16 @@ export function mapearCategoria(
   if (NOMES_PROPRIOS.some((nome) => d.includes(nome)))
     return "Transferência entre Contas";
 
+  // Prioridade 2: pagamento de fatura do cartão (aparece como Entrada no extrato
+  // do cartão, mas NÃO é receita — é liquidação da fatura)
+  if (
+    d.includes("pag fatura boleto") ||
+    d.includes("pagamento de fatura boleto") ||
+    d.includes("pgto fat cartao") ||
+    d.includes("pagamento fatura cartao")
+  )
+    return "Pagamento de Cartão de Crédito";
+
   if (tipo === "Entrada") {
     if (d.includes("recebimento salario")) return "Salário";
     if (d.includes("reserve imobiliaria")) return "Receita de Aluguel";

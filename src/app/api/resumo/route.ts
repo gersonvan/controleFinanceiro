@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Categorias que representam movimentações internas (pagamento de fatura,
+// transferências entre contas próprias) e não devem entrar nos totais de
+// Entradas ou Saídas reais — independente do tipo registrado no extrato.
+const CATEGORIAS_NEUTRAS = new Set([
+  "Pagamento de Cartão de Crédito",
+  "Transferência entre Contas",
+]);
+
 export interface ResumoFiltro {
   totalEntradas: number;
   totalSaidas: number;
@@ -48,6 +56,7 @@ export async function GET(req: NextRequest) {
 
   for (const l of lancamentos) {
     const cat = l.categoria || "Sem categoria";
+    if (CATEGORIAS_NEUTRAS.has(cat)) continue; // pagamento de fatura / transferência interna
     if (l.tipo === "Entrada") {
       totalEntradas += l.valor;
       entradas[cat] = (entradas[cat] || 0) + l.valor;

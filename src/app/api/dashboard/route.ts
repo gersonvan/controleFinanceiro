@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Categorias de movimentação interna que não representam receita nem despesa real
+const CATEGORIAS_NEUTRAS = new Set([
+  "Pagamento de Cartão de Crédito",
+  "Transferência entre Contas",
+]);
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ano = parseInt(searchParams.get("ano") || String(new Date().getFullYear()));
@@ -18,12 +24,15 @@ export async function GET(req: NextRequest) {
     select: { data: true, valor: true, tipo: true, categoria: true, conta: true },
   });
 
+  // Filtra movimentações internas (não representam receita/despesa real)
+  const reais = lancamentos.filter((l) => !CATEGORIAS_NEUTRAS.has(l.categoria ?? ""));
+
   // Totais gerais
-  const totalEntradas = lancamentos
+  const totalEntradas = reais
     .filter((l) => l.tipo === "Entrada")
     .reduce((acc, l) => acc + l.valor, 0);
   const totalSaidas = Math.abs(
-    lancamentos
+    reais
       .filter((l) => l.tipo === "Saída")
       .reduce((acc, l) => acc + l.valor, 0)
   );
@@ -31,7 +40,7 @@ export async function GET(req: NextRequest) {
 
   // Por categoria (saídas)
   const porCategoria: Record<string, number> = {};
-  for (const l of lancamentos) {
+  for (const l of reais) {
     if (l.tipo === "Saída" && l.categoria) {
       porCategoria[l.categoria] = (porCategoria[l.categoria] || 0) + Math.abs(l.valor);
     }
@@ -40,7 +49,7 @@ export async function GET(req: NextRequest) {
   // Por mês (quando período é um ano)
   const porMes: Record<string, { entradas: number; saidas: number }> = {};
   if (!mes) {
-    for (const l of lancamentos) {
+    for (const l of reais) {
       const key = `${l.data.getFullYear()}-${String(l.data.getMonth() + 1).padStart(2, "0")}`;
       if (!porMes[key]) porMes[key] = { entradas: 0, saidas: 0 };
       if (l.tipo === "Entrada") porMes[key].entradas += l.valor;
@@ -50,7 +59,7 @@ export async function GET(req: NextRequest) {
 
   // Por conta
   const porConta: Record<string, number> = {};
-  for (const l of lancamentos) {
+  for (const l of reais) {
     if (l.tipo === "Saída") {
       porConta[l.conta] = (porConta[l.conta] || 0) + Math.abs(l.valor);
     }
