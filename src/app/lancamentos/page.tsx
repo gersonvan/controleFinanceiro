@@ -66,6 +66,9 @@ function LancamentosContent() {
   const [categorizando, setCategorizando] = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg]           = useState("");
+  const [modalMassa, setModalMassa]       = useState(false);
+  const [massa, setMassa]                 = useState({ descricao: "", categoriaAtual: "", categoriaNova: "" });
+  const [corrigindo, setCorrigindo]       = useState(false);
   const limit = 50;
 
   const [filtros, setFiltros] = useState({
@@ -173,6 +176,27 @@ function LancamentosContent() {
   };
 
 
+  const corrigirEmMassa = async () => {
+    if (!massa.categoriaNova) { showToast("⚠️ Selecione a nova categoria."); return; }
+    if (!massa.descricao && !massa.categoriaAtual) { showToast("⚠️ Preencha ao menos a descrição ou a categoria atual."); return; }
+    setCorrigindo(true);
+    const res = await fetch("/api/lancamentos", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        descricaoContem: massa.descricao || undefined,
+        categoriaErrada: massa.categoriaAtual || undefined,
+        categoriaCorreta: massa.categoriaNova,
+      }),
+    });
+    const json = await res.json();
+    setCorrigindo(false);
+    setModalMassa(false);
+    setMassa({ descricao: "", categoriaAtual: "", categoriaNova: "" });
+    carregar();
+    showToast(`✅ ${json.corrigidos} lançamento${json.corrigidos !== 1 ? "s" : ""} corrigido${json.corrigidos !== 1 ? "s" : ""}.`);
+  };
+
   const totalPages  = Math.ceil(total / limit);
   const filtrandoPessoa = !!filtros.pessoa;
 
@@ -204,8 +228,59 @@ function LancamentosContent() {
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
             {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
           </button>
+          <button className="btn btn-secondary" onClick={() => setModalMassa(true)} title="Alterar categoria de vários lançamentos de uma vez">
+            ✏️ Correção em massa
+          </button>
         </div>
       </div>
+
+      {/* Modal correção em massa */}
+      {modalMassa && (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4" onClick={() => setModalMassa(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-slate-800 text-lg">Correção em massa</h2>
+              <button onClick={() => setModalMassa(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+            </div>
+            <p className="text-sm text-slate-500">
+              Altera a categoria de todos os lançamentos que correspondem aos filtros abaixo.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1">Descrição contém <span className="text-slate-400">(opcional)</span></label>
+                <input
+                  placeholder="ex: Estorno de Tariga"
+                  value={massa.descricao}
+                  onChange={(e) => setMassa((p) => ({ ...p, descricao: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1">Categoria atual <span className="text-slate-400">(opcional)</span></label>
+                <CategoriaSelect
+                  value={massa.categoriaAtual}
+                  onChange={(v) => setMassa((p) => ({ ...p, categoriaAtual: v }))}
+                  placeholder="Qualquer categoria"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 block mb-1">Nova categoria <span className="text-red-400">*</span></label>
+                <CategoriaSelect
+                  value={massa.categoriaNova}
+                  onChange={(v) => setMassa((p) => ({ ...p, categoriaNova: v }))}
+                  placeholder="Selecione…"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button className="btn btn-secondary flex-1" onClick={() => setModalMassa(false)}>Cancelar</button>
+              <button className="btn btn-primary flex-1" onClick={corrigirEmMassa} disabled={corrigindo || !massa.categoriaNova}>
+                {corrigindo ? <span className="spinner" /> : "Aplicar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="card space-y-3">

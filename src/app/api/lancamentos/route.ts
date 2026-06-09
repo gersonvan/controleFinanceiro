@@ -69,19 +69,20 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json(lancamento);
 }
 
-/** Corrige em massa categorias erradas no banco */
+/** Corrige em massa categorias no banco */
 export async function PUT(req: NextRequest) {
   const { descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
-    descricaoContem: string;
-    categoriaErrada: string;
+    descricaoContem?: string;
+    categoriaErrada?: string;
     categoriaCorreta: string;
   };
 
+  const where: Record<string, unknown> = {};
+  if (descricaoContem) where.descricao = { contains: descricaoContem, mode: "insensitive" };
+  if (categoriaErrada) where.categoria = categoriaErrada;
+
   const result = await prisma.lancamento.updateMany({
-    where: {
-      descricao: { contains: descricaoContem, mode: "insensitive" },
-      categoria: categoriaErrada,
-    },
+    where,
     data: { categoria: categoriaCorreta },
   });
 
