@@ -19,8 +19,15 @@ export async function GET(req: NextRequest) {
     ? new Date(ano, mes, 0, 23, 59, 59)
     : new Date(ano, 11, 31, 23, 59, 59);
 
+  // Filtra por mesReferencia quando preenchido, senão por data
+  const dateFilter = { gte: dataInicio, lte: dataFim };
   const lancamentos = await prisma.lancamento.findMany({
-    where: { data: { gte: dataInicio, lte: dataFim } },
+    where: {
+      OR: [
+        { mesReferencia: { not: null, ...dateFilter } },
+        { mesReferencia: null, data: dateFilter },
+      ],
+    },
     select: { data: true, valor: true, tipo: true, categoria: true, conta: true },
   });
 

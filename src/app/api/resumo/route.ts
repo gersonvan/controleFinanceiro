@@ -39,9 +39,13 @@ export async function GET(req: NextRequest) {
   if (pessoa) where.pessoa = { contains: pessoa, mode: "insensitive" };
   if (busca) where.descricao = { contains: busca, mode: "insensitive" };
   if (dataInicio || dataFim) {
-    where.data = {};
-    if (dataInicio) (where.data as Record<string, Date>).gte = new Date(dataInicio);
-    if (dataFim)    (where.data as Record<string, Date>).lte = new Date(dataFim);
+    const dateFilter: Record<string, Date> = {};
+    if (dataInicio) dateFilter.gte = new Date(dataInicio);
+    if (dataFim)    dateFilter.lte = new Date(dataFim);
+    where.OR = [
+      { mesReferencia: { not: null, ...dateFilter } },
+      { mesReferencia: null, data: dateFilter },
+    ];
   }
 
   const lancamentos = await prisma.lancamento.findMany({
