@@ -400,10 +400,19 @@ function LancamentosContent() {
             {numSelecionados} selecionado{numSelecionados !== 1 ? "s" : ""}
           </span>
           <div className="w-px h-5 bg-slate-600" />
-          <div className="w-56">
-            <CategoriaSelect value={categoriaMassa} onChange={setCategoriaMassa}
-              placeholder="Nova categoria…" className="text-sm bg-slate-800 border-slate-700 text-white" />
-          </div>
+          <select
+            value={categoriaMassa}
+            onChange={(e) => setCategoriaMassa(e.target.value)}
+            className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 w-52 focus:outline-none focus:border-blue-400"
+          >
+            <option value="">Nova categoria…</option>
+            <optgroup label="── Saídas ──">
+              {CATEGORIAS_SAIDA.map((c) => <option key={c} value={c}>{c}</option>)}
+            </optgroup>
+            <optgroup label="── Entradas ──">
+              {CATEGORIAS_ENTRADA.map((c) => <option key={c} value={c}>{c}</option>)}
+            </optgroup>
+          </select>
           <button onClick={aplicarEmMassa} disabled={aplicandoMassa || !categoriaMassa}
             className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">
             {aplicandoMassa ? <span className="spinner" /> : "Aplicar"}
