@@ -9,6 +9,11 @@ const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: string) =>
   new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+const fmtMes = (d: string) => {
+  const dt = new Date(d);
+  return `${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
+};
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 
 function mesAtual()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth(), 1)),      f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
@@ -322,7 +327,7 @@ function LancamentosContent() {
                         {fmt(l.valor)}
                       </td>
                       <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
-                      <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtData(l.mesReferencia) : "-"}</td>
+                      <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>
                       <td>
                         <div className="flex items-center gap-1">
                           <button title="Salvar na Memória da IA" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
