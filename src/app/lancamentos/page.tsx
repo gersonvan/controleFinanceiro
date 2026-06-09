@@ -9,23 +9,22 @@ const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: string) =>
   new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
-
 const fmtMes = (d: string) => {
   const dt = new Date(d);
   return `${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
 };
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 
-function mesAtual()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth(), 1)),      f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
-function mesAnterior()  { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 1, 1)),  f: toISO(new Date(h.getFullYear(), h.getMonth(), 0)) }; }
-function ultimos3()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 2, 1)),  f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
-function esteAno()      { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), 0, 1)),                 f: toISO(new Date(h.getFullYear(), 11, 31)) }; }
+function mesAtual()    { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth(), 1)),     f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
+function mesAnterior() { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 1, 1)), f: toISO(new Date(h.getFullYear(), h.getMonth(), 0)) }; }
+function ultimos3()    { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), h.getMonth() - 2, 1)), f: toISO(new Date(h.getFullYear(), h.getMonth() + 1, 0)) }; }
+function esteAno()     { const h = new Date(); return { i: toISO(new Date(h.getFullYear(), 0, 1)),                f: toISO(new Date(h.getFullYear(), 11, 31)) }; }
 
 const PRESETS = [
-  { label: "Este mês",      fn: mesAtual },
-  { label: "Mês anterior",  fn: mesAnterior },
-  { label: "Últimos 3m",    fn: ultimos3 },
-  { label: "Este ano",      fn: esteAno },
+  { label: "Este mês",     fn: mesAtual },
+  { label: "Mês anterior", fn: mesAnterior },
+  { label: "Últimos 3m",   fn: ultimos3 },
+  { label: "Este ano",     fn: esteAno },
 ];
 
 interface Lancamento {
@@ -53,31 +52,30 @@ export default function LancamentosPage() {
 
 function LancamentosContent() {
   const searchParams = useSearchParams();
-  const initMes = mesAtual(); // padrão: mês atual
+  const initMes = mesAtual();
 
-  const [lancamentos, setLancamentos]     = useState<Lancamento[]>([]);
-  const [total, setTotal]                 = useState(0);
-  const [page, setPage]                   = useState(1);
-  const [loading, setLoading]             = useState(true);
-  const [resumo, setResumo]               = useState<ResumoFiltro | null>(null);
-  const [editando, setEditando]           = useState<number | null>(null);
-  const [categoriaEdit, setCategoriaEdit] = useState("");
-  const [pessoaEdit, setPessoaEdit]       = useState("");
-  const [categorizando, setCategorizando] = useState(false);
+  const [lancamentos, setLancamentos]         = useState<Lancamento[]>([]);
+  const [total, setTotal]                     = useState(0);
+  const [page, setPage]                       = useState(1);
+  const [loading, setLoading]                 = useState(true);
+  const [resumo, setResumo]                   = useState<ResumoFiltro | null>(null);
+  const [editando, setEditando]               = useState<number | null>(null);
+  const [categoriaEdit, setCategoriaEdit]     = useState("");
+  const [pessoaEdit, setPessoaEdit]           = useState("");
+  const [categorizando, setCategorizando]     = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
-  const [toastMsg, setToastMsg]           = useState("");
-  const [modalMassa, setModalMassa]       = useState(false);
-  const [massa, setMassa]                 = useState({ descricao: "", categoriaAtual: "", categoriaNova: "" });
-  const [corrigindo, setCorrigindo]       = useState(false);
+  const [toastMsg, setToastMsg]               = useState("");
+
+  // Seleção em massa
+  const [selecionados, setSelecionados]   = useState<Set<number>>(new Set());
+  const [categoriaMassa, setCategoriaMassa] = useState("");
+  const [aplicandoMassa, setAplicandoMassa] = useState(false);
+
   const limit = 50;
 
   const [filtros, setFiltros] = useState({
-    busca: "",
-    conta: "",
-    categoria: "",
-    tipo: "",
-    dataInicio: initMes.i,
-    dataFim:    initMes.f,
+    busca: "", conta: "", categoria: "", tipo: "",
+    dataInicio: initMes.i, dataFim: initMes.f,
     pessoa: searchParams.get("pessoa") || "",
   });
 
@@ -113,6 +111,9 @@ function LancamentosContent() {
   }, [buildParams]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Limpa seleção ao mudar filtros/página
+  useEffect(() => { setSelecionados(new Set()); }, [filtros, page]);
 
   const aplicarPreset = (fn: () => { i: string; f: string }) => {
     const { i, f } = fn();
@@ -175,35 +176,58 @@ function LancamentosContent() {
     showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
   };
 
+  // ── Seleção em massa ──────────────────────────────────────────────────────
+  const toggleSelecionado = (id: number) => {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
-  const corrigirEmMassa = async () => {
-    if (!massa.categoriaNova) { showToast("⚠️ Selecione a nova categoria."); return; }
-    if (!massa.descricao && !massa.categoriaAtual) { showToast("⚠️ Preencha ao menos a descrição ou a categoria atual."); return; }
-    setCorrigindo(true);
+  const todosSelecionados =
+    lancamentos.length > 0 && lancamentos.every((l) => selecionados.has(l.id));
+
+  const toggleTodos = () => {
+    if (todosSelecionados) {
+      setSelecionados((prev) => {
+        const next = new Set(prev);
+        lancamentos.forEach((l) => next.delete(l.id));
+        return next;
+      });
+    } else {
+      setSelecionados((prev) => {
+        const next = new Set(prev);
+        lancamentos.forEach((l) => next.add(l.id));
+        return next;
+      });
+    }
+  };
+
+  const aplicarEmMassa = async () => {
+    if (!categoriaMassa) { showToast("⚠️ Selecione a nova categoria."); return; }
+    setAplicandoMassa(true);
     const res = await fetch("/api/lancamentos", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        descricaoContem: massa.descricao || undefined,
-        categoriaErrada: massa.categoriaAtual || undefined,
-        categoriaCorreta: massa.categoriaNova,
-      }),
+      body: JSON.stringify({ ids: [...selecionados], categoriaCorreta: categoriaMassa }),
     });
     const json = await res.json();
-    setCorrigindo(false);
-    setModalMassa(false);
-    setMassa({ descricao: "", categoriaAtual: "", categoriaNova: "" });
+    setAplicandoMassa(false);
+    setSelecionados(new Set());
+    setCategoriaMassa("");
     carregar();
-    showToast(`✅ ${json.corrigidos} lançamento${json.corrigidos !== 1 ? "s" : ""} corrigido${json.corrigidos !== 1 ? "s" : ""}.`);
+    showToast(`✅ ${json.corrigidos} lançamento${json.corrigidos !== 1 ? "s" : ""} atualizado${json.corrigidos !== 1 ? "s" : ""}.`);
   };
 
-  const totalPages  = Math.ceil(total / limit);
+  const totalPages     = Math.ceil(total / limit);
   const filtrandoPessoa = !!filtros.pessoa;
+  const numSelecionados = selecionados.size;
 
   return (
     <div className="space-y-4 max-w-full">
       {toastMsg && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-lg text-center">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-lg text-center">
           {toastMsg}
         </div>
       )}
@@ -228,91 +252,28 @@ function LancamentosContent() {
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
             {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
           </button>
-          <button className="btn btn-secondary" onClick={() => setModalMassa(true)} title="Alterar categoria de vários lançamentos de uma vez">
-            ✏️ Correção em massa
-          </button>
         </div>
       </div>
 
-      {/* Modal correção em massa */}
-      {modalMassa && (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4" onClick={() => setModalMassa(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 text-lg">Correção em massa</h2>
-              <button onClick={() => setModalMassa(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
-            </div>
-            <p className="text-sm text-slate-500">
-              Altera a categoria de todos os lançamentos que correspondem aos filtros abaixo.
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Descrição contém <span className="text-slate-400">(opcional)</span></label>
-                <input
-                  placeholder="ex: Estorno de Tariga"
-                  value={massa.descricao}
-                  onChange={(e) => setMassa((p) => ({ ...p, descricao: e.target.value }))}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Categoria atual <span className="text-slate-400">(opcional)</span></label>
-                <CategoriaSelect
-                  value={massa.categoriaAtual}
-                  onChange={(v) => setMassa((p) => ({ ...p, categoriaAtual: v }))}
-                  placeholder="Qualquer categoria"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Nova categoria <span className="text-red-400">*</span></label>
-                <CategoriaSelect
-                  value={massa.categoriaNova}
-                  onChange={(v) => setMassa((p) => ({ ...p, categoriaNova: v }))}
-                  placeholder="Selecione…"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button className="btn btn-secondary flex-1" onClick={() => setModalMassa(false)}>Cancelar</button>
-              <button className="btn btn-primary flex-1" onClick={corrigirEmMassa} disabled={corrigindo || !massa.categoriaNova}>
-                {corrigindo ? <span className="spinner" /> : "Aplicar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Filtros */}
       <div className="card space-y-3">
-        {/* Presets rápidos */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400 shrink-0">Período:</span>
           {PRESETS.map((p) => {
             const { i, f } = p.fn();
             const ativo = filtros.dataInicio === i && filtros.dataFim === f;
             return (
-              <button
-                key={p.label}
-                onClick={() => aplicarPreset(p.fn)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                  ativo
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
-                }`}
-              >
+              <button key={p.label} onClick={() => aplicarPreset(p.fn)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${ativo ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"}`}>
                 {p.label}
               </button>
             );
           })}
-          <button
-            onClick={() => setFiltros((p) => ({ ...p, dataInicio: "", dataFim: "" }))}
-            className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-400 hover:border-slate-400 transition-all"
-          >
+          <button onClick={() => setFiltros((p) => ({ ...p, dataInicio: "", dataFim: "" }))}
+            className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-400 hover:border-slate-400 transition-all">
             Limpar datas
           </button>
         </div>
-
-        {/* Filtros detalhados */}
         <div className="grid grid-cols-3 gap-3">
           <input placeholder="Buscar descrição…" value={filtros.busca} onChange={(e) => setFiltro("busca", e.target.value)} />
           <select value={filtros.conta} onChange={(e) => setFiltro("conta", e.target.value)}>
@@ -334,12 +295,12 @@ function LancamentosContent() {
         </div>
       </div>
 
-      {/* ── Tabela resumo ── */}
+      {/* Tabela resumo */}
       {resumo && !loading && resumo.categorias.length > 0 && (
         <TabelaResumo resumo={resumo} />
       )}
 
-      {/* ── Lançamentos ── */}
+      {/* Lançamentos */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><div className="spinner" /></div>
@@ -349,72 +310,73 @@ function LancamentosContent() {
               <table>
                 <thead>
                   <tr>
+                    <th className="w-8">
+                      <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos}
+                        className="cursor-pointer" title="Selecionar todos desta página" />
+                    </th>
                     <th>Data</th><th>Descrição</th><th>Categoria</th>
                     <th className="text-right">Valor</th><th>Conta</th><th>Mês Ref.</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lancamentos.map((l) => (
-                    <tr key={l.id} className={isEmprestimo(l.categoria) ? "bg-purple-50/40" : ""}>
-                      <td className="whitespace-nowrap text-slate-500">{fmtData(l.data)}</td>
-                      <td className="max-w-xs">
-                        <div className="truncate" title={l.descricao}>{l.descricao}</div>
-                        {l.pessoa && <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>}
-                      </td>
-                      <td>
-                        {editando === l.id ? (
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex gap-1 items-center">
-                              <CategoriaSelect
-                                value={categoriaEdit}
-                                onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
-                                placeholder="Sem categoria"
-                                className="text-xs py-0.5"
-                                autoFocus
-                              />
-                              <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
-                              <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+                  {lancamentos.map((l) => {
+                    const sel = selecionados.has(l.id);
+                    return (
+                      <tr key={l.id} className={`${isEmprestimo(l.categoria) ? "bg-purple-50/40" : ""} ${sel ? "bg-blue-50/60" : ""}`}>
+                        <td>
+                          <input type="checkbox" checked={sel} onChange={() => toggleSelecionado(l.id)} className="cursor-pointer" />
+                        </td>
+                        <td className="whitespace-nowrap text-slate-500">{fmtData(l.data)}</td>
+                        <td className="max-w-xs">
+                          <div className="truncate" title={l.descricao}>{l.descricao}</div>
+                          {l.pessoa && <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>}
+                        </td>
+                        <td>
+                          {editando === l.id ? (
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex gap-1 items-center">
+                                <CategoriaSelect value={categoriaEdit}
+                                  onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
+                                  placeholder="Sem categoria" className="text-xs py-0.5" autoFocus />
+                                <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
+                                <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+                              </div>
+                              {isEmprestimo(categoriaEdit) && (
+                                <input className="text-xs py-0.5 w-full" placeholder="Nome da pessoa…"
+                                  value={pessoaEdit} onChange={(e) => setPessoaEdit(e.target.value)}
+                                  onKeyDown={(e) => e.key === "Enter" && salvarCategoria(l.id)} />
+                              )}
                             </div>
-                            {isEmprestimo(categoriaEdit) && (
-                              <input
-                                className="text-xs py-0.5 w-full"
-                                placeholder="Nome da pessoa…"
-                                value={pessoaEdit}
-                                onChange={(e) => setPessoaEdit(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && salvarCategoria(l.id)}
-                              />
-                            )}
+                          ) : (
+                            <button
+                              onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); setPessoaEdit(l.pessoa || ""); }}
+                              className={`badge cursor-pointer hover:opacity-80 ${
+                                isEmprestimo(l.categoria) ? "bg-purple-50 text-purple-700"
+                                : l.categoria ? "bg-blue-50 text-blue-700"
+                                : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
+                              }`}>
+                              {l.categoria || "Sem categoria"}
+                            </button>
+                          )}
+                        </td>
+                        <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
+                          {fmt(l.valor)}
+                        </td>
+                        <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
+                        <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <button title="Salvar na Memória da IA" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
+                              className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50">
+                              {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
+                            </button>
+                            <button title="Excluir" onClick={() => excluir(l.id)}
+                              className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors">×</button>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); setPessoaEdit(l.pessoa || ""); }}
-                            className={`badge cursor-pointer hover:opacity-80 ${
-                              isEmprestimo(l.categoria) ? "bg-purple-50 text-purple-700"
-                              : l.categoria ? "bg-blue-50 text-blue-700"
-                              : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
-                            }`}
-                          >
-                            {l.categoria || "Sem categoria"}
-                          </button>
-                        )}
-                      </td>
-                      <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
-                        {fmt(l.valor)}
-                      </td>
-                      <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
-                      <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>
-                      <td>
-                        <div className="flex items-center gap-1">
-                          <button title="Salvar na Memória da IA" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
-                            className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50">
-                            {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
-                          </button>
-                          <button title="Excluir" onClick={() => excluir(l.id)}
-                            className="text-slate-300 hover:text-red-500 text-lg leading-none transition-colors">×</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -430,6 +392,28 @@ function LancamentosContent() {
           </>
         )}
       </div>
+
+      {/* Barra flutuante de ação em massa */}
+      {numSelecionados > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl">
+          <span className="text-sm font-medium whitespace-nowrap">
+            {numSelecionados} selecionado{numSelecionados !== 1 ? "s" : ""}
+          </span>
+          <div className="w-px h-5 bg-slate-600" />
+          <div className="w-56">
+            <CategoriaSelect value={categoriaMassa} onChange={setCategoriaMassa}
+              placeholder="Nova categoria…" className="text-sm bg-slate-800 border-slate-700 text-white" />
+          </div>
+          <button onClick={aplicarEmMassa} disabled={aplicandoMassa || !categoriaMassa}
+            className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">
+            {aplicandoMassa ? <span className="spinner" /> : "Aplicar"}
+          </button>
+          <button onClick={() => { setSelecionados(new Set()); setCategoriaMassa(""); }}
+            className="text-slate-400 hover:text-white text-lg leading-none transition-colors" title="Cancelar seleção">
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -448,12 +432,8 @@ function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
 
   return (
     <div className="card p-0 overflow-hidden divide-y divide-slate-100">
-
-      {/* Linha Entradas */}
-      <button
-        onClick={() => toggle("entradas")}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-green-50/50 transition-colors group"
-      >
+      <button onClick={() => toggle("entradas")}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-green-50/50 transition-colors">
         <div className="flex items-center gap-2">
           <span className={`text-xs transition-transform ${aberto === "entradas" ? "rotate-90" : ""}`}>▶</span>
           <span className="font-semibold text-green-700">↑ Entradas</span>
@@ -472,11 +452,8 @@ function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
         </div>
       )}
 
-      {/* Linha Saídas */}
-      <button
-        onClick={() => toggle("saidas")}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-red-50/50 transition-colors group"
-      >
+      <button onClick={() => toggle("saidas")}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-red-50/50 transition-colors">
         <div className="flex items-center gap-2">
           <span className={`text-xs transition-transform ${aberto === "saidas" ? "rotate-90" : ""}`}>▶</span>
           <span className="font-semibold text-red-700">↓ Saídas</span>
@@ -495,7 +472,6 @@ function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
         </div>
       )}
 
-      {/* Saldo */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-50">
         <span className="font-bold text-slate-700">Saldo</span>
         <span className={`font-bold text-lg ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>

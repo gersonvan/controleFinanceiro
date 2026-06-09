@@ -69,15 +69,18 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json(lancamento);
 }
 
-/** Corrige em massa categorias no banco */
+/** Corrige em massa categorias no banco.
+ *  Aceita ids[] (seleção manual) ou descricaoContem/categoriaErrada (por padrão). */
 export async function PUT(req: NextRequest) {
-  const { descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
+  const { ids, descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
+    ids?: number[];
     descricaoContem?: string;
     categoriaErrada?: string;
     categoriaCorreta: string;
   };
 
   const where: Record<string, unknown> = {};
+  if (ids?.length)     where.id       = { in: ids };
   if (descricaoContem) where.descricao = { contains: descricaoContem, mode: "insensitive" };
   if (categoriaErrada) where.categoria = categoriaErrada;
 
