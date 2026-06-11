@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import type { Session } from "next-auth";
 
 const links = [
   { href: "/", label: "Dashboard", icon: "📊" },
@@ -12,7 +14,7 @@ const links = [
   { href: "/memoria-ia", label: "Memória Local", icon: "🧠" },
 ];
 
-export default function Nav() {
+export default function Nav({ user }: { user?: Session["user"] }) {
   const pathname = usePathname();
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-56 bg-slate-900 text-white flex flex-col z-10">
@@ -39,9 +41,27 @@ export default function Nav() {
           );
         })}
       </nav>
-      <div className="p-4 border-t border-slate-700 text-xs text-slate-500">
-        v1.0
-      </div>
+
+      {/* Usuário logado */}
+      {user && (
+        <div className="p-3 border-t border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            {user.image && (
+              <img src={user.image} alt="" className="w-7 h-7 rounded-full" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-white truncate">{user.name}</div>
+              <div className="text-xs text-slate-400 truncate">{user.email}</div>
+            </div>
+          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors text-left"
+          >
+            Sair
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
