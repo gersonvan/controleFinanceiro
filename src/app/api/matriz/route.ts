@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     return { categoria, totais, media, descricoes };
   });
 
-  linhas.sort((a, b) => b.media - a.media);
+  linhas.sort((a, b) => a.categoria.localeCompare(b.categoria, "pt-BR"));
 
   return NextResponse.json({ meses, linhas } satisfies MatrizData);
 }
