@@ -22,6 +22,41 @@ function toMesStr(d: Date): string {
   return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
 }
 
+// Prefixos que os bancos adicionam antes do nome do fornecedor
+const PREFIXOS_BANCARIOS = [
+  "Pagamento de boleto efetuado - ",
+  "Transferência enviada pelo Pix - ",
+  "Pix enviado para ",
+];
+
+// Nomes longos → forma canônica curta já usada em outros lançamentos
+const CANONICOS: Record<string, string> = {
+  "BRISANET SERVICOS DE TELECOMUNICACOES S A": "BRISANET",
+  "UNIMED FORTALEZA SOCIEDADE COOPERATIVA MEDICA LTD": "UNIMED FORTALEZA SOCIEDADE COOP",
+  "SEFAZ CEARA-DAE-COD": "SEFAZ CE DAE",
+  "TIM S A": "TIM SA",
+};
+
+function normalizarDescricao(descricao: string): string {
+  let d = descricao.trim();
+
+  // Remove prefixo bancário (case-insensitive)
+  for (const p of PREFIXOS_BANCARIOS) {
+    if (d.toLowerCase().startsWith(p.toLowerCase())) {
+      d = d.slice(p.length);
+      break;
+    }
+  }
+
+  // Remove CNPJ e tudo depois (Nubank Pix: "VENDOR - 00.000.000/0000-00 - ...")
+  const cnpjIdx = d.search(/ - \d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
+  if (cnpjIdx > 0) d = d.slice(0, cnpjIdx);
+
+  d = d.trim().toUpperCase();
+
+  return CANONICOS[d] ?? d;
+}
+
 function sortMes(a: string, b: string): number {
   const key = (m: string) => { const [mm, yyyy] = m.split("/"); return `${yyyy}-${mm}`; };
   return key(a).localeCompare(key(b));
@@ -61,10 +96,11 @@ export async function GET(req: NextRequest) {
     const mes = toMesStr(new Date(ref));
     mesesSet.add(mes);
 
+    const desc = normalizarDescricao(l.descricao);
     if (!estrutura[l.categoria]) estrutura[l.categoria] = {};
-    if (!estrutura[l.categoria][l.descricao]) estrutura[l.categoria][l.descricao] = {};
-    estrutura[l.categoria][l.descricao][mes] =
-      (estrutura[l.categoria][l.descricao][mes] || 0) + Math.abs(l.valor);
+    if (!estrutura[l.categoria][desc]) estrutura[l.categoria][desc] = {};
+    estrutura[l.categoria][desc][mes] =
+      (estrutura[l.categoria][desc][mes] || 0) + Math.abs(l.valor);
   }
 
   const meses = [...mesesSet].sort(sortMes);
