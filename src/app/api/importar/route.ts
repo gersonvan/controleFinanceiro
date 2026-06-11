@@ -6,8 +6,12 @@ import {
   parseFaturaNubank,
   parseExtratoNubank,
 } from "@/lib/parsers";
+import { getSessionUserId } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const formData = await req.formData();
   const file = formData.get("file") as File;
   const tipo = formData.get("tipo") as string;
@@ -38,8 +42,8 @@ export async function POST(req: NextRequest) {
   const skip = linhasHeader[tipo] || 1;
   const dataRows = rows.slice(skip);
 
-  // Carrega memória da IA
-  const memoria = await prisma.memoriaIA.findMany();
+  // Carrega memória da IA do usuário
+  const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
@@ -51,8 +55,9 @@ export async function POST(req: NextRequest) {
   else if (tipo === "nubank-debito") lancamentos = parseExtratoNubank(dataRows, memoriaMap);
   else return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
 
-  // Busca transações existentes para evitar duplicatas
+  // Busca transações existentes do usuário para evitar duplicatas
   const existing = await prisma.lancamento.findMany({
+    where: { userId },
     select: { data: true, descricao: true, valor: true },
   });
   const existingKeys = new Set(
@@ -79,6 +84,7 @@ export async function POST(req: NextRequest) {
         status: "Paga",
         fonte: l.fonte,
         mesReferencia: l.mesReferencia,
+        userId,
       })),
     });
   }

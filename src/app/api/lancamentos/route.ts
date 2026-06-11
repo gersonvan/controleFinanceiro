@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
@@ -13,7 +17,7 @@ export async function GET(req: NextRequest) {
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { userId };
   if (conta) where.conta = conta;
   if (categoria === "__sem__") where.categoria = null;
   else if (categoria) where.categoria = categoria;
@@ -24,7 +28,6 @@ export async function GET(req: NextRequest) {
     const dateFilter: Record<string, Date> = {};
     if (dataInicio) dateFilter.gte = new Date(dataInicio);
     if (dataFim)    dateFilter.lte = new Date(dataFim);
-    // Usa mesReferencia quando preenchido; cai para data quando nulo
     where.OR = [
       { mesReferencia: { not: null, ...dateFilter } },
       { mesReferencia: null, data: dateFilter },
@@ -45,33 +48,43 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const body = await req.json();
-  const lancamento = await prisma.lancamento.create({ data: body });
+  const lancamento = await prisma.lancamento.create({ data: { ...body, userId } });
   return NextResponse.json(lancamento, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await prisma.lancamento.delete({ where: { id: parseInt(id) } });
+  await prisma.lancamento.deleteMany({ where: { id: parseInt(id), userId } });
   return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const body = await req.json();
   const { id, ...data } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  const lancamento = await prisma.lancamento.update({
-    where: { id },
+  const lancamento = await prisma.lancamento.updateMany({
+    where: { id, userId },
     data,
   });
   return NextResponse.json(lancamento);
 }
 
-/** Corrige em massa categorias no banco.
- *  Aceita ids[] (seleção manual) ou descricaoContem/categoriaErrada (por padrão). */
 export async function PUT(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const { ids, descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
     ids?: number[];
     descricaoContem?: string;
@@ -79,7 +92,7 @@ export async function PUT(req: NextRequest) {
     categoriaCorreta: string;
   };
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { userId };
   if (ids?.length)     where.id       = { in: ids };
   if (descricaoContem) where.descricao = { contains: descricaoContem, mode: "insensitive" };
   if (categoriaErrada) where.categoria = categoriaErrada;

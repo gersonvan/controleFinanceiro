@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
+import { getSessionUserId } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const body = await req.json() as { ids?: number[]; usarGemini?: boolean };
   const { ids, usarGemini = false } = body;
 
-  // Carrega Memória da IA
-  const memoria = await prisma.memoriaIA.findMany();
+  // Carrega Memória da IA do usuário
+  const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
-  // Só processa lançamentos sem categoria
+  // Só processa lançamentos sem categoria do usuário
   const where = ids?.length
-    ? { id: { in: ids }, categoria: null as null }
-    : { categoria: null as null };
+    ? { userId, id: { in: ids }, categoria: null as null }
+    : { userId, categoria: null as null };
 
   const lancamentos = await prisma.lancamento.findMany({ where });
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUserId } from "@/lib/session";
 
 // Categorias de movimentação interna que não representam receita nem despesa real
 const CATEGORIAS_NEUTRAS = new Set([
@@ -9,6 +10,9 @@ const CATEGORIAS_NEUTRAS = new Set([
 ]);
 
 export async function GET(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const ano = parseInt(searchParams.get("ano") || String(new Date().getFullYear()));
   const mes = searchParams.get("mes") ? parseInt(searchParams.get("mes")!) : null;
@@ -24,6 +28,7 @@ export async function GET(req: NextRequest) {
   const dateFilter = { gte: dataInicio, lte: dataFim };
   const lancamentos = await prisma.lancamento.findMany({
     where: {
+      userId,
       OR: [
         { mesReferencia: { not: null, ...dateFilter } },
         { mesReferencia: null, data: dateFilter },

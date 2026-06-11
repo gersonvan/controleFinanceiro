@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUserId } from "@/lib/session";
 
 export interface MatrizDescricao {
   descricao: string;
@@ -68,7 +69,10 @@ export async function GET(req: NextRequest) {
   const dataInicio = searchParams.get("dataInicio");
   const dataFim    = searchParams.get("dataFim");
 
-  const where: Record<string, unknown> = { categoria: { not: null } };
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const where: Record<string, unknown> = { userId, categoria: { not: null } };
   if (tipo) where.tipo = tipo;
 
   if (dataInicio || dataFim) {

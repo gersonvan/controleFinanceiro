@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { CATEGORIAS_FIXAS } from "@/lib/categorias";
+import { getSessionUserId } from "@/lib/session";
 
 const REGEX_PARCELA = /\((\d+)\/(\d+)\)/;
 
@@ -20,11 +21,15 @@ export interface PrevisaoItem {
 }
 
 export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const hoje = new Date();
   hoje.setDate(1);
   hoje.setHours(0, 0, 0, 0);
 
   const lancamentos = await prisma.lancamento.findMany({
+    where: { userId },
     select: {
       descricao: true,
       categoria: true,

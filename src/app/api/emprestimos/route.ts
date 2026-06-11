@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUserId } from "@/lib/session";
 
 export interface ResumoPessoa {
   pessoa: string;
@@ -18,14 +19,17 @@ export interface ResumoPessoa {
 }
 
 export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   const lancamentos = await prisma.lancamento.findMany({
     where: {
+      userId,
       categoria: { in: ["Empréstimo", "Recebimento de Empréstimo"] },
     },
     orderBy: { data: "desc" },
   });
 
-  // Agrupa por pessoa (usa pessoa se preenchida, senão tenta extrair da descrição)
   const porPessoa = new Map<string, typeof lancamentos>();
 
   for (const l of lancamentos) {
@@ -72,7 +76,6 @@ export async function GET() {
     });
   }
 
-  // Ordenação: abertos primeiro, depois parcial, depois quitados; dentro de cada grupo, maior saldo primeiro
   const ordem = { aberto: 0, parcial: 1, quitado: 2 };
   resumo.sort((a, b) =>
     ordem[a.status] !== ordem[b.status]

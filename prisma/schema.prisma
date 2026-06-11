@@ -18,8 +18,10 @@ model Lancamento {
   fonte         String?
   mesReferencia DateTime?
   pessoa        String?
+  userId        String    @default("")
   createdAt     DateTime  @default(now())
 
+  @@index([userId])
   @@index([data])
   @@index([categoria])
   @@index([conta])
@@ -28,8 +30,11 @@ model Lancamento {
 
 model MemoriaIA {
   id               Int      @id @default(autoincrement())
-  descricao        String   @unique
+  descricao        String
   categoriaCorreta String
+  userId           String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@unique([descricao, userId])
 }
