@@ -73,11 +73,7 @@ export async function GET(req: NextRequest) {
     const totais: Record<string, number> = {};
     const descricoes: MatrizDescricao[] = Object.entries(descMap)
       .map(([descricao, porMes]) => ({ descricao, porMes }))
-      .sort((a, b) => {
-        const somaA = Object.values(a.porMes).reduce((s, v) => s + v, 0);
-        const somaB = Object.values(b.porMes).reduce((s, v) => s + v, 0);
-        return somaB - somaA;
-      });
+      .sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
 
     for (const { porMes } of descricoes) {
       for (const [mes, v] of Object.entries(porMes)) {
