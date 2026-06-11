@@ -81,44 +81,45 @@ export async function GET() {
     }
   }
 
-  // --- 2. Gastos Fixos (média) ---
-  const gastosFixos: Record<string, {
-    soma: number;
-    contagem: number;
-    registros: HistoricoItem[];
-  }> = {};
+  // --- 2. Gastos Fixos (média por mês) ---
+  // Agrupa por categoria → mês → soma, para depois tirar média dos meses
+  const porCategoriaMes: Record<string, Record<string, number>> = {};
 
   for (const l of lancamentos) {
     if (l.tipo === "Saída" && l.categoria && CATEGORIAS_FIXAS.includes(l.categoria)) {
-      if (!gastosFixos[l.categoria]) gastosFixos[l.categoria] = { soma: 0, contagem: 0, registros: [] };
-      const valor = Math.abs(l.valor);
       const ref = l.mesReferencia || l.data;
-      gastosFixos[l.categoria].soma += valor;
-      gastosFixos[l.categoria].contagem++;
-      gastosFixos[l.categoria].registros.push({ mes: toMesStr(ref), valor });
+      const mes = toMesStr(ref);
+      if (!porCategoriaMes[l.categoria]) porCategoriaMes[l.categoria] = {};
+      porCategoriaMes[l.categoria][mes] = (porCategoriaMes[l.categoria][mes] || 0) + Math.abs(l.valor);
     }
   }
 
-  // Ordena registros por mês desc e mantém só os últimos 12
-  for (const dados of Object.values(gastosFixos)) {
-    dados.registros.sort((a, b) => b.mes.localeCompare(a.mes));
-    dados.registros = dados.registros.slice(0, 12);
-  }
+  // Ordena MM/YYYY corretamente (por YYYY-MM) e limita aos últimos 12 meses
+  const sortMes = (a: string, b: string) => {
+    const toKey = (m: string) => { const [mm, yyyy] = m.split("/"); return `${yyyy}-${mm}`; };
+    return toKey(b).localeCompare(toKey(a)); // desc
+  };
 
   for (let i = 1; i <= 12; i++) {
     const dataPrevista = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
     const mes = `${String(dataPrevista.getMonth() + 1).padStart(2, "0")}/${dataPrevista.getFullYear()}`;
 
-    for (const [cat, dados] of Object.entries(gastosFixos)) {
-      const media = dados.soma / dados.contagem;
+    for (const [cat, mesesMap] of Object.entries(porCategoriaMes)) {
+      const meses = Object.entries(mesesMap)
+        .sort(([a], [b]) => sortMes(a, b))
+        .slice(0, 12); // últimos 12 meses com dados
+
+      const soma  = meses.reduce((acc, [, v]) => acc + v, 0);
+      const media = soma / meses.length;
+
       previsoes.push({
         mes,
         descricao: cat,
         categoria: cat,
         valor: parseFloat(media.toFixed(2)),
         tipoPrevisao: "Fixo",
-        detalhe: `Média de ${dados.contagem} lançamento${dados.contagem !== 1 ? "s" : ""}`,
-        historico: dados.registros,
+        detalhe: `Média de ${meses.length} ${meses.length !== 1 ? "meses" : "mês"}`,
+        historico: meses.map(([m, v]) => ({ mes: m, valor: parseFloat(v.toFixed(2)) })),
       });
     }
   }
