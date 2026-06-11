@@ -31,6 +31,7 @@ export const CATEGORIAS = [
   "Compras",
   "Lazer e Entretenimento",
   "Assinaturas Digitais",
+  "Gastos de Terceiros",
   // Empréstimos
   "Empréstimo",
   // Financeiro e Transferências
@@ -80,6 +81,7 @@ export const CATEGORIAS_SAIDA = [
   "Farmácia",
   "Investimentos (Aportes)",
   "Assinaturas Digitais",
+  "Gastos de Terceiros",
   "Lazer e Entretenimento",
   "Mensalidades e Cursos",
   "Pagamento de Cartão de Crédito",

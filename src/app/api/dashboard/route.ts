@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 const CATEGORIAS_NEUTRAS = new Set([
   "Pagamento de Cartão de Crédito",
   "Transferência entre Contas",
+  "Gastos de Terceiros",
 ]);
 
 export async function GET(req: NextRequest) {
