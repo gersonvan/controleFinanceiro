@@ -52,7 +52,7 @@ export default function MemoriaIAPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Memória da IA</h1>
+      <h1 className="text-2xl font-bold text-slate-800">Memória Local</h1>
       <p className="text-slate-500 text-sm">
         Regras de categorização automática. Quando uma descrição exata bater com uma regra aqui, a categoria será aplicada diretamente — sem precisar da IA externa.
       </p>

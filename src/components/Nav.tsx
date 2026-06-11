@@ -9,7 +9,7 @@ const links = [
   { href: "/importar", label: "Importar CSV", icon: "📂" },
   { href: "/previsao", label: "Previsão", icon: "🔮" },
   { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
-  { href: "/memoria-ia", label: "Memória da IA", icon: "🧠" },
+  { href: "/memoria-ia", label: "Memória Local", icon: "🧠" },
 ];
 
 export default function Nav() {

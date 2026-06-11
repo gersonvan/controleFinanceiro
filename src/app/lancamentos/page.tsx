@@ -146,7 +146,7 @@ function LancamentosContent() {
   };
 
   const salvarNaMemoria = async (l: Lancamento) => {
-    if (!l.categoria) { showToast("⚠️ Defina uma categoria antes de salvar na Memória da IA."); return; }
+    if (!l.categoria) { showToast("⚠️ Defina uma categoria antes de salvar na Memória Local."); return; }
     setSalvandoMemoria(l.id);
     const res = await fetch("/api/memoria-ia", {
       method: "POST",
@@ -154,7 +154,7 @@ function LancamentosContent() {
       body: JSON.stringify({ descricao: l.descricao, categoriaCorreta: l.categoria }),
     });
     setSalvandoMemoria(null);
-    if (res.ok) showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória da IA!`);
+    if (res.ok) showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória Local!`);
   };
 
   const categorizarSemCategoria = async (usarGemini = false) => {
@@ -245,7 +245,7 @@ function LancamentosContent() {
           )}
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória da IA + regras">
+          <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
             {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
@@ -365,7 +365,7 @@ function LancamentosContent() {
                         <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>
                         <td>
                           <div className="flex items-center gap-1">
-                            <button title="Salvar na Memória da IA" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
+                            <button title="Salvar na Memória Local" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
                               className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50">
                               {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
                             </button>
