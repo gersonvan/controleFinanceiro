@@ -30,6 +30,7 @@ export const CATEGORIAS = [
   // Pessoal e Lazer
   "Compras",
   "Lazer e Entretenimento",
+  "Assinaturas Digitais",
   // Empréstimos
   "Empréstimo",
   // Financeiro e Transferências
@@ -78,6 +79,7 @@ export const CATEGORIAS_SAIDA = [
   "Delivery e iFood",
   "Farmácia",
   "Investimentos (Aportes)",
+  "Assinaturas Digitais",
   "Lazer e Entretenimento",
   "Mensalidades e Cursos",
   "Pagamento de Cartão de Crédito",
@@ -98,6 +100,7 @@ export const CATEGORIAS_EMPRESTIMO = ["Empréstimo", "Recebimento de Empréstimo
 
 export const CATEGORIAS_FIXAS = [
   "Aluguel",
+  "Assinaturas Digitais",
   "Condomínio",
   "Contas de Consumo",
   "Mensalidades e Cursos",
@@ -142,8 +145,28 @@ export function mapearCategoria(
     return categoriaOriginal || "Outras Entradas";
   }
 
-  // Educação (antes das regras de moradia para evitar falso-positivo)
-  if (d.includes("melimais")) return "Mensalidades e Cursos";
+  // Assinaturas Digitais (antes de Delivery para ifood club não cair na regra ifd*)
+  if (
+    d.includes("ifood club") ||
+    d.includes("melimais") ||
+    d.includes("hbomaxcom") ||
+    d.includes("helpmax") ||
+    d.includes("chatgpt") ||
+    d.includes("openai") ||
+    d.includes("anthropic") ||
+    d.includes("claude.ai") ||
+    d.includes("linkedin") ||
+    d.includes("github") ||
+    d.includes("google one") ||
+    d.includes("scribd") ||
+    d.includes("locaweb") ||
+    d.includes("netflix") ||
+    d.includes("spotify") ||
+    d.includes("disney") ||
+    (d.includes("microsoft") && !d.includes("banco")) ||
+    d.includes("ppro *")
+  )
+    return "Assinaturas Digitais";
 
   // Moradia
   if (d.includes("enel") || d.includes("brisanet")) return "Contas de Consumo";
