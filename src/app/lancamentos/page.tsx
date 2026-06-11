@@ -65,13 +65,12 @@ function LancamentosContent() {
   const [categorizando, setCategorizando]     = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg]               = useState("");
+  const [limit, setLimit]                     = useState(50);
 
   // Seleção em massa
   const [selecionados, setSelecionados]   = useState<Set<number>>(new Set());
   const [categoriaMassa, setCategoriaMassa] = useState("");
   const [aplicandoMassa, setAplicandoMassa] = useState(false);
-
-  const limit = 50;
 
   const [filtros, setFiltros] = useState({
     busca: "", conta: "", categoria: "", tipo: "",
@@ -380,15 +379,29 @@ function LancamentosContent() {
                 </tbody>
               </table>
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-                <span className="text-sm text-slate-500">Página {page} de {totalPages} ({total} registros)</span>
-                <div className="flex gap-1">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">{total} registros</span>
+                <select
+                  value={limit}
+                  onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                  className="text-xs border border-slate-200 rounded-md px-2 py-1 text-slate-600 bg-white"
+                >
+                  <option value={25}>25 por página</option>
+                  <option value={50}>50 por página</option>
+                  <option value={100}>100 por página</option>
+                  <option value={250}>250 por página</option>
+                  <option value={9999}>Todos</option>
+                </select>
+              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Página {page} de {totalPages}</span>
                   <button className="btn btn-secondary text-xs" disabled={page <= 1}          onClick={() => setPage(page - 1)}>← Anterior</button>
                   <button className="btn btn-secondary text-xs" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Próxima →</button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
