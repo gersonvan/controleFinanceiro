@@ -1,9 +1,138 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { PrevisaoItem } from "@/app/api/previsao/route";
+import type { PrevisaoItem, HistoricoItem } from "@/app/api/previsao/route";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function HistoricoChart({ historico, media }: { historico: HistoricoItem[]; media: number }) {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; mes: string; valor: number } | null>(null);
+
+  // Ordena cronologicamente (mais antigo → mais recente)
+  const dados = [...historico].sort((a, b) => {
+    const toKey = (m: string) => { const [mm, yyyy] = m.split("/"); return `${yyyy}-${mm}`; };
+    return toKey(a.mes).localeCompare(toKey(b.mes));
+  });
+
+  const W = 560, H = 140, PAD = { top: 12, right: 12, bottom: 28, left: 64 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+
+  const maxVal = Math.max(...dados.map(d => d.valor), media) * 1.15;
+  const barW = Math.min(36, (chartW / dados.length) * 0.6);
+  const gap  = chartW / dados.length;
+
+  const xOf  = (i: number) => PAD.left + gap * i + gap / 2;
+  const yOf  = (v: number) => PAD.top + chartH * (1 - v / maxVal);
+
+  // Média móvel de 3 meses
+  const maValues = dados.map((_, i) => {
+    const window = dados.slice(Math.max(0, i - 1), i + 2);
+    return window.reduce((s, d) => s + d.valor, 0) / window.length;
+  });
+
+  // Linha de média móvel
+  const maPath = maValues
+    .map((v, i) => `${i === 0 ? "M" : "L"} ${xOf(i)} ${yOf(v)}`)
+    .join(" ");
+
+  // Ticks Y (3 linhas)
+  const yTicks = [0.25, 0.5, 0.75, 1].map(p => ({ v: maxVal * p, y: yOf(maxVal * p) }));
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+        {/* Grid Y */}
+        {yTicks.map(({ v, y }) => (
+          <g key={v}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y}
+              stroke="#e2e8f0" strokeWidth={0.5} strokeDasharray="3,3" />
+            <text x={PAD.left - 6} y={y + 4} textAnchor="end"
+              fontSize={9} fill="#94a3b8">
+              {v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}
+            </text>
+          </g>
+        ))}
+
+        {/* Barras */}
+        {dados.map((d, i) => {
+          const x = xOf(i) - barW / 2;
+          const barH2 = chartH * (d.valor / maxVal);
+          const y = PAD.top + chartH - barH2;
+          return (
+            <rect
+              key={i} x={x} y={y} width={barW} height={barH2}
+              rx={3}
+              fill="#3b82f6" fillOpacity={0.75}
+              style={{ cursor: "pointer" }}
+              onMouseEnter={(e) => {
+                const rect = (e.target as SVGRectElement).closest("svg")!.getBoundingClientRect();
+                setTooltip({ x: xOf(i), y, mes: d.mes, valor: d.valor });
+              }}
+              onMouseLeave={() => setTooltip(null)}
+            />
+          );
+        })}
+
+        {/* Linha de média móvel */}
+        <path d={maPath} fill="none" stroke="#f97316" strokeWidth={2} strokeLinejoin="round" />
+        {maValues.map((v, i) => (
+          <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill="#f97316" />
+        ))}
+
+        {/* Linha da média geral */}
+        <line x1={PAD.left} x2={W - PAD.right} y1={yOf(media)} y2={yOf(media)}
+          stroke="#6366f1" strokeWidth={1} strokeDasharray="5,3" />
+        <text x={W - PAD.right + 4} y={yOf(media) + 4} fontSize={9} fill="#6366f1">
+          média
+        </text>
+
+        {/* Labels X */}
+        {dados.map((d, i) => (
+          <text key={i} x={xOf(i)} y={H - 4} textAnchor="middle" fontSize={9} fill="#94a3b8">
+            {d.mes}
+          </text>
+        ))}
+      </svg>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div style={{
+          position: "absolute",
+          left: `${(tooltip.x / W) * 100}%`,
+          top: tooltip.y - 8,
+          transform: "translate(-50%, -100%)",
+          background: "#1e293b",
+          color: "#fff",
+          borderRadius: 6,
+          padding: "4px 8px",
+          fontSize: 11,
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+        }}>
+          <div style={{ color: "#94a3b8" }}>{tooltip.mes}</div>
+          <div style={{ fontWeight: 600 }}>{fmt(tooltip.valor)}</div>
+        </div>
+      )}
+
+      {/* Legenda */}
+      <div style={{ display: "flex", gap: 16, marginTop: 4, fontSize: 10, color: "#94a3b8" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 10, height: 10, background: "#3b82f6", opacity: 0.75, borderRadius: 2, display: "inline-block" }} />
+          Valor mensal
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 16, height: 2, background: "#f97316", display: "inline-block" }} />
+          Média móvel (3m)
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 16, height: 2, background: "#6366f1", display: "inline-block", borderTop: "1px dashed #6366f1" }} />
+          Média geral
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function PrevisaoPage() {
   const [itens, setItens] = useState<PrevisaoItem[]>([]);
@@ -145,21 +274,25 @@ export default function PrevisaoPage() {
                                   ? `Histórico de lançamentos usados na média`
                                   : `Parcela registrada`}
                               </div>
-                              <div className="flex flex-wrap gap-2">
-                                {item.historico!.map((h, hi) => (
-                                  <div key={hi} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
-                                    <span className="text-slate-400 text-xs">{h.mes}</span>
-                                    <span className="font-medium text-slate-700">{fmt(h.valor)}</span>
+                              {item.tipoPrevisao === "Fixo" && item.historico!.length > 1 ? (
+                                <>
+                                  <HistoricoChart historico={item.historico!} media={item.valor} />
+                                  <div className="mt-2 text-xs text-slate-400">
+                                    Média: <span className="font-semibold text-slate-600">{fmt(item.valor)}</span>
+                                    {" · "}
+                                    Mín: <span className="text-slate-600">{fmt(Math.min(...item.historico!.map(h => h.valor)))}</span>
+                                    {" · "}
+                                    Máx: <span className="text-slate-600">{fmt(Math.max(...item.historico!.map(h => h.valor)))}</span>
                                   </div>
-                                ))}
-                              </div>
-                              {item.tipoPrevisao === "Fixo" && item.historico!.length > 1 && (
-                                <div className="mt-2 text-xs text-slate-400">
-                                  Média: <span className="font-semibold text-slate-600">{fmt(item.valor)}</span>
-                                  {" · "}
-                                  Mín: <span className="text-slate-600">{fmt(Math.min(...item.historico!.map(h => h.valor)))}</span>
-                                  {" · "}
-                                  Máx: <span className="text-slate-600">{fmt(Math.max(...item.historico!.map(h => h.valor)))}</span>
+                                </>
+                              ) : (
+                                <div className="flex flex-wrap gap-2">
+                                  {item.historico!.map((h, hi) => (
+                                    <div key={hi} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+                                      <span className="text-slate-400 text-xs">{h.mes}</span>
+                                      <span className="font-medium text-slate-700">{fmt(h.valor)}</span>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </td>
