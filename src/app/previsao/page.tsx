@@ -1,12 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { PrevisaoItem, HistoricoItem } from "@/app/api/previsao/route";
+import type { PrevisaoItem, HistoricoItem, HistoricoLancamento } from "@/app/api/previsao/route";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function HistoricoChart({ historico, media }: { historico: HistoricoItem[]; media: number }) {
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; mes: string; valor: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    x: number; y: number; mes: string; valor: number;
+    lancamentos?: HistoricoLancamento[];
+  } | null>(null);
 
   // Ordena cronologicamente (mais antigo → mais recente)
   const dados = [...historico].sort((a, b) => {
@@ -65,9 +68,8 @@ function HistoricoChart({ historico, media }: { historico: HistoricoItem[]; medi
               rx={3}
               fill="#3b82f6" fillOpacity={0.75}
               style={{ cursor: "pointer" }}
-              onMouseEnter={(e) => {
-                const rect = (e.target as SVGRectElement).closest("svg")!.getBoundingClientRect();
-                setTooltip({ x: xOf(i), y, mes: d.mes, valor: d.valor });
+              onMouseEnter={() => {
+                setTooltip({ x: xOf(i), y, mes: d.mes, valor: d.valor, lancamentos: d.lancamentos });
               }}
               onMouseLeave={() => setTooltip(null)}
             />
@@ -104,14 +106,36 @@ function HistoricoChart({ historico, media }: { historico: HistoricoItem[]; medi
           transform: "translate(-50%, -100%)",
           background: "#1e293b",
           color: "#fff",
-          borderRadius: 6,
-          padding: "4px 8px",
+          borderRadius: 8,
+          padding: "8px 12px",
           fontSize: 11,
           whiteSpace: "nowrap",
           pointerEvents: "none",
+          zIndex: 10,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          minWidth: 180,
         }}>
-          <div style={{ color: "#94a3b8" }}>{tooltip.mes}</div>
-          <div style={{ fontWeight: 600 }}>{fmt(tooltip.valor)}</div>
+          <div style={{ color: "#94a3b8", marginBottom: 4, fontWeight: 500 }}>{tooltip.mes}</div>
+          {tooltip.lancamentos && tooltip.lancamentos.length > 0 ? (
+            <>
+              {tooltip.lancamentos.map((l, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 2 }}>
+                  <span style={{ color: "#cbd5e1", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {l.descricao.length > 28 ? l.descricao.slice(0, 28) + "…" : l.descricao}
+                  </span>
+                  <span style={{ fontWeight: 600, color: "#f8fafc" }}>{fmt(l.valor)}</span>
+                </div>
+              ))}
+              {tooltip.lancamentos.length > 1 && (
+                <div style={{ borderTop: "1px solid #334155", marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#94a3b8" }}>Total</span>
+                  <span style={{ fontWeight: 700, color: "#60a5fa" }}>{fmt(tooltip.valor)}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontWeight: 600 }}>{fmt(tooltip.valor)}</div>
+          )}
         </div>
       )}
 

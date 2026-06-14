@@ -5,9 +5,15 @@ import { getSessionUserId } from "@/lib/session";
 
 const REGEX_PARCELA = /\((\d+)\/(\d+)\)/;
 
+export interface HistoricoLancamento {
+  descricao: string;
+  valor: number;
+}
+
 export interface HistoricoItem {
   mes: string;
   valor: number;
+  lancamentos?: HistoricoLancamento[];
 }
 
 export interface PrevisaoItem {
@@ -87,19 +93,20 @@ export async function GET() {
   }
 
   // --- 2. Gastos Fixos (média por mês) ---
-  // Agrupa por categoria → mês → soma, para depois tirar média dos meses
-  const porCategoriaMes: Record<string, Record<string, number>> = {};
+  // categoria → mes → { soma, lancamentos[] }
+  const porCategoriaMes: Record<string, Record<string, { soma: number; items: HistoricoLancamento[] }>> = {};
 
   for (const l of lancamentos) {
     if (l.tipo === "Saída" && l.categoria && CATEGORIAS_FIXAS.includes(l.categoria)) {
       const ref = l.mesReferencia || l.data;
       const mes = toMesStr(ref);
       if (!porCategoriaMes[l.categoria]) porCategoriaMes[l.categoria] = {};
-      porCategoriaMes[l.categoria][mes] = (porCategoriaMes[l.categoria][mes] || 0) + Math.abs(l.valor);
+      if (!porCategoriaMes[l.categoria][mes]) porCategoriaMes[l.categoria][mes] = { soma: 0, items: [] };
+      porCategoriaMes[l.categoria][mes].soma += Math.abs(l.valor);
+      porCategoriaMes[l.categoria][mes].items.push({ descricao: l.descricao, valor: Math.abs(l.valor) });
     }
   }
 
-  // Ordena MM/YYYY corretamente (por YYYY-MM) e limita aos últimos 12 meses
   const sortMes = (a: string, b: string) => {
     const toKey = (m: string) => { const [mm, yyyy] = m.split("/"); return `${yyyy}-${mm}`; };
     return toKey(b).localeCompare(toKey(a)); // desc
@@ -112,9 +119,9 @@ export async function GET() {
     for (const [cat, mesesMap] of Object.entries(porCategoriaMes)) {
       const meses = Object.entries(mesesMap)
         .sort(([a], [b]) => sortMes(a, b))
-        .slice(0, 12); // últimos 12 meses com dados
+        .slice(0, 12);
 
-      const soma  = meses.reduce((acc, [, v]) => acc + v, 0);
+      const soma  = meses.reduce((acc, [, d]) => acc + d.soma, 0);
       const media = soma / meses.length;
 
       previsoes.push({
@@ -124,7 +131,11 @@ export async function GET() {
         valor: parseFloat(media.toFixed(2)),
         tipoPrevisao: "Fixo",
         detalhe: `Média de ${meses.length} ${meses.length !== 1 ? "meses" : "mês"}`,
-        historico: meses.map(([m, v]) => ({ mes: m, valor: parseFloat(v.toFixed(2)) })),
+        historico: meses.map(([m, d]) => ({
+          mes: m,
+          valor: parseFloat(d.soma.toFixed(2)),
+          lancamentos: d.items,
+        })),
       });
     }
   }
