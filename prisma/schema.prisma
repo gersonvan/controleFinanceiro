@@ -38,3 +38,39 @@ model MemoriaIA {
 
   @@unique([descricao, userId])
 }
+
+// Perfil de importação configurável pelo usuário.
+// - builtin != null  -> usa um dos parsers legados (parsers.ts), compatibilidade
+// - builtin == null  -> usa o motor genérico (lib/importacao/engine.ts)
+model PerfilImportacao {
+  id            Int      @id @default(autoincrement())
+  userId        String
+  nome          String   // ex: "C6 Crédito", "Itaú Extrato"
+  conta         String   // nome da conta atribuído aos lançamentos
+  formato       String   @default("csv") // "csv" | "ofx"
+
+  // CSV: configuração de leitura
+  delimitador   String   @default(",")   // "," ";" "\t"
+  linhasPular   Int      @default(0)      // linhas de cabeçalho a ignorar
+  formatoData   String   @default("DD/MM/AAAA") // DD/MM/AAAA | AAAA-MM-DD | DD-MM-AAAA | MM/DD/AAAA
+
+  // CSV: mapeamento de colunas (índice baseado em 0)
+  modoValor     String   @default("unica") // "unica" | "separadas"
+  colData       Int?
+  colDescricao  Int?
+  colValor      Int?     // modoValor = "unica"
+  colEntrada    Int?     // modoValor = "separadas"
+  colSaida      Int?     // modoValor = "separadas"
+  inverterSinal Boolean  @default(false)  // faturas de cartão: positivo = saída
+
+  // Mês de referência: faturas pedem ao usuário no upload; extratos usam a data
+  usaMesReferencia Boolean @default(false)
+
+  // Compatibilidade com parsers legados (null para perfis genéricos)
+  builtin       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}

@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import {
-  parseFaturaC6,
-  parseExtratoC6,
-  parseFaturaNubank,
-  parseExtratoNubank,
-} from "@/lib/parsers";
 import { getSessionUserId } from "@/lib/session";
+import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -14,56 +9,51 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get("file") as File;
-  const tipo = formData.get("tipo") as string;
+  const perfilId = formData.get("perfilId") as string;
+  const mesRefStr = formData.get("mesReferencia") as string | null;
 
-  if (!file || !tipo) {
-    return NextResponse.json({ error: "Arquivo e tipo são obrigatórios" }, { status: 400 });
+  if (!file || !perfilId) {
+    return NextResponse.json({ error: "Arquivo e perfil são obrigatórios" }, { status: 400 });
   }
 
-  const text = await file.text();
+  const perfil = await prisma.perfilImportacao.findFirst({
+    where: { id: parseInt(perfilId), userId },
+  });
+  if (!perfil) return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 });
+
+  // Faturas exigem mês de referência informado no upload
+  let mesReferenciaManual: Date | null = null;
+  if (perfil.usaMesReferencia) {
+    if (!mesRefStr) {
+      return NextResponse.json({ error: "Informe o mês de referência para faturas" }, { status: 400 });
+    }
+    const [ano, mes] = mesRefStr.split("-").map(Number);
+    mesReferenciaManual = new Date(ano, mes - 1, 1);
+  }
+
+  const texto = await file.text();
   const fileName = file.name;
 
-  // Parse CSV
-  const rows = text
-    .split("\n")
-    .map((line) => {
-      const delim = tipo === "c6-credito" ? ";" : ",";
-      return line.split(delim).map((v) => v.trim().replace(/^"|"$/g, ""));
-    })
-    .filter((r) => r.length > 1);
-
-  // Pula cabeçalho(s)
-  const linhasHeader: Record<string, number> = {
-    "c6-credito": 1,
-    "c6-debito": 9,
-    "nubank-credito": 1,
-    "nubank-debito": 1,
-  };
-  const skip = linhasHeader[tipo] || 1;
-  const dataRows = rows.slice(skip);
-
-  // Carrega memória da IA do usuário
   const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
   let lancamentos;
-  if (tipo === "c6-credito") lancamentos = parseFaturaC6(dataRows, fileName, memoriaMap);
-  else if (tipo === "c6-debito") lancamentos = parseExtratoC6(dataRows, memoriaMap);
-  else if (tipo === "nubank-credito") lancamentos = parseFaturaNubank(dataRows, fileName, memoriaMap);
-  else if (tipo === "nubank-debito") lancamentos = parseExtratoNubank(dataRows, memoriaMap);
-  else return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
+  try {
+    lancamentos = importar(texto, fileName, perfil as PerfilCompleto, memoriaMap, mesReferenciaManual);
+  } catch (e) {
+    return NextResponse.json({ error: `Erro ao processar: ${String(e)}` }, { status: 400 });
+  }
 
-  // Busca transações existentes do usuário para evitar duplicatas
+  // Evita duplicatas (por usuário)
   const existing = await prisma.lancamento.findMany({
     where: { userId },
     select: { data: true, descricao: true, valor: true },
   });
   const existingKeys = new Set(
     existing.map(
-      (l) =>
-        `${l.data.toISOString().slice(0, 10)}|${l.descricao}|${l.valor.toFixed(2)}`
+      (l) => `${l.data.toISOString().slice(0, 10)}|${l.descricao}|${l.valor.toFixed(2)}`
     )
   );
 
