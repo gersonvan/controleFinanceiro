@@ -22,6 +22,18 @@ function parseDataOFX(str: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Extrai blocos de transação suportando tanto XML (com </STMTTRN>) quanto SGML puro (sem tags de fechamento).
+// Bancos como Itaú, Bradesco e Santander exportam SGML onde cada <STMTTRN> abre um novo bloco.
+function extrairBlocos(texto: string): string[] {
+  // Tenta XML primeiro (mais confiável quando disponível)
+  const xml = texto.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi);
+  if (xml && xml.length > 0) return xml;
+
+  // Fallback SGML: divide no abre-tag e trata cada pedaço como um bloco
+  const partes = texto.split(/<STMTTRN>/i);
+  return partes.slice(1).map((p) => `<STMTTRN>${p.split(/<STMTTRN>/i)[0]}`);
+}
+
 export function parseOFX(
   texto: string,
   perfil: PerfilConfig,
@@ -30,8 +42,7 @@ export function parseOFX(
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
 
-  // Cada transação é um bloco <STMTTRN>...</STMTTRN>
-  const blocos = texto.match(/<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi) || [];
+  const blocos = extrairBlocos(texto);
 
   for (const bloco of blocos) {
     const valorStr = tag(bloco, "TRNAMT");
