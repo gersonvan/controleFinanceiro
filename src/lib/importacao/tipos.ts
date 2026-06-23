@@ -16,7 +16,7 @@ export interface LancamentoImportado {
 export interface PerfilConfig {
   nome: string;
   conta: string;
-  formato: "csv" | "ofx";
+  formato: "csv" | "ofx" | "pdf";
 
   // CSV
   delimitador: string;

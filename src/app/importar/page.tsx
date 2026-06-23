@@ -24,8 +24,10 @@ type Fase =
   | "detectando"
   | "confirmar_ofx"   // OFX reconhecido → perfil ativo encontrado
   | "novo_ofx"        // OFX sem perfil ativo correspondente
+  | "confirmar_pdf"   // PDF → banco identificado + preview de transações
+  | "novo_pdf"        // PDF → banco não identificado
   | "selecionar_csv"  // CSV → escolher perfil existente ou criar novo
-  | "mapeamento_csv"  // CSV → mapear colunas (perfil novo ou selecionado mas requerendo ajuste)
+  | "mapeamento_csv"  // CSV → mapear colunas
   | "importando"
   | "resultado";
 
@@ -62,12 +64,18 @@ export default function ImportarPage() {
   const [textoArquivo, setTextoArquivo] = useState("");
 
   // OFX
-  const [perfilOFX, setPerfilOFX]     = useState<Perfil | null>(null); // perfil ativo encontrado
+  const [perfilOFX, setPerfilOFX]     = useState<Perfil | null>(null);
   const [orgName, setOrgName]         = useState("");
   const [nomeNovo, setNomeNovo]       = useState("");
   const [contaNovo, setContaNovo]     = useState("");
   const [salvarPerfil, setSalvarPerfil] = useState(true);
   const [mesRef, setMesRef]           = useState("");
+
+  // PDF
+  const [perfilPDF, setPerfilPDF]     = useState<Perfil | null>(null);
+  const [bancoNomePDF, setBancoNomePDF] = useState("");
+  const [previewPDF, setPreviewPDF]   = useState<Array<{ data: string; descricao: string; valor: number }>>([]);
+  const [contaPDF, setContaPDF]       = useState("");
 
   // CSV
   const [preview, setPreview]         = useState<string[][]>([]);
@@ -100,6 +108,10 @@ export default function ImportarPage() {
     setNomeNovo("");
     setContaNovo("");
     setMesRef("");
+    setPerfilPDF(null);
+    setBancoNomePDF("");
+    setPreviewPDF([]);
+    setContaPDF("");
     setPreview([]);
     setPapeis([]);
     setNomePerfil("");
@@ -118,6 +130,25 @@ export default function ImportarPage() {
     setTextoArquivo(texto);
 
     const formato = detectarFormato(texto, file.name);
+
+    if (formato === "pdf") {
+      // Para PDF: envia ao servidor para extração de texto + detecção de banco
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/importar/pdf-preview", { method: "POST", body: form });
+      const json = await res.json();
+      setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
+      setPreviewPDF(json.preview ?? []);
+
+      if (json.perfilId) {
+        const perfil = perfisAtivos.find((p) => p.id === json.perfilId);
+        setPerfilPDF(perfil ?? null);
+        setFase("confirmar_pdf");
+      } else {
+        setFase("novo_pdf");
+      }
+      return;
+    }
 
     if (formato === "ofx") {
       const { builtinKey, orgName: org } = detectarBancoOFX(texto);
@@ -304,6 +335,137 @@ export default function ImportarPage() {
               📥 Importar agora
             </button>
           </div>
+        </div>
+      )}
+
+      {/* CONFIRMAR PDF */}
+      {fase === "confirmar_pdf" && perfilPDF && (
+        <div className="card space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">📄</span>
+            <div>
+              <div className="font-semibold text-slate-800">Banco identificado: {bancoNomePDF}</div>
+              <div className="text-sm text-slate-400 mt-0.5">Arquivo: {arquivo?.name}</div>
+            </div>
+          </div>
+
+          {previewPDF.length > 0 && (
+            <div>
+              <div className="text-xs font-medium text-slate-500 mb-1">Prévia das transações encontradas</div>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                <table className="w-full">
+                  <tbody>
+                    {previewPDF.map((t, i) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-1.5 text-slate-400 whitespace-nowrap">{t.data}</td>
+                        <td className="px-3 py-1.5 text-slate-700 truncate max-w-xs">{t.descricao}</td>
+                        <td className={`px-3 py-1.5 text-right whitespace-nowrap font-medium ${t.valor < 0 ? "text-red-600" : "text-green-600"}`}>
+                          {t.valor < 0 ? "-" : "+"}R$ {Math.abs(t.valor).toFixed(2).replace(".", ",")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {previewPDF.length === 10 && (
+                  <div className="px-3 py-1.5 text-xs text-slate-400 bg-slate-50">Mostrando as primeiras 10 transações…</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência (fatura)</label>
+            <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
+            <p className="text-xs text-slate-400 mt-1">Informe o mês em que esta fatura será paga.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
+            <button
+              className="btn btn-primary flex-1 justify-center"
+              disabled={!mesRef}
+              onClick={() => importar(perfilPDF.id, mesRef)}
+            >
+              📥 Importar {previewPDF.length > 0 ? `(~${previewPDF.length}+ transações)` : ""}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* NOVO PDF — banco não identificado */}
+      {fase === "novo_pdf" && (
+        <div className="card space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">📄</span>
+            <div>
+              <div className="font-semibold text-slate-800">PDF detectado</div>
+              <div className="text-sm text-slate-400 mt-0.5">
+                {bancoNomePDF !== "Banco não identificado" ? `Banco: ${bancoNomePDF}` : "Banco não reconhecido automaticamente"} · {arquivo?.name}
+              </div>
+            </div>
+          </div>
+
+          {previewPDF.length > 0 && (
+            <div>
+              <div className="text-xs font-medium text-slate-500 mb-1">Transações encontradas</div>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                <table className="w-full">
+                  <tbody>
+                    {previewPDF.map((t, i) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-1.5 text-slate-400 whitespace-nowrap">{t.data}</td>
+                        <td className="px-3 py-1.5 text-slate-700 truncate max-w-xs">{t.descricao}</td>
+                        <td className={`px-3 py-1.5 text-right whitespace-nowrap font-medium ${t.valor < 0 ? "text-red-600" : "text-green-600"}`}>
+                          {t.valor < 0 ? "-" : "+"}R$ {Math.abs(t.valor).toFixed(2).replace(".", ",")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <p className="text-sm text-slate-500">
+            {previewPDF.length === 0
+              ? "Não foi possível extrair transações deste PDF. Certifique-se de que é um PDF digital (não escaneado)."
+              : "Banco não está nos perfis ativos. Ative-o em Configurações, ou preencha os dados abaixo para importar diretamente."}
+          </p>
+
+          {previewPDF.length > 0 && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome do banco / conta</label>
+                  <input value={contaPDF} onChange={(e) => setContaPDF(e.target.value)} placeholder="Ex: Santander Cartão" className="w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência</label>
+                  <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary w-full justify-center"
+                disabled={!contaPDF || !mesRef}
+                onClick={async () => {
+                  // Cria perfil genérico PDF e importa
+                  const res = await fetch("/api/perfis", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ nome: contaPDF, conta: contaPDF, formato: "pdf", usaMesReferencia: true }),
+                  });
+                  const json = await res.json();
+                  setPerfisAtivos((prev) => [...prev, json]);
+                  await importar(json.id, mesRef);
+                }}
+              >
+                📥 Importar assim mesmo
+              </button>
+            </>
+          )}
+
+          <button className="btn btn-secondary w-full justify-center" onClick={resetar}>← Trocar arquivo</button>
         </div>
       )}
 
@@ -581,11 +743,11 @@ function DropZone({ onFile, inputRef }: { onFile: (f: File) => void; inputRef: R
     >
       <div className="text-4xl mb-3">📂</div>
       <div className="font-semibold text-slate-700 mb-1">Arraste o arquivo aqui ou clique para selecionar</div>
-      <div className="text-sm text-slate-400">Formatos aceitos: CSV e OFX</div>
+      <div className="text-sm text-slate-400">Formatos aceitos: PDF, CSV e OFX</div>
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,.ofx,.txt"
+        accept=".csv,.ofx,.txt,.pdf"
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
       />

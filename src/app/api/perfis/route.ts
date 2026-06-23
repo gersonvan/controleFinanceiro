@@ -28,24 +28,54 @@ const OFX_DEFAULTS = {
   usaMesReferencia: false,
 };
 
-async function ensureBuiltinOFXPerfis(userId: string) {
+// Perfis PDF nativos — faturas de cartão de crédito (todos usaMesReferencia = true).
+const BUILTIN_PDF_PERFIS = [
+  { builtin: "nubank-cartao-pdf",   nome: "Nubank — Fatura Cartão",   conta: "Nubank Cartão",   inverterSinal: false },
+  { builtin: "c6-cartao-pdf",       nome: "C6 — Fatura Cartão",       conta: "C6 Cartão",       inverterSinal: false },
+  { builtin: "itau-cartao-pdf",     nome: "Itaú — Fatura Cartão",     conta: "Itaú Cartão",     inverterSinal: false },
+  { builtin: "bradesco-cartao-pdf", nome: "Bradesco — Fatura Cartão", conta: "Bradesco Cartão", inverterSinal: false },
+  { builtin: "inter-cartao-pdf",    nome: "Inter — Fatura Cartão",    conta: "Inter Cartão",    inverterSinal: false },
+];
+
+const PDF_DEFAULTS = {
+  formato: "pdf" as const,
+  delimitador: ",",
+  linhasPular: 0,
+  formatoData: "DD/MM/AAAA",
+  modoValor: "unica" as const,
+  colData: null, colDescricao: null, colValor: null,
+  colEntrada: null, colSaida: null,
+  usaMesReferencia: true,
+};
+
+async function ensureBuiltinPerfis(userId: string) {
+  const allBuiltins = [
+    ...BUILTIN_OFX_PERFIS.map((p) => p.builtin),
+    ...BUILTIN_PDF_PERFIS.map((p) => p.builtin),
+  ];
   const existing = await prisma.perfilImportacao.findMany({
-    where: { userId, builtin: { in: BUILTIN_OFX_PERFIS.map((p) => p.builtin) } },
+    where: { userId, builtin: { in: allBuiltins } },
     select: { builtin: true },
   });
   const existingSet = new Set(existing.map((p) => p.builtin));
-  const missing = BUILTIN_OFX_PERFIS.filter((p) => !existingSet.has(p.builtin));
-  if (missing.length === 0) return;
-  await prisma.perfilImportacao.createMany({
-    data: missing.map((p) => ({ ...OFX_DEFAULTS, ...p, userId })),
-  });
+
+  const missingOFX = BUILTIN_OFX_PERFIS.filter((p) => !existingSet.has(p.builtin));
+  const missingPDF = BUILTIN_PDF_PERFIS.filter((p) => !existingSet.has(p.builtin));
+
+  const toCreate = [
+    ...missingOFX.map((p) => ({ ...OFX_DEFAULTS, ...p, userId })),
+    ...missingPDF.map((p) => ({ ...PDF_DEFAULTS, ...p, userId })),
+  ];
+  if (toCreate.length > 0) {
+    await prisma.perfilImportacao.createMany({ data: toCreate });
+  }
 }
 
 export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  await ensureBuiltinOFXPerfis(userId);
+  await ensureBuiltinPerfis(userId);
 
   // ?todos=true devolve todos (incluindo inativos) — usado pela tela de Configurações
   const todos = new URL(req.url).searchParams.get("todos") === "true";

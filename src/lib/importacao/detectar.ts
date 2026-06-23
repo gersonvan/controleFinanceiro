@@ -35,8 +35,11 @@ function tagValue(texto: string, tagName: string): string {
   return m ? m[1].trim() : "";
 }
 
-export function detectarFormato(texto: string, nomeArquivo: string): "ofx" | "csv" {
+export function detectarFormato(texto: string, nomeArquivo: string): "ofx" | "csv" | "pdf" {
   const ext = nomeArquivo.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return "pdf";
+  // PDF magic bytes %PDF aparecem no início como texto latin1
+  if (texto.startsWith("%PDF")) return "pdf";
   if (ext === "ofx") return "ofx";
   const topo = texto.slice(0, 600).toUpperCase();
   if (topo.includes("<OFX>") || topo.includes("<STMTTRN>") || topo.includes("OFXHEADER:")) return "ofx";

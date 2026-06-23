@@ -12,6 +12,7 @@ import {
 import { LancamentoImportado, PerfilConfig, parseCSV } from "./tipos";
 import { parseCSVGenerico } from "./csv";
 import { parseOFX } from "./ofx";
+import { parsePDF } from "./pdf";
 
 export interface PerfilCompleto extends PerfilConfig {
   builtin: string | null;
@@ -44,6 +45,9 @@ export function importar(
   // 2. Perfis genéricos (qualquer banco)
   if (perfil.formato === "ofx") {
     return parseOFX(texto, perfil, memoriaIA, mesReferenciaManual);
+  }
+  if (perfil.formato === "pdf") {
+    return parsePDF(texto, perfil, memoriaIA, mesReferenciaManual);
   }
   return parseCSVGenerico(texto, perfil, memoriaIA, mesReferenciaManual);
 }

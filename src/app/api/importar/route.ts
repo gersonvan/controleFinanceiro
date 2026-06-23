@@ -31,7 +31,20 @@ export async function POST(req: NextRequest) {
     mesReferenciaManual = new Date(ano, mes - 1, 1);
   }
 
-  const texto = await file.text();
+  let texto: string;
+  if (perfil.formato === "pdf") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse");
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const pdfData = await pdfParse(buffer);
+      texto = pdfData.text;
+    } catch (e) {
+      return NextResponse.json({ error: `Erro ao ler PDF: ${String(e)}` }, { status: 400 });
+    }
+  } else {
+    texto = await file.text();
+  }
   const fileName = file.name;
 
   const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
