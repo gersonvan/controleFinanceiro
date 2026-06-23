@@ -41,14 +41,17 @@ async function ensureBuiltinOFXPerfis(userId: string) {
   });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   await ensureBuiltinOFXPerfis(userId);
 
+  // ?todos=true devolve todos (incluindo inativos) — usado pela tela de Configurações
+  const todos = new URL(req.url).searchParams.get("todos") === "true";
+
   const perfis = await prisma.perfilImportacao.findMany({
-    where: { userId },
+    where: { userId, ...(todos ? {} : { ativo: true }) },
     orderBy: [{ builtin: "asc" }, { nome: "asc" }],
   });
   return NextResponse.json(perfis);
@@ -80,6 +83,20 @@ export async function POST(req: NextRequest) {
     },
   });
   return NextResponse.json(perfil, { status: 201 });
+}
+
+export async function PATCH(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const { id, ativo } = await req.json();
+  if (id == null) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  await prisma.perfilImportacao.updateMany({
+    where: { id: parseInt(id), userId },
+    data: { ativo: Boolean(ativo) },
+  });
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {

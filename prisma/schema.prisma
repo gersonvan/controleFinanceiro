@@ -69,6 +69,9 @@ model PerfilImportacao {
   // Compatibilidade com parsers legados (null para perfis genéricos)
   builtin       String?
 
+  // Visibilidade na tela de importação (usuário ativa/desativa em Configurações)
+  ativo         Boolean  @default(true)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

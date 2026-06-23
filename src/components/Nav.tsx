@@ -12,6 +12,7 @@ const links = [
   { href: "/previsao", label: "Previsão", icon: "🔮" },
   { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
   { href: "/memoria-ia", label: "Memória Local", icon: "🧠" },
+  { href: "/configuracoes", label: "Configurações", icon: "⚙️" },
 ];
 
 export default function Nav({ user }: { user?: Session["user"] }) {
