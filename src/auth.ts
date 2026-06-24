@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { prisma } from "@/lib/db";
+import { authConfig } from "./auth.config";
 
 const ALLOWED_EMAILS = new Set(
   (process.env.ALLOWED_EMAILS ?? "gersonvan@gmail.com")
@@ -10,6 +11,7 @@ const ALLOWED_EMAILS = new Set(
 );
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [Google],
   callbacks: {
     signIn({ user }) {
