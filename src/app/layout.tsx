@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 
 export const metadata: Metadata = {
   title: "Controle Financeiro",
@@ -13,11 +13,11 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
 
-  // Páginas sem Nav (login)
-  if (!session) {
+  // No session (login) or onboarding not complete: full-screen without Nav
+  if (!session || session.onboardingCompleto === false) {
     return (
       <html lang="pt-BR" className="h-full">
-        <body className="min-h-full">{children}</body>
+        <body className="min-h-full bg-slate-50">{children}</body>
       </html>
     );
   }

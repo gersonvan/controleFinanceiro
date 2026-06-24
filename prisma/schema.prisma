@@ -28,6 +28,14 @@ model Lancamento {
   @@index([tipo])
 }
 
+// Perfil do usuário — criado no primeiro login, controla onboarding e nome exibido.
+model UserProfile {
+  userId             String   @id
+  nome               String   @default("")
+  onboardingCompleto Boolean  @default(false)
+  createdAt          DateTime @default(now())
+}
+
 model MemoriaIA {
   id               Int      @id @default(autoincrement())
   descricao        String
