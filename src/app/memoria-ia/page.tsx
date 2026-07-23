@@ -22,7 +22,19 @@ export default function MemoriaIAPage() {
     setLoading(false);
   };
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => {
+    let ativo = true;
+    async function carregarInicial() {
+      const res = await fetch("/api/memoria-ia");
+      const data = await res.json();
+      if (ativo) {
+        setRegras(data);
+        setLoading(false);
+      }
+    }
+    void carregarInicial();
+    return () => { ativo = false; };
+  }, []);
 
   const salvar = async () => {
     if (!nova.descricao || !nova.categoriaCorreta) return;

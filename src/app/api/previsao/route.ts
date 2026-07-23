@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { CATEGORIAS_FIXAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 const REGEX_PARCELA = /\((\d+)\/(\d+)\)/;
 
@@ -35,7 +36,7 @@ export async function GET() {
   hoje.setHours(0, 0, 0, 0);
 
   const lancamentos = await prisma.lancamento.findMany({
-    where: { userId },
+    where: escopoDoUsuario(userId),
     select: {
       descricao: true,
       categoria: true,

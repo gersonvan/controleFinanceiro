@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 
 // Perfis OFX nativos para os principais bancos brasileiros.
 // Todos usam o mesmo parser OFX — só diferem em nome/conta/inverterSinal.
@@ -54,7 +55,7 @@ async function ensureBuiltinPerfis(userId: string) {
     ...BUILTIN_PDF_PERFIS.map((p) => p.builtin),
   ];
   const existing = await prisma.perfilImportacao.findMany({
-    where: { userId, builtin: { in: allBuiltins } },
+    where: escopoDoUsuario(userId, { builtin: { in: allBuiltins } }),
     select: { builtin: true },
   });
   const existingSet = new Set(existing.map((p) => p.builtin));
@@ -63,8 +64,8 @@ async function ensureBuiltinPerfis(userId: string) {
   const missingPDF = BUILTIN_PDF_PERFIS.filter((p) => !existingSet.has(p.builtin));
 
   const toCreate = [
-    ...missingOFX.map((p) => ({ ...OFX_DEFAULTS, ...p, userId })),
-    ...missingPDF.map((p) => ({ ...PDF_DEFAULTS, ...p, userId })),
+    ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ...p })),
+    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ...p })),
   ];
   if (toCreate.length > 0) {
     await prisma.perfilImportacao.createMany({ data: toCreate });
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
   const todos = new URL(req.url).searchParams.get("todos") === "true";
 
   const perfis = await prisma.perfilImportacao.findMany({
-    where: { userId, ...(todos ? {} : { ativo: true }) },
+    where: escopoDoUsuario(userId, todos ? {} : { ativo: true }),
     orderBy: [{ builtin: "asc" }, { nome: "asc" }],
   });
   return NextResponse.json(perfis);
@@ -104,13 +105,13 @@ export async function POST(req: NextRequest) {
   }
 
   const perfil = await prisma.perfilImportacao.create({
-    data: {
-      userId, nome, conta, formato,
+    data: dadosDoUsuario(userId, {
+      nome, conta, formato,
       delimitador, linhasPular, formatoData,
       modoValor, colData, colDescricao, colValor,
       colEntrada, colSaida, inverterSinal, usaMesReferencia,
       builtin: null,
-    },
+    }),
   });
   return NextResponse.json(perfil, { status: 201 });
 }
@@ -123,7 +124,7 @@ export async function PATCH(req: NextRequest) {
   if (id == null) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   await prisma.perfilImportacao.updateMany({
-    where: { id: parseInt(id), userId },
+    where: escopoDoUsuario(userId, { id: parseInt(id) }),
     data: { ativo: Boolean(ativo) },
   });
   return NextResponse.json({ ok: true });
@@ -139,7 +140,7 @@ export async function DELETE(req: NextRequest) {
 
   // Não permite excluir perfis nativos (builtin)
   await prisma.perfilImportacao.deleteMany({
-    where: { id: parseInt(id), userId, builtin: null },
+    where: escopoDoUsuario(userId, { id: parseInt(id), builtin: null }),
   });
   return NextResponse.json({ ok: true });
 }

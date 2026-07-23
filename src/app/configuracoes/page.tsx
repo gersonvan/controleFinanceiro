@@ -15,13 +15,19 @@ export default function ConfiguracoesPage() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState<number | null>(null);
 
-  const carregar = async () => {
-    setCarregando(true);
-    const r = await fetch("/api/perfis?todos=true");
-    setPerfis(await r.json());
-    setCarregando(false);
-  };
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => {
+    let ativo = true;
+    async function carregar() {
+      const r = await fetch("/api/perfis?todos=true");
+      const data = await r.json();
+      if (ativo) {
+        setPerfis(data);
+        setCarregando(false);
+      }
+    }
+    void carregar();
+    return () => { ativo = false; };
+  }, []);
 
   const toggleAtivo = async (p: Perfil) => {
     setSalvando(p.id);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 // Categorias que representam movimentações internas (pagamento de fatura,
 // transferências entre contas próprias) e não devem entrar nos totais de
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const where: Record<string, unknown> = { userId };
+  const where = escopoDoUsuario(userId);
   if (conta) where.conta = conta;
   if (categoria === "__sem__") where.categoria = null;
   else if (categoria) where.categoria = categoria;

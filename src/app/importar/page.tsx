@@ -61,7 +61,6 @@ export default function ImportarPage() {
 
   // arquivo atual
   const [arquivo, setArquivo] = useState<File | null>(null);
-  const [textoArquivo, setTextoArquivo] = useState("");
 
   // OFX
   const [perfilOFX, setPerfilOFX]     = useState<Perfil | null>(null);
@@ -87,7 +86,6 @@ export default function ImportarPage() {
   const [usaMesRef, setUsaMesRef]     = useState(false);
   const [nomePerfil, setNomePerfil]   = useState("");
   const [contaPerfil, setContaPerfil] = useState("");
-  const [perfilCSV, setPerfilCSV]     = useState<Perfil | null>(null); // perfil CSV selecionado
 
   // resultado
   const [resultado, setResultado]     = useState<Resultado | null>(null);
@@ -102,7 +100,6 @@ export default function ImportarPage() {
   const resetar = () => {
     setFase("upload");
     setArquivo(null);
-    setTextoArquivo("");
     setPerfilOFX(null);
     setOrgName("");
     setNomeNovo("");
@@ -116,18 +113,28 @@ export default function ImportarPage() {
     setPapeis([]);
     setNomePerfil("");
     setContaPerfil("");
-    setPerfilCSV(null);
     setResultado(null);
     setErroImport("");
     if (inputRef.current) inputRef.current.value = "";
   };
+
+  const carregarPreviewCSV = useCallback(async (file: File, delim: string, pular: number) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("delimitador", delim);
+    const res = await fetch("/api/importar/preview", { method: "POST", body: form });
+    const json = await res.json();
+    if (json.linhas) {
+      setPreview(json.linhas);
+      setPapeis(sugerirPapeis(json.linhas, pular));
+    }
+  }, []);
 
   const processarArquivo = useCallback(async (file: File) => {
     setArquivo(file);
     setFase("detectando");
 
     const texto = await lerArquivo(file);
-    setTextoArquivo(texto);
 
     const formato = detectarFormato(texto, file.name);
 
@@ -189,19 +196,7 @@ export default function ImportarPage() {
       await carregarPreviewCSV(file, delimitador, linhasPular);
       setFase("mapeamento_csv");
     }
-  }, [perfisAtivos, delimitador, linhasPular]);
-
-  const carregarPreviewCSV = async (file: File, delim: string, pular: number) => {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("delimitador", delim);
-    const res = await fetch("/api/importar/preview", { method: "POST", body: form });
-    const json = await res.json();
-    if (json.linhas) {
-      setPreview(json.linhas);
-      setPapeis(sugerirPapeis(json.linhas, pular));
-    }
-  };
+  }, [carregarPreviewCSV, perfisAtivos, delimitador, linhasPular]);
 
   const setPapel = (col: number, papel: Papel) => {
     setPapeis((prev) => {
@@ -528,7 +523,6 @@ export default function ImportarPage() {
                 <button
                   key={p.id}
                   onClick={() => {
-                    setPerfilCSV(p);
                     importar(p.id, p.usaMesReferencia ? mesRef : undefined);
                   }}
                   className="p-3 rounded-lg border-2 border-slate-200 hover:border-blue-400 text-left transition-all"

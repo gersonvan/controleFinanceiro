@@ -26,6 +26,10 @@ model Lancamento {
   @@index([categoria])
   @@index([conta])
   @@index([tipo])
+  @@index([userId, data])
+  @@index([userId, mesReferencia])
+  @@index([userId, categoria])
+  @@index([userId, pessoa])
 }
 
 // Perfil do usuário — criado no primeiro login, controla onboarding e nome exibido.

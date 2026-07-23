@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 export interface ResumoPessoa {
   pessoa: string;
@@ -23,10 +24,9 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const lancamentos = await prisma.lancamento.findMany({
-    where: {
-      userId,
+    where: escopoDoUsuario(userId, {
       categoria: { in: ["Empréstimo", "Recebimento de Empréstimo"] },
-    },
+    }),
     orderBy: { data: "desc" },
   });
 

@@ -34,23 +34,33 @@ export default function OnboardingPage() {
 
   // Pre-fill with Google first name
   useEffect(() => {
-    if (session?.user?.name && !nome) {
-      setNome(session.user.name.split(" ")[0]);
+    const nomeGoogle = session?.user?.name;
+    if (nomeGoogle && !nome) {
+      queueMicrotask(() => setNome(nomeGoogle.split(" ")[0]));
     }
   }, [session, nome]);
 
   // Load bank profiles when reaching step 2 (also triggers seeding)
   useEffect(() => {
     if (passo === 2 && perfis.length === 0) {
-      setCarregando(true);
-      fetch("/api/perfis?todos=true")
-        .then((r) => r.json())
-        .then((data: Perfil[]) => {
+      let ativo = true;
+      async function carregarPerfis() {
+        const r = await fetch("/api/perfis?todos=true");
+        const data: Perfil[] = await r.json();
+        if (ativo) {
           setPerfis(data.filter((p) => p.builtin !== null));
-        })
-        .finally(() => setCarregando(false));
+          setCarregando(false);
+        }
+      }
+      void carregarPerfis();
+      return () => { ativo = false; };
     }
   }, [passo, perfis.length]);
+
+  const irParaBancos = () => {
+    if (perfis.length === 0) setCarregando(true);
+    setPasso(2);
+  };
 
   const togglePerfil = async (id: number, ativo: boolean) => {
     setPerfis((prev) => prev.map((p) => (p.id === id ? { ...p, ativo } : p)));
@@ -162,7 +172,7 @@ export default function OnboardingPage() {
 
               <div className="flex justify-end">
                 <button
-                  onClick={() => setPasso(2)}
+                  onClick={irParaBancos}
                   disabled={!nome.trim()}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
@@ -275,7 +285,7 @@ export default function OnboardingPage() {
 
               <div className="flex flex-col sm:flex-row gap-3 justify-between">
                 <button
-                  onClick={() => setPasso(2)}
+                  onClick={irParaBancos}
                   className="text-slate-500 px-4 py-2 rounded-lg text-sm hover:bg-slate-100 transition-colors"
                 >
                   ← Voltar

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -32,17 +32,21 @@ export default function Dashboard() {
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    let ativo = true;
+    async function carregar() {
     const params = new URLSearchParams({ ano: String(ano) });
     if (mes !== "") params.set("mes", String(mes));
     const res = await fetch(`/api/dashboard?${params}`);
     const json = await res.json();
-    setData(json);
-    setLoading(false);
+      if (ativo) {
+        setData(json);
+        setLoading(false);
+      }
+    }
+    void carregar();
+    return () => { ativo = false; };
   }, [ano, mes]);
-
-  useEffect(() => { carregar(); }, [carregar]);
 
   const anos = Array.from({ length: 5 }, (_, i) => anoAtual - i);
 

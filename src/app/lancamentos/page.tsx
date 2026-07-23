@@ -94,7 +94,7 @@ function LancamentosContent() {
     if (filtros.dataFim)    p.set("dataFim",    filtros.dataFim);
     if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
     return p;
-  }, [page, filtros]);
+  }, [page, limit, filtros]);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -109,20 +109,58 @@ function LancamentosContent() {
     setLoading(false);
   }, [buildParams]);
 
-  useEffect(() => { carregar(); }, [carregar]);
-
-  // Limpa seleção ao mudar filtros/página
-  useEffect(() => { setSelecionados(new Set()); }, [filtros, page]);
+  useEffect(() => {
+    let ativo = true;
+    async function carregarInicial() {
+      const [resL, resR] = await Promise.all([
+        fetch(`/api/lancamentos?${buildParams()}`),
+        fetch(`/api/resumo?${buildParams({ page: "1", limit: "9999" })}`),
+      ]);
+      const [jsonL, jsonR] = await Promise.all([resL.json(), resR.json()]);
+      if (ativo) {
+        setLancamentos(jsonL.lancamentos);
+        setTotal(jsonL.total);
+        setResumo(jsonR);
+        setLoading(false);
+      }
+    }
+    void carregarInicial();
+    return () => { ativo = false; };
+  }, [buildParams]);
 
   const aplicarPreset = (fn: () => { i: string; f: string }) => {
     const { i, f } = fn();
     setFiltros((prev) => ({ ...prev, dataInicio: i, dataFim: f }));
     setPage(1);
+    setSelecionados(new Set());
+    setLoading(true);
   };
 
   const setFiltro = (key: string, value: string) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
     setPage(1);
+    setSelecionados(new Set());
+    setLoading(true);
+  };
+
+  const limparPeriodo = () => {
+    setFiltros((prev) => ({ ...prev, dataInicio: "", dataFim: "" }));
+    setPage(1);
+    setSelecionados(new Set());
+    setLoading(true);
+  };
+
+  const alterarLimite = (novoLimite: number) => {
+    setLimit(novoLimite);
+    setPage(1);
+    setSelecionados(new Set());
+    setLoading(true);
+  };
+
+  const mudarPagina = (novaPagina: number) => {
+    setPage(novaPagina);
+    setSelecionados(new Set());
+    setLoading(true);
   };
 
   const salvarCategoria = async (id: number) => {
@@ -179,7 +217,8 @@ function LancamentosContent() {
   const toggleSelecionado = (id: number) => {
     setSelecionados((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -268,7 +307,7 @@ function LancamentosContent() {
               </button>
             );
           })}
-          <button onClick={() => setFiltros((p) => ({ ...p, dataInicio: "", dataFim: "" }))}
+          <button onClick={limparPeriodo}
             className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-400 hover:border-slate-400 transition-all">
             Limpar datas
           </button>
@@ -384,7 +423,7 @@ function LancamentosContent() {
                 <span className="text-sm text-slate-500">{total} registros</span>
                 <select
                   value={limit}
-                  onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                  onChange={(e) => alterarLimite(Number(e.target.value))}
                   className="text-xs border border-slate-200 rounded-md px-2 py-1 text-slate-600 bg-white"
                 >
                   <option value={25}>25 por página</option>
@@ -397,8 +436,8 @@ function LancamentosContent() {
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400">Página {page} de {totalPages}</span>
-                  <button className="btn btn-secondary text-xs" disabled={page <= 1}          onClick={() => setPage(page - 1)}>← Anterior</button>
-                  <button className="btn btn-secondary text-xs" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Próxima →</button>
+                  <button className="btn btn-secondary text-xs" disabled={page <= 1}          onClick={() => mudarPagina(page - 1)}>← Anterior</button>
+                  <button className="btn btn-secondary text-xs" disabled={page >= totalPages} onClick={() => mudarPagina(page + 1)}>Próxima →</button>
                 </div>
               )}
             </div>

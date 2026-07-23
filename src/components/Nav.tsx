@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -48,7 +49,7 @@ export default function Nav({ user }: { user?: Session["user"] }) {
         <div className="p-3 border-t border-slate-700">
           <div className="flex items-center gap-2 mb-2">
             {user.image && (
-              <img src={user.image} alt="" className="w-7 h-7 rounded-full" />
+              <Image src={user.image} alt="" width={28} height={28} unoptimized className="w-7 h-7 rounded-full" />
             )}
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium text-white truncate">{user.name}</div>

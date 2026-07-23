@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -11,15 +12,15 @@ export async function POST(req: NextRequest) {
   const { ids, usarGemini = false } = body;
 
   // Carrega Memória da IA do usuário
-  const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
+  const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
 
   // Só processa lançamentos sem categoria do usuário
-  const where = ids?.length
-    ? { userId, id: { in: ids }, categoria: null as null }
-    : { userId, categoria: null as null };
+  const where = escopoDoUsuario(userId, ids?.length
+    ? { id: { in: ids }, categoria: null as null }
+    : { categoria: null as null });
 
   const lancamentos = await prisma.lancamento.findMany({ where });
 
@@ -54,10 +55,10 @@ export async function POST(req: NextRequest) {
 
   // --- Batch update: Memória da IA ---
   if (porMemoria.length > 0) {
-    await Promise.all(
+    await prisma.$transaction(
       porMemoria.map((item) =>
-        prisma.lancamento.update({
-          where: { id: item.id },
+        prisma.lancamento.updateMany({
+          where: escopoDoUsuario(userId, { id: item.id }),
           data: { categoria: item.categoria },
         })
       )
@@ -66,10 +67,10 @@ export async function POST(req: NextRequest) {
 
   // --- Batch update: Regras manuais ---
   if (porRegras.length > 0) {
-    await Promise.all(
+    await prisma.$transaction(
       porRegras.map((item) =>
-        prisma.lancamento.update({
-          where: { id: item.id },
+        prisma.lancamento.updateMany({
+          where: escopoDoUsuario(userId, { id: item.id }),
           data: { categoria: item.categoria },
         })
       )
@@ -87,8 +88,8 @@ export async function POST(req: NextRequest) {
         try {
           const catIA = await chamarGemini(l.descricao, categoriasStr, apiKey);
           if (catIA && CATEGORIAS.includes(catIA as never)) {
-            await prisma.lancamento.update({
-              where: { id: l.id },
+            await prisma.lancamento.updateMany({
+              where: escopoDoUsuario(userId, { id: l.id }),
               data: { categoria: catIA },
             });
             categorizadosGemini++;

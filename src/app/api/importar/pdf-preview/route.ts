@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/session";
 import { detectarBancoPDF, parsePDF } from "@/lib/importacao/pdf";
 import { prisma } from "@/lib/db";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   // Busca o perfil correspondente (pode ainda não existir se nunca visitou /api/perfis)
   let perfilId: number | null = null;
   if (builtinKey) {
-    const p = await prisma.perfilImportacao.findFirst({ where: { userId, builtin: builtinKey } });
+    const p = await prisma.perfilImportacao.findFirst({ where: escopoDoUsuario(userId, { builtin: builtinKey }) });
     perfilId = p?.id ?? null;
   }
 

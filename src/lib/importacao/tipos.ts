@@ -37,28 +37,35 @@ export interface PerfilConfig {
 export function parseCSV(text: string, delimitador: string): string[][] {
   const delim = delimitador === "\\t" ? "\t" : delimitador;
   const linhas: string[][] = [];
+  let celulas: string[] = [];
+  let atual = "";
+  let dentroAspas = false;
 
-  for (const raw of text.split(/\r?\n/)) {
-    if (raw.trim() === "") continue;
-    const celulas: string[] = [];
-    let atual = "";
-    let dentroAspas = false;
-
-    for (let i = 0; i < raw.length; i++) {
-      const c = raw[i];
-      if (c === '"') {
-        if (dentroAspas && raw[i + 1] === '"') { atual += '"'; i++; }
-        else dentroAspas = !dentroAspas;
-      } else if (c === delim && !dentroAspas) {
-        celulas.push(atual.trim());
-        atual = "";
-      } else {
-        atual += c;
-      }
-    }
+  const concluirLinha = () => {
+    if (celulas.length === 0 && atual.trim() === "") return;
     celulas.push(atual.trim());
     linhas.push(celulas);
+    celulas = [];
+    atual = "";
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      if (dentroAspas && text[i + 1] === '"') { atual += '"'; i++; }
+      else dentroAspas = !dentroAspas;
+    } else if (c === delim && !dentroAspas) {
+      celulas.push(atual.trim());
+      atual = "";
+    } else if ((c === "\n" || c === "\r") && !dentroAspas) {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      concluirLinha();
+    } else {
+      atual += c;
+    }
   }
+
+  concluirLinha();
   return linhas;
 }
 

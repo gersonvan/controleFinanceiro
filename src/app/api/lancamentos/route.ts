@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { dadosAtualizaveisDoUsuario, dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 
 export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
 
-  const where: Record<string, unknown> = { userId };
+  const where = escopoDoUsuario(userId);
   if (conta) where.conta = conta;
   if (categoria === "__sem__") where.categoria = null;
   else if (categoria) where.categoria = categoria;
@@ -51,8 +53,10 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json();
-  const lancamento = await prisma.lancamento.create({ data: { ...body, userId } });
+  const body = await req.json() as Record<string, unknown>;
+  const lancamento = await prisma.lancamento.create({
+    data: dadosDoUsuario(userId, body) as Prisma.LancamentoUncheckedCreateInput,
+  });
   return NextResponse.json(lancamento, { status: 201 });
 }
 
@@ -63,7 +67,7 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await prisma.lancamento.deleteMany({ where: { id: parseInt(id), userId } });
+  await prisma.lancamento.deleteMany({ where: escopoDoUsuario(userId, { id: parseInt(id) }) });
   return NextResponse.json({ ok: true });
 }
 
@@ -71,12 +75,12 @@ export async function PATCH(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json();
+  const body = await req.json() as Record<string, unknown>;
   const { id, ...data } = body;
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  if (typeof id !== "number") return NextResponse.json({ error: "id required" }, { status: 400 });
   const lancamento = await prisma.lancamento.updateMany({
-    where: { id, userId },
-    data,
+    where: escopoDoUsuario(userId, { id }),
+    data: dadosAtualizaveisDoUsuario(userId, data),
   });
   return NextResponse.json(lancamento);
 }
@@ -92,7 +96,7 @@ export async function PUT(req: NextRequest) {
     categoriaCorreta: string;
   };
 
-  const where: Record<string, unknown> = { userId };
+  const where = escopoDoUsuario(userId);
   if (ids?.length)     where.id       = { in: ids };
   if (descricaoContem) where.descricao = { contains: descricaoContem, mode: "insensitive" };
   if (categoriaErrada) where.categoria = categoriaErrada;

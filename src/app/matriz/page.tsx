@@ -40,14 +40,21 @@ export default function MatrizPage() {
   const [aberta, setAberta]         = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
+    let ativo = true;
     const p = new URLSearchParams();
     if (tipo)       p.set("tipo",       tipo);
     if (dataInicio) p.set("dataInicio", dataInicio);
     if (dataFim)    p.set("dataFim",    dataFim);
-    fetch(`/api/matriz?${p}`)
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); });
+    async function carregar() {
+      const r = await fetch(`/api/matriz?${p}`);
+      const d = await r.json();
+      if (ativo) {
+        setData(d);
+        setLoading(false);
+      }
+    }
+    void carregar();
+    return () => { ativo = false; };
   }, [tipo, dataInicio, dataFim]);
 
   const toggle = (cat: string) => setAberta((prev) => (prev === cat ? null : cat));

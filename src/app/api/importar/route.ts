@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
+import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const perfil = await prisma.perfilImportacao.findFirst({
-    where: { id: parseInt(perfilId), userId },
+    where: escopoDoUsuario(userId, { id: parseInt(perfilId) }),
   });
   if (!perfil) return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 });
 
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
   const fileName = file.name;
 
-  const memoria = await prisma.memoriaIA.findMany({ where: { userId } });
+  const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
   const memoriaMap = new Map<string, string>(
     memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
   );
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   // Evita duplicatas (por usuário)
   const existing = await prisma.lancamento.findMany({
-    where: { userId },
+    where: escopoDoUsuario(userId),
     select: { data: true, descricao: true, valor: true },
   });
   const existingKeys = new Set(
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   if (novos.length > 0) {
     await prisma.lancamento.createMany({
-      data: novos.map((l) => ({
+      data: novos.map((l) => dadosDoUsuario(userId, {
         data: l.data,
         descricao: l.descricao,
         categoria: l.categoria || null,
@@ -87,7 +88,6 @@ export async function POST(req: NextRequest) {
         status: "Paga",
         fonte: l.fonte,
         mesReferencia: l.mesReferencia,
-        userId,
       })),
     });
   }

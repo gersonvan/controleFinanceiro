@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { escopoDoUsuario } from "@/lib/tenant";
 
 // Categorias de movimentação interna que não representam receita nem despesa real
 const CATEGORIAS_NEUTRAS = new Set([
@@ -27,13 +28,12 @@ export async function GET(req: NextRequest) {
   // Filtra por mesReferencia quando preenchido, senão por data
   const dateFilter = { gte: dataInicio, lte: dataFim };
   const lancamentos = await prisma.lancamento.findMany({
-    where: {
-      userId,
+    where: escopoDoUsuario(userId, {
       OR: [
         { mesReferencia: { not: null, ...dateFilter } },
         { mesReferencia: null, data: dateFilter },
       ],
-    },
+    }),
     select: { data: true, valor: true, tipo: true, categoria: true, conta: true },
   });
 

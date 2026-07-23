@@ -1,12 +1,7 @@
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
-import { redirect } from "next/navigation";
 
-export default function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-sm text-center space-y-6">

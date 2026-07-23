@@ -1,0 +1,89 @@
+# Frontend
+
+## Estratégia de renderização
+
+O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbopack habilitado. A estratégia de renderização adotada é:
+
+- **Server Components** (padrão): layout raiz `src/app/layout.tsx` e a maioria das páginas de nível superior lêem a sessão no servidor via `auth()`.
+- **Client Components** (`"use client"`): componentes que precisam de estado, efeitos ou interatividade com o usuário (formulários de filtro, tabelas com paginação, gráficos).
+- **Sem SSG ou ISR explícito**: todas as páginas são dinâmicas, pois dependem de dados do usuário autenticado.
+
+## Inventário de páginas
+
+| Rota | Arquivo | Descrição | Acesso |
+|---|---|---|---|
+| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal | Requer autenticação + onboarding |
+| `/lancamentos` | `src/app/lancamentos/page.tsx` | Lista paginada de lançamentos com filtros e edição inline | Requer autenticação + onboarding |
+| `/matriz` | `src/app/matriz/page.tsx` | Matriz de gastos: categorias × meses, com drill-down por descrição | Requer autenticação + onboarding |
+| `/importar` | `src/app/importar/page.tsx` | Fluxo de importação de extrato (upload, preview, confirmação) | Requer autenticação + onboarding |
+| `/previsao` | `src/app/previsao/page.tsx` | Previsão de despesas dos próximos 12 meses | Requer autenticação + onboarding |
+| `/emprestimos` | `src/app/emprestimos/page.tsx` | Controle de empréstimos por pessoa com status | Requer autenticação + onboarding |
+| `/memoria-ia` | `src/app/memoria-ia/page.tsx` | Gerenciamento de regras da memória de IA | Requer autenticação + onboarding |
+| `/configuracoes` | `src/app/configuracoes/page.tsx` | Gerenciamento de perfis de importação (ativar/desativar/criar/excluir) | Requer autenticação + onboarding |
+| `/onboarding` | `src/app/onboarding/page.tsx` | Wizard de 3 etapas para configuração inicial do usuário | Requer autenticação; acessível sem onboarding |
+| `/login` | `src/app/login/page.tsx` | Página de login com botão "Entrar com Google" | Público |
+
+## Componentes compartilhados
+
+| Componente | Arquivo | Responsabilidade |
+|---|---|---|
+| `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral/superior com 8 links; ocultada durante onboarding e em sessões sem autenticação |
+
+## Layout raiz e controle de sessão
+
+O `src/app/layout.tsx` é um Server Component que:
+
+1. Chama `auth()` do NextAuth para obter a sessão no servidor.
+2. Se a sessão for `null` ou `onboardingCompleto === false`, renderiza o `<body>` sem o componente `Nav` (layout mínimo para páginas de login e onboarding).
+3. Se autenticado e onboarding concluído, envolve o conteúdo com `<SessionProvider>` (para habilitar `useSession` nos Client Components) e inclui o componente `Nav`.
+
+```
+src/app/layout.tsx:
+  if (!session || session.onboardingCompleto === false) → layout sem Nav
+  else → SessionProvider + Nav + children
+```
+
+## Wizard de onboarding
+
+`src/app/onboarding/page.tsx` é um Client Component com 3 etapas:
+
+| Etapa | Conteúdo |
+|---|---|
+| 1 | Boas-vindas e campo de nome do usuário |
+| 2 | Seleção de bancos (toggle de perfis via `GET /api/perfis?todos=true`) |
+| 3 | Conclusão com opção de ir para importação ou dashboard |
+
+Ao finalizar:
+1. Chama `PATCH /api/onboarding` com o nome informado.
+2. Chama `await update({ onboardingCompleto: true })` do `next-auth/react` para atualizar o JWT no cliente.
+3. Redireciona para a rota escolhida via `router.push()`.
+
+## Navegação
+
+`src/components/Nav.tsx` define os 8 links de navegação principal:
+
+| Rota | Rótulo |
+|---|---|
+| `/` | Dashboard |
+| `/lancamentos` | Lançamentos |
+| `/matriz` | Matriz |
+| `/importar` | Importar |
+| `/previsao` | Previsão |
+| `/emprestimos` | Empréstimos |
+| `/memoria-ia` | Memória IA |
+| `/configuracoes` | Configurações |
+
+## Bibliotecas de interface
+
+| Biblioteca | Versão | Uso |
+|---|---|---|
+| Tailwind CSS | 4.3.0 | Estilização utilitária em todos os componentes |
+| lucide-react | 1.17.0 | Ícones SVG como componentes React na navegação e botões |
+| recharts | 3.8.1 | Gráficos de barras, pizza e linha no dashboard |
+
+## Convenções de estado e dados
+
+- Dados são carregados via `fetch` do lado do cliente para as API Routes (não há Server Actions).
+- Estado local de filtros e seleção é gerenciado com `useState`/`useEffect` nos Client Components.
+- A sessão do usuário é acessível nos Client Components via `useSession()` do `next-auth/react`.
+- Não há gerenciador de estado global (sem Redux, Zustand ou Context API de estado).
