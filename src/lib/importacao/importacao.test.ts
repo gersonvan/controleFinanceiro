@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCSVGenerico } from "./csv";
-import { detectarBancoOFX, detectarFormato, sugerirPapeis } from "./detectar";
+import { detectarBancoOFX, detectarFormato, detectarPerfilCSV, sugerirPapeis } from "./detectar";
 import { importar, type PerfilCompleto } from "./engine";
 import { detectarBancoPDF } from "./pdf";
 import { parseOFX } from "./ofx";
@@ -16,6 +16,7 @@ const perfilCsv: PerfilConfig = {
   modoValor: "unica",
   colData: 0,
   colDescricao: 1,
+  colParcela: null,
   colValor: 2,
   colEntrada: null,
   colSaida: null,
@@ -44,6 +45,15 @@ describe("utilitários de importação", () => {
       ["01/01/2026", "Mercado Central", "-120,00"],
       ["02/01/2026", "Farmácia", "-45,00"],
     ], 1)).toEqual(["data", "descricao", "valor"]);
+  });
+
+  it("reconhece o layout CSV de fatura do C6", () => {
+    const cabecalho = "Data;Cartão;Final do Cartão;Categoria;Descrição;Parcela;Valor (em US$);Cotação (em R$);Valor (em R$)";
+
+    expect(detectarPerfilCSV(cabecalho)).toEqual({
+      builtinKey: "c6-cartao-csv",
+      nome: "C6 — Fatura Cartão (CSV)",
+    });
   });
 });
 
@@ -75,6 +85,20 @@ describe("parser CSV genérico", () => {
     expect(itens.map(({ valor, tipo, mesReferencia }) => ({ valor, tipo, mesReferencia }))).toEqual([
       { valor: -80, tipo: "Saída", mesReferencia: new Date(2026, 2, 1) },
       { valor: 20, tipo: "Entrada", mesReferencia: new Date(2026, 2, 1) },
+    ]);
+  });
+
+  it("incorpora a parcela à descrição e inverte o sinal de uma fatura", () => {
+    const itens = parseCSVGenerico(
+      "data;descricao;parcela;valor\n05/02/2026;GRAN EDUCACAO;5/12;54,90\n06/02/2026;Estorno Tarifa;Única;-98,00",
+      { ...perfilCsv, colDescricao: 1, colParcela: 2, colValor: 3, inverterSinal: true, usaMesReferencia: true },
+      new Map(),
+      new Date(2026, 7, 1)
+    );
+
+    expect(itens.map(({ descricao, valor, tipo, mesReferencia }) => ({ descricao, valor, tipo, mesReferencia }))).toEqual([
+      { descricao: "GRAN EDUCACAO (5/12)", valor: -54.9, tipo: "Saída", mesReferencia: new Date(2026, 7, 1) },
+      { descricao: "Estorno Tarifa", valor: 98, tipo: "Entrada", mesReferencia: new Date(2026, 7, 1) },
     ]);
   });
 });

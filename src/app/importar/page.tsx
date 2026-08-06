@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { detectarFormato, detectarBancoOFX, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
+import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 
 interface Perfil {
   id: number;
@@ -25,6 +25,7 @@ type Fase =
   | "confirmar_ofx"   // OFX reconhecido → perfil ativo encontrado
   | "novo_ofx"        // OFX sem perfil ativo correspondente
   | "confirmar_pdf"   // PDF → banco identificado + preview de transações
+  | "confirmar_csv"   // CSV reconhecido → perfil nativo encontrado
   | "novo_pdf"        // PDF → banco não identificado
   | "selecionar_csv"  // CSV → escolher perfil existente ou criar novo
   | "mapeamento_csv"  // CSV → mapear colunas
@@ -41,6 +42,7 @@ const PAPEL_OPTS: { v: Papel; label: string }[] = [
   { v: "",          label: "— ignorar —" },
   { v: "data",      label: "📅 Data" },
   { v: "descricao", label: "📝 Descrição" },
+  { v: "parcela",    label: "🔢 Parcela" },
   { v: "valor",     label: "💰 Valor (única)" },
   { v: "entrada",   label: "⬆ Entrada" },
   { v: "saida",     label: "⬇ Saída" },
@@ -72,6 +74,7 @@ export default function ImportarPage() {
 
   // PDF
   const [perfilPDF, setPerfilPDF]     = useState<Perfil | null>(null);
+  const [perfilCSV, setPerfilCSV]     = useState<Perfil | null>(null);
   const [bancoNomePDF, setBancoNomePDF] = useState("");
   const [previewPDF, setPreviewPDF]   = useState<Array<{ data: string; descricao: string; valor: number }>>([]);
   const [contaPDF, setContaPDF]       = useState("");
@@ -106,6 +109,7 @@ export default function ImportarPage() {
     setContaNovo("");
     setMesRef("");
     setPerfilPDF(null);
+    setPerfilCSV(null);
     setBancoNomePDF("");
     setPreviewPDF([]);
     setContaPDF("");
@@ -177,6 +181,17 @@ export default function ImportarPage() {
     }
 
     // CSV
+    const { builtinKey, nome } = detectarPerfilCSV(texto);
+    if (builtinKey) {
+      const perfil = perfisAtivos.find((p) => p.builtin === builtinKey);
+      if (perfil) {
+        setPerfilCSV(perfil);
+        setNomePerfil(nome);
+        setFase("confirmar_csv");
+        return;
+      }
+    }
+
     const csvPerfis = perfisAtivos.filter((p) => p.formato === "csv" && !p.builtin);
     if (csvPerfis.length > 0) {
       // Carrega preview em paralelo enquanto aguarda escolha
@@ -201,7 +216,7 @@ export default function ImportarPage() {
   const setPapel = (col: number, papel: Papel) => {
     setPapeis((prev) => {
       const novo = [...prev];
-      if (papel && ["data", "descricao", "valor"].includes(papel)) {
+      if (papel && ["data", "descricao", "parcela", "valor"].includes(papel)) {
         novo.forEach((p, i) => { if (p === papel) novo[i] = ""; });
       }
       novo[col] = papel;
@@ -272,6 +287,7 @@ export default function ImportarPage() {
       nome: nomePerfil, conta: contaPerfil, formato: "csv",
       delimitador, linhasPular, formatoData, modoValor,
       colData: idxDe("data"), colDescricao: idxDe("descricao"), colValor: idxDe("valor"),
+      colParcela: idxDe("parcela"),
       colEntrada: idxDe("entrada"), colSaida: idxDe("saida"),
       inverterSinal, usaMesReferencia: usaMesRef,
     };
@@ -382,6 +398,31 @@ export default function ImportarPage() {
               onClick={() => importar(perfilPDF.id, mesRef)}
             >
               📥 Importar {previewPDF.length > 0 ? `(~${previewPDF.length}+ transações)` : ""}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {fase === "confirmar_csv" && perfilCSV && (
+        <div className="card space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">💳</span>
+            <div>
+              <div className="font-semibold text-slate-800">Fatura identificada: {perfilCSV.nome}</div>
+              <div className="text-sm text-slate-400 mt-0.5">{arquivo?.name}</div>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500">
+            As colunas, o sinal de compras e as parcelas serão tratados automaticamente.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência da fatura</label>
+            <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
+            <button className="btn btn-primary flex-1 justify-center" disabled={!mesRef} onClick={() => importar(perfilCSV.id, mesRef)}>
+              📥 Importar fatura
             </button>
           </div>
         </div>
@@ -605,6 +646,11 @@ export default function ImportarPage() {
               <input type="checkbox" checked={usaMesRef} onChange={(e) => setUsaMesRef(e.target.checked)} />
               Pedir mês de referência (fatura)
             </label>
+          </div>
+
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+            <span className="font-semibold">💡 Dica para faturas de cartão:</span>{" "}
+            marque <strong>Inverter sinal</strong> quando as compras vierem com valor positivo no arquivo — assim elas entram como gastos. Use o <strong>mês de referência</strong> para informar em qual mês a fatura será paga, mesmo que a compra tenha ocorrido antes.
           </div>
 
           {usaMesRef && (

@@ -25,6 +25,7 @@ export interface PerfilConfig {
   modoValor: "unica" | "separadas";
   colData: number | null;
   colDescricao: number | null;
+  colParcela: number | null;
   colValor: number | null;
   colEntrada: number | null;
   colSaida: number | null;

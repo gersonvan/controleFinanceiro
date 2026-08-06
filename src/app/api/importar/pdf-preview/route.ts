@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     builtin: builtinKey,
     delimitador: ",", linhasPular: 0, formatoData: "DD/MM/AAAA",
     modoValor: "unica" as const,
-    colData: null, colDescricao: null, colValor: null,
+    colData: null, colDescricao: null, colParcela: null, colValor: null,
     colEntrada: null, colSaida: null,
     inverterSinal: false, usaMesReferencia: false,
   };

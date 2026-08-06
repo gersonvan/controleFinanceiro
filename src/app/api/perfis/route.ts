@@ -44,15 +44,36 @@ const PDF_DEFAULTS = {
   linhasPular: 0,
   formatoData: "DD/MM/AAAA",
   modoValor: "unica" as const,
-  colData: null, colDescricao: null, colValor: null,
+  colData: null, colDescricao: null, colParcela: null, colValor: null,
   colEntrada: null, colSaida: null,
   usaMesReferencia: true,
 };
+
+const BUILTIN_CSV_PERFIS = [
+  {
+    builtin: "c6-cartao-csv",
+    nome: "C6 — Fatura Cartão (CSV)",
+    conta: "C6 Crédito",
+    delimitador: ";",
+    linhasPular: 1,
+    formatoData: "DD/MM/AAAA",
+    modoValor: "unica" as const,
+    colData: 0,
+    colDescricao: 4,
+    colParcela: 5,
+    colValor: 8,
+    colEntrada: null,
+    colSaida: null,
+    inverterSinal: true,
+    usaMesReferencia: true,
+  },
+];
 
 async function ensureBuiltinPerfis(userId: string) {
   const allBuiltins = [
     ...BUILTIN_OFX_PERFIS.map((p) => p.builtin),
     ...BUILTIN_PDF_PERFIS.map((p) => p.builtin),
+    ...BUILTIN_CSV_PERFIS.map((p) => p.builtin),
   ];
   const existing = await prisma.perfilImportacao.findMany({
     where: escopoDoUsuario(userId, { builtin: { in: allBuiltins } }),
@@ -62,10 +83,12 @@ async function ensureBuiltinPerfis(userId: string) {
 
   const missingOFX = BUILTIN_OFX_PERFIS.filter((p) => !existingSet.has(p.builtin));
   const missingPDF = BUILTIN_PDF_PERFIS.filter((p) => !existingSet.has(p.builtin));
+  const missingCSV = BUILTIN_CSV_PERFIS.filter((p) => !existingSet.has(p.builtin));
 
   const toCreate = [
     ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ...p })),
     ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ...p })),
+    ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: true, ...p })),
   ];
   if (toCreate.length > 0) {
     await prisma.perfilImportacao.createMany({ data: toCreate });
@@ -96,7 +119,7 @@ export async function POST(req: NextRequest) {
   const {
     nome, conta, formato = "csv",
     delimitador = ",", linhasPular = 0, formatoData = "DD/MM/AAAA",
-    modoValor = "unica", colData, colDescricao, colValor,
+    modoValor = "unica", colData, colDescricao, colParcela, colValor,
     colEntrada, colSaida, inverterSinal = false, usaMesReferencia = false,
   } = body;
 
@@ -108,7 +131,7 @@ export async function POST(req: NextRequest) {
     data: dadosDoUsuario(userId, {
       nome, conta, formato,
       delimitador, linhasPular, formatoData,
-      modoValor, colData, colDescricao, colValor,
+      modoValor, colData, colDescricao, colParcela, colValor,
       colEntrada, colSaida, inverterSinal, usaMesReferencia,
       builtin: null,
     }),

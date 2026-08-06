@@ -1,7 +1,25 @@
 // Detecção automática de formato e banco a partir do conteúdo do arquivo.
 // Usado na tela de Importação para dispensar escolha manual do perfil.
 
-export type Papel = "" | "data" | "descricao" | "valor" | "entrada" | "saida";
+export type Papel = "" | "data" | "descricao" | "parcela" | "valor" | "entrada" | "saida";
+
+export function detectarPerfilCSV(texto: string): { builtinKey: string | null; nome: string } {
+  const cabecalho = texto.split(/\r?\n/).find((linha) => linha.trim()) ?? "";
+  const normalizado = cabecalho
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (
+    normalizado.includes("final do cartao") &&
+    normalizado.includes("parcela") &&
+    normalizado.includes("valor (em r$)")
+  ) {
+    return { builtinKey: "c6-cartao-csv", nome: "C6 — Fatura Cartão (CSV)" };
+  }
+
+  return { builtinKey: null, nome: "CSV não identificado" };
+}
 
 // FID BACEN → builtin profile key
 const OFX_FID_MAP: Record<string, string> = {
@@ -76,11 +94,16 @@ export function sugerirPapeis(linhas: string[][], linhasPular: number): Papel[] 
     /^\d{1,2}-\d{1,2}-\d{2,4}$/,
     /^\d{2}\.\d{2}\.\d{4}$/,
   ];
+  const header = linhas[Math.min(linhasPular, Math.max(linhas.length - 1, 0))] ?? [];
   const numericCol: number[] = [];
   let bestDescCol = -1;
   let bestDescAvg = 0;
 
   for (let col = 0; col < numCols; col++) {
+    if ((header[col] ?? "").trim().toLowerCase().includes("parcela")) {
+      papeis[col] = "parcela";
+      continue;
+    }
     const vals = dados.map((r) => (r[col] || "").trim()).filter(Boolean);
     if (vals.length === 0) continue;
 

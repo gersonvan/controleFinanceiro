@@ -38,7 +38,7 @@
 - **Lancamento** — id, userId, data, descricao, valor (float, negativo = saída), tipo ("Entrada"/"Saída"), conta, categoria (nullable), pessoa (nullable, p/ empréstimos), mesReferencia (nullable, competência de fatura de cartão).
 - **UserProfile** — userId (PK, e-mail), nome, onboardingCompleto (bool), createdAt.
 - **MemoriaIA** — regras descrição→categoria por usuário; `@@unique([descricao, userId])`.
-- **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool).
+- **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool).
 
 **Regra de período importante**: quando `mesReferencia` está preenchido, ele é usado no lugar de `data` para todos os filtros de período. Padrão repetido em várias APIs:
 ```ts
@@ -65,9 +65,9 @@ OR: [
 3. formato "pdf" → `pdf.ts:parsePDF()`.
 4. formato "csv" → `csv.ts:parseCSVGenerico()` com mapeamento de colunas do perfil.
 
-`detectar.ts`: detecção automática de formato (extensão + magic bytes/cabeçalho) e de banco OFX via FID BACEN (Itaú 0341, Bradesco 0237, Santander 0033, BB 0001, Caixa 0104, Inter 0077, Sicoob 0756, Sicredi 0748) ou ORG (Nubank). Também `sugerirPapeis()` — heurística p/ pré-preencher colunas de CSV desconhecido.
+`detectar.ts`: detecção automática de formato (extensão + magic bytes/cabeçalho), de banco OFX via FID BACEN (Itaú 0341, Bradesco 0237, Santander 0033, BB 0001, Caixa 0104, Inter 0077, Sicoob 0756, Sicredi 0748) ou ORG (Nubank), e do layout CSV de fatura C6. Também `sugerirPapeis()` — heurística p/ pré-preencher colunas de CSV desconhecido.
 
-Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/perfis` (`ensureBuiltinPerfis`): 10 OFX de conta corrente + 5 PDF de fatura de cartão (Nubank, C6, Itaú, Bradesco, Inter — todos `usaMesReferencia: true`). Perfis builtin não podem ser excluídos (DELETE filtra `builtin: null`); podem ser ativados/desativados (campo `ativo`, PATCH).
+Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/perfis` (`ensureBuiltinPerfis`): 10 OFX de conta corrente, 5 PDF de fatura de cartão (Nubank, C6, Itaú, Bradesco, Inter) e o CSV de fatura C6. O CSV C6 predefine as colunas, inverte o sinal, exige mês de referência e incorpora a parcela à descrição (`Compra (N/M)`). Perfis builtin não podem ser excluídos (DELETE filtra `builtin: null`); podem ser ativados/desativados (campo `ativo`, PATCH).
 
 ## 6. Categorização (3 fases — POST /api/categorizar)
 

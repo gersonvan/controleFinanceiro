@@ -70,6 +70,7 @@ model PerfilImportacao {
   modoValor     String   @default("unica") // "unica" | "separadas"
   colData       Int?
   colDescricao  Int?
+  colParcela    Int?
   colValor      Int?     // modoValor = "unica"
   colEntrada    Int?     // modoValor = "separadas"
   colSaida      Int?     // modoValor = "separadas"

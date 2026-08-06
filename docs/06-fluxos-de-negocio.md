@@ -32,7 +32,7 @@ O usuário seleciona um arquivo (CSV, OFX ou PDF) de extrato bancário ou fatura
 2. Usuário seleciona arquivo e o sistema lê o conteúdo no cliente via `FileReader`.
 3. `detectarFormato()` determina o formato (CSV/OFX/PDF) a partir da extensão e do cabeçalho do arquivo — `src/lib/importacao/detectar.ts:38`.
 4. Para OFX: `detectarBancoOFX()` extrai `FID`/`ORG` e mapeia para a `builtinKey` correspondente — `src/lib/importacao/detectar.ts:49`.
-5. O usuário confirma o perfil sugerido ou escolhe manualmente outro perfil da lista.
+5. Para CSV reconhecido de fatura C6, `detectarPerfilCSV()` seleciona o perfil nativo, já com sinal invertido, mês de referência e coluna de parcela configurados; para os demais arquivos, o usuário confirma o perfil sugerido ou escolhe outro da lista.
 6. O frontend envia `POST /api/importar` (ou equivalente de preview) com o conteúdo do arquivo e o `id` do perfil selecionado.
 7. A API Route carrega o perfil de importação do banco via Prisma — `src/app/api/perfis/route.ts:723`.
 8. A API carrega a `MemoriaIA` do usuário para usar no motor — `src/app/api/categorizar/route.ts:15`.
@@ -40,7 +40,7 @@ O usuário seleciona um arquivo (CSV, OFX ou PDF) de extrato bancário ou fatura
 10. Para perfis `builtin` CSV: `parseFaturaC6` / `parseExtratoC6` / `parseFaturaNubank` / `parseExtratoNubank` — `src/lib/importacao/engine.ts:37`.
 11. Para OFX genérico: `parseOFX()` — `src/lib/importacao/ofx.ts`.
 12. Para PDF: `parsePDF()` — `src/lib/importacao/pdf.ts`.
-13. Para CSV genérico: `parseCSVGenerico()` com mapeamento de colunas do perfil — `src/lib/importacao/csv.ts`.
+13. Para CSV genérico: `parseCSVGenerico()` com mapeamento de colunas do perfil; quando `colParcela` está configurada, acrescenta `(N/M)` à descrição para alimentar a previsão — `src/lib/importacao/csv.ts`.
 14. O motor retorna `LancamentoImportado[]` com data, descrição, valor, tipo, conta e mesReferência — `src/lib/importacao/tipos.ts:4`.
 15. `mapearCategoria()` é aplicado a cada lançamento para tentar categorização automática — `src/lib/categorias.ts:115`.
 16. O frontend exibe o preview da lista de lançamentos ao usuário.

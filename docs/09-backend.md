@@ -37,6 +37,7 @@ Todos os caminhos retornam `LancamentoImportado[]` — `src/lib/importacao/tipos
 | `parseValor(str)` | `src/lib/importacao/tipos.ts:94` | Converte strings monetárias BR ("1.234,56") e US ("1234.56") para `number` |
 | `detectarFormato(texto, nomeArquivo)` | `src/lib/importacao/detectar.ts:38` | Determina formato (csv/ofx/pdf) a partir de extensão e cabeçalho |
 | `detectarBancoOFX(texto)` | `src/lib/importacao/detectar.ts:49` | Extrai `FID`/`ORG` do cabeçalho OFX e mapeia para `builtinKey` |
+| `detectarPerfilCSV(texto)` | `src/lib/importacao/detectar.ts` | Reconhece o cabeçalho de fatura CSV do C6 e seleciona o perfil nativo |
 | `sugerirPapeis(linhas, linhasPular)` | `src/lib/importacao/detectar.ts:67` | Heurística para pré-preencher papéis de colunas em CSV desconhecido |
 
 ### Bancos suportados nativamente (OFX)
@@ -60,6 +61,10 @@ Nubank é detectado via `ORG` (sem FID BACEN oficial).
 
 `src/app/api/perfis/route.ts:681` define 5 perfis PDF com `usaMesReferencia: true`:
 - Nubank Fatura Cartão, C6 Fatura Cartão, Itaú Fatura Cartão, Bradesco Fatura Cartão, Inter Fatura Cartão.
+
+### Perfil nativo CSV — fatura C6
+
+O perfil `c6-cartao-csv` reconhece as colunas da fatura C6, usa `Valor (em R$)` como valor único com sinal invertido, solicita o mês de referência e concatena a coluna `Parcela` à descrição. Assim, uma compra como `GRAN EDUCACAO` + `5/12` é persistida como `GRAN EDUCACAO (5/12)` e entra na previsão de parcelamentos.
 
 ## Sistema de categorização
 

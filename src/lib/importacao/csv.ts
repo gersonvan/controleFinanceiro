@@ -25,7 +25,11 @@ export function parseCSVGenerico(
     if (!data) continue;
 
     // Descrição
-    const descricao = (perfil.colDescricao != null ? row[perfil.colDescricao] : "")?.trim() || "";
+    const descricaoBase = (perfil.colDescricao != null ? row[perfil.colDescricao] : "")?.trim() || "";
+    const parcela = (perfil.colParcela != null ? row[perfil.colParcela] : "")?.trim() || "";
+    const descricao = parcela && parcela.toLowerCase() !== "única"
+      ? `${descricaoBase} (${parcela})`
+      : descricaoBase;
     if (!descricao) continue;
 
     // Valor (modo única coluna ou colunas separadas de entrada/saída)
