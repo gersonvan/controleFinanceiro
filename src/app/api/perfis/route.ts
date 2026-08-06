@@ -143,14 +143,40 @@ export async function PATCH(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { id, ativo } = await req.json();
+  const {
+    id, ativo, nome, conta, delimitador, linhasPular, formatoData, modoValor,
+    colData, colDescricao, colParcela, colValor, colEntrada, colSaida,
+    inverterSinal, usaMesReferencia,
+  } = await req.json();
   if (id == null) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  await prisma.perfilImportacao.updateMany({
-    where: escopoDoUsuario(userId, { id: parseInt(id) }),
-    data: { ativo: Boolean(ativo) },
+  // Perfis nativos só podem ser ativados ou desativados. As demais opções
+  // pertencem ao mapeamento escolhido pelo usuário e só existem em perfis customizados.
+  if (nome === undefined) {
+    await prisma.perfilImportacao.updateMany({
+      where: escopoDoUsuario(userId, { id: parseInt(id) }),
+      data: { ativo: Boolean(ativo) },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!nome.trim() || !conta?.trim()) {
+    return NextResponse.json({ error: "Nome e conta são obrigatórios" }, { status: 400 });
+  }
+
+  const perfil = await prisma.perfilImportacao.updateManyAndReturn({
+    where: escopoDoUsuario(userId, { id: parseInt(id), builtin: null }),
+    data: {
+      nome: nome.trim(), conta: conta.trim(), delimitador, linhasPular,
+      formatoData, modoValor, colData, colDescricao, colParcela, colValor,
+      colEntrada, colSaida, inverterSinal, usaMesReferencia,
+    },
   });
-  return NextResponse.json({ ok: true });
+
+  if (perfil.length === 0) {
+    return NextResponse.json({ error: "Perfil não encontrado ou não pode ser editado" }, { status: 404 });
+  }
+  return NextResponse.json(perfil[0]);
 }
 
 export async function DELETE(req: NextRequest) {
