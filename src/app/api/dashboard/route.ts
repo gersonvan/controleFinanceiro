@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
+import { lerQuery, opcional, validar } from "@/lib/validacao";
+import { z } from "zod";
+
+const periodoSchema = z.object({
+  ano: opcional(z.coerce.number().int().min(2000).max(2100)).default(() => new Date().getFullYear()),
+  mes: opcional(z.coerce.number().int().min(1).max(12)),
+});
 
 // Categorias de movimentação interna que não representam receita nem despesa real
 const CATEGORIAS_NEUTRAS = new Set([
@@ -14,9 +21,9 @@ export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const ano = parseInt(searchParams.get("ano") || String(new Date().getFullYear()));
-  const mes = searchParams.get("mes") ? parseInt(searchParams.get("mes")!) : null;
+  const v = validar(periodoSchema, lerQuery(req));
+  if (!v.ok) return v.resposta;
+  const { ano, mes } = v.dados;
 
   const dataInicio = mes
     ? new Date(ano, mes - 1, 1)

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
+import { filtroPeriodo, filtrosLancamentoSchema } from "@/lib/filtros";
+import { lerQuery, validar } from "@/lib/validacao";
+
+const matrizSchema = filtrosLancamentoSchema.pick({ tipo: true, dataInicio: true, dataFim: true });
 
 export interface MatrizDescricao {
   descricao: string;
@@ -65,26 +69,16 @@ function sortMes(a: string, b: string): number {
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const tipo       = searchParams.get("tipo") || "";
-  const dataInicio = searchParams.get("dataInicio");
-  const dataFim    = searchParams.get("dataFim");
-
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const v = validar(matrizSchema, lerQuery(req));
+  if (!v.ok) return v.resposta;
+  const { tipo, dataInicio, dataFim } = v.dados;
+
   const where: Record<string, unknown> = escopoDoUsuario(userId, { categoria: { not: null } });
   if (tipo) where.tipo = tipo;
-
-  if (dataInicio || dataFim) {
-    const dateFilter: Record<string, Date> = {};
-    if (dataInicio) dateFilter.gte = new Date(dataInicio);
-    if (dataFim)    dateFilter.lte = new Date(dataFim);
-    where.OR = [
-      { mesReferencia: { not: null, ...dateFilter } },
-      { mesReferencia: null, data: dateFilter },
-    ];
-  }
+  if (dataInicio || dataFim) where.OR = filtroPeriodo(dataInicio, dataFim);
 
   const lancamentos = await prisma.lancamento.findMany({
     where,

@@ -3,13 +3,25 @@ import { prisma } from "@/lib/db";
 import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
+import { z } from "zod";
+import { idSchema, lerCorpo, validar } from "@/lib/validacao";
+
+// Cada chamada ao Gemini leva ~1,1 s (rate limit): sem teto uma única requisição
+// poderia rodar por minutos e estourar o timeout da função e a cota gratuita.
+const MAX_GEMINI_POR_REQUISICAO = 50;
+
+const categorizacaoSchema = z.object({
+  ids: z.array(idSchema).max(1000).optional(),
+  usarGemini: z.boolean().default(false),
+});
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json() as { ids?: number[]; usarGemini?: boolean };
-  const { ids, usarGemini = false } = body;
+  const v = validar(categorizacaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+  const { ids, usarGemini } = v.dados;
 
   // Carrega Memória da IA do usuário
   const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
@@ -84,7 +96,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       const categoriasStr = CATEGORIAS.join(", ");
-      for (const l of aindaSemCategoria) {
+      for (const l of aindaSemCategoria.slice(0, MAX_GEMINI_POR_REQUISICAO)) {
         try {
           const catIA = await chamarGemini(l.descricao, categoriasStr, apiKey);
           if (catIA && CATEGORIAS.includes(catIA as never)) {
@@ -121,7 +133,8 @@ async function chamarGemini(
   categoriasStr: string,
   apiKey: string
 ): Promise<string | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+  // A chave vai no header, não na query string, para não parar em logs de proxy.
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 
   const payload = {
     contents: [{ role: "user", parts: [{ text: `Descrição da transação: "${descricao}"` }] }],
@@ -143,7 +156,7 @@ async function chamarGemini(
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(payload),
   });
 

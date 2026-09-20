@@ -3,14 +3,16 @@ import { getSessionUserId } from "@/lib/session";
 import { detectarBancoPDF, parsePDF } from "@/lib/importacao/pdf";
 import { prisma } from "@/lib/db";
 import { escopoDoUsuario } from "@/lib/tenant";
+import { erro400, lerArquivo } from "@/lib/validacao";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "Arquivo não enviado" }, { status: 400 });
+  const arquivo = lerArquivo(formData);
+  if (!arquivo.ok) return arquivo.resposta;
+  const file = arquivo.dados;
 
   // Extrai texto do PDF via pdf-parse (importação dinâmica evita problemas de bundling)
   let texto: string;
@@ -18,10 +20,14 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfParse = require("pdf-parse");
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      return erro400("O arquivo enviado não é um PDF");
+    }
     const data = await pdfParse(buffer);
     texto = data.text;
   } catch (e) {
-    return NextResponse.json({ error: `Erro ao ler PDF: ${String(e)}` }, { status: 400 });
+    console.error("Erro ao ler PDF na prévia", e);
+    return erro400("Não foi possível ler o PDF. Verifique se é um PDF digital (não escaneado).");
   }
 
   const { builtinKey, bancoNome } = detectarBancoPDF(texto);

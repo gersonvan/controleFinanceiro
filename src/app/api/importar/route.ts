@@ -3,22 +3,33 @@ import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { z } from "zod";
+import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
+
+const importacaoSchema = z.object({
+  perfilId: idSchema,
+  // <input type="month"> envia "AAAA-MM"
+  mesReferencia: opcional(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato AAAA-MM")),
+});
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const formData = await req.formData();
-  const file = formData.get("file") as File;
-  const perfilId = formData.get("perfilId") as string;
-  const mesRefStr = formData.get("mesReferencia") as string | null;
+  const arquivo = lerArquivo(formData);
+  if (!arquivo.ok) return arquivo.resposta;
+  const file = arquivo.dados;
 
-  if (!file || !perfilId) {
-    return NextResponse.json({ error: "Arquivo e perfil são obrigatórios" }, { status: 400 });
-  }
+  const v = validar(importacaoSchema, {
+    perfilId: formData.get("perfilId"),
+    mesReferencia: formData.get("mesReferencia"),
+  });
+  if (!v.ok) return v.resposta;
+  const { perfilId, mesReferencia: mesRefStr } = v.dados;
 
   const perfil = await prisma.perfilImportacao.findFirst({
-    where: escopoDoUsuario(userId, { id: parseInt(perfilId) }),
+    where: escopoDoUsuario(userId, { id: perfilId }),
   });
   if (!perfil) return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 });
 
@@ -38,10 +49,12 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pdfParse = require("pdf-parse");
       const buffer = Buffer.from(await file.arrayBuffer());
+      if (!ehPDF(buffer)) return erro400("O arquivo enviado não é um PDF");
       const pdfData = await pdfParse(buffer);
       texto = pdfData.text;
     } catch (e) {
-      return NextResponse.json({ error: `Erro ao ler PDF: ${String(e)}` }, { status: 400 });
+      console.error("Erro ao ler PDF na importação", e);
+      return erro400("Não foi possível ler o PDF. Verifique se é um PDF digital (não escaneado).");
     }
   } else {
     texto = await file.text();
@@ -57,7 +70,8 @@ export async function POST(req: NextRequest) {
   try {
     lancamentos = importar(texto, fileName, perfil as PerfilCompleto, memoriaMap, mesReferenciaManual);
   } catch (e) {
-    return NextResponse.json({ error: `Erro ao processar: ${String(e)}` }, { status: 400 });
+    console.error("Erro ao processar arquivo na importação", e);
+    return erro400("Não foi possível processar o arquivo com o perfil selecionado.");
   }
 
   // Evita duplicatas (por usuário)
@@ -97,4 +111,8 @@ export async function POST(req: NextRequest) {
     novos: novos.length,
     duplicados: lancamentos.length - novos.length,
   });
+}
+
+function ehPDF(buffer: Buffer): boolean {
+  return buffer.subarray(0, 5).toString("latin1") === "%PDF-";
 }

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { z } from "zod";
+import { categoriaSchema, idSchema, lerCorpo, lerQuery, textoLongo, validar } from "@/lib/validacao";
+
+const regraSchema = z.object({ descricao: textoLongo, categoriaCorreta: categoriaSchema });
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -18,10 +22,9 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { descricao, categoriaCorreta } = await req.json();
-  if (!descricao || !categoriaCorreta) {
-    return NextResponse.json({ error: "Campos obrigatórios" }, { status: 400 });
-  }
+  const v = validar(regraSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+  const { descricao, categoriaCorreta } = v.dados;
   const regra = await prisma.memoriaIA.upsert({
     where: { descricao_userId: { descricao, userId } },
     update: { categoriaCorreta },
@@ -34,9 +37,8 @@ export async function DELETE(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await prisma.memoriaIA.deleteMany({ where: escopoDoUsuario(userId, { id: parseInt(id) }) });
+  const v = validar(idSchema, lerQuery(req).id);
+  if (!v.ok) return v.resposta;
+  await prisma.memoriaIA.deleteMany({ where: escopoDoUsuario(userId, { id: v.dados }) });
   return NextResponse.json({ ok: true });
 }

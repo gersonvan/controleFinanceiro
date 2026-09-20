@@ -2,6 +2,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { z } from "zod";
+import { idSchema, lerCorpo, lerQuery, validar } from "@/lib/validacao";
+
+const nomeSchema = z.string().trim().min(1, "Nome e conta são obrigatórios").max(100);
+const colunaSchema = z.number().int().min(0).max(200).nullable().optional();
+
+// Mapeamento de leitura de um perfil personalizado (CSV/OFX/PDF).
+const mapeamentoSchema = z.object({
+  delimitador: z.string().min(1).max(2).default(","),
+  linhasPular: z.number().int().min(0).max(100).default(0),
+  formatoData: z.enum(["DD/MM/AAAA", "AAAA-MM-DD", "DD-MM-AAAA", "MM/DD/AAAA"]).default("DD/MM/AAAA"),
+  modoValor: z.enum(["unica", "separadas"]).default("unica"),
+  colData: colunaSchema,
+  colDescricao: colunaSchema,
+  colParcela: colunaSchema,
+  colValor: colunaSchema,
+  colEntrada: colunaSchema,
+  colSaida: colunaSchema,
+  inverterSinal: z.boolean().default(false),
+  usaMesReferencia: z.boolean().default(false),
+});
+
+const criacaoSchema = mapeamentoSchema.extend({
+  nome: nomeSchema,
+  conta: nomeSchema,
+  formato: z.enum(["csv", "ofx", "pdf"]).default("csv"),
+  ativo: z.boolean().default(true),
+});
+
+// PATCH tem duas formas: só { id, ativo } (perfis nativos e personalizados)
+// ou o mapeamento completo (apenas perfis personalizados).
+const ativacaoSchema = z.object({ id: idSchema, ativo: z.boolean() });
+const edicaoSchema = mapeamentoSchema.extend({ id: idSchema, nome: nomeSchema, conta: nomeSchema });
 
 // Perfis OFX nativos para os principais bancos brasileiros.
 // Todos usam o mesmo parser OFX — só diferem em nome/conta/inverterSinal.
@@ -91,7 +124,9 @@ async function ensureBuiltinPerfis(userId: string) {
     ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: true, ...p })),
   ];
   if (toCreate.length > 0) {
-    await prisma.perfilImportacao.createMany({ data: toCreate });
+    // skipDuplicates: dois GETs concorrentes podem tentar criar o mesmo builtin;
+    // o índice único (userId, builtin) resolve a corrida sem erro.
+    await prisma.perfilImportacao.createMany({ data: toCreate, skipDuplicates: true });
   }
 }
 
@@ -115,26 +150,11 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json();
-  const {
-    nome, conta, formato = "csv",
-    delimitador = ",", linhasPular = 0, formatoData = "DD/MM/AAAA",
-    modoValor = "unica", colData, colDescricao, colParcela, colValor,
-    colEntrada, colSaida, inverterSinal = false, usaMesReferencia = false,
-  } = body;
-
-  if (!nome || !conta) {
-    return NextResponse.json({ error: "Nome e conta são obrigatórios" }, { status: 400 });
-  }
+  const v = validar(criacaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
 
   const perfil = await prisma.perfilImportacao.create({
-    data: dadosDoUsuario(userId, {
-      nome, conta, formato,
-      delimitador, linhasPular, formatoData,
-      modoValor, colData, colDescricao, colParcela, colValor,
-      colEntrada, colSaida, inverterSinal, usaMesReferencia,
-      builtin: null,
-    }),
+    data: dadosDoUsuario(userId, { ...v.dados, builtin: null }),
   });
   return NextResponse.json(perfil, { status: 201 });
 }
@@ -143,34 +163,27 @@ export async function PATCH(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const {
-    id, ativo, nome, conta, delimitador, linhasPular, formatoData, modoValor,
-    colData, colDescricao, colParcela, colValor, colEntrada, colSaida,
-    inverterSinal, usaMesReferencia,
-  } = await req.json();
-  if (id == null) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const corpo = await lerCorpo(req);
 
   // Perfis nativos só podem ser ativados ou desativados. As demais opções
   // pertencem ao mapeamento escolhido pelo usuário e só existem em perfis customizados.
-  if (nome === undefined) {
+  if (corpo && typeof corpo === "object" && !("nome" in corpo)) {
+    const v = validar(ativacaoSchema, corpo);
+    if (!v.ok) return v.resposta;
     await prisma.perfilImportacao.updateMany({
-      where: escopoDoUsuario(userId, { id: parseInt(id) }),
-      data: { ativo: Boolean(ativo) },
+      where: escopoDoUsuario(userId, { id: v.dados.id }),
+      data: { ativo: v.dados.ativo },
     });
     return NextResponse.json({ ok: true });
   }
 
-  if (!nome.trim() || !conta?.trim()) {
-    return NextResponse.json({ error: "Nome e conta são obrigatórios" }, { status: 400 });
-  }
+  const v = validar(edicaoSchema, corpo);
+  if (!v.ok) return v.resposta;
+  const { id, ...data } = v.dados;
 
   const perfil = await prisma.perfilImportacao.updateManyAndReturn({
-    where: escopoDoUsuario(userId, { id: parseInt(id), builtin: null }),
-    data: {
-      nome: nome.trim(), conta: conta.trim(), delimitador, linhasPular,
-      formatoData, modoValor, colData, colDescricao, colParcela, colValor,
-      colEntrada, colSaida, inverterSinal, usaMesReferencia,
-    },
+    where: escopoDoUsuario(userId, { id, builtin: null }),
+    data,
   });
 
   if (perfil.length === 0) {
@@ -183,13 +196,12 @@ export async function DELETE(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const v = validar(idSchema, lerQuery(req).id);
+  if (!v.ok) return v.resposta;
 
   // Não permite excluir perfis nativos (builtin)
   await prisma.perfilImportacao.deleteMany({
-    where: escopoDoUsuario(userId, { id: parseInt(id), builtin: null }),
+    where: escopoDoUsuario(userId, { id: v.dados, builtin: null }),
   });
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/session";
 import { parseCSV } from "@/lib/importacao/tipos";
+import { z } from "zod";
+import { lerArquivo, validar } from "@/lib/validacao";
+
+const delimitadorSchema = z.string().min(1).max(2).nullable().default(",");
 
 // Recebe um CSV e devolve as primeiras linhas já separadas em células,
 // para o usuário montar o mapeamento visualmente.
@@ -9,10 +13,13 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const formData = await req.formData();
-  const file = formData.get("file") as File;
-  const delimitador = (formData.get("delimitador") as string) || ",";
+  const arquivo = lerArquivo(formData);
+  if (!arquivo.ok) return arquivo.resposta;
+  const file = arquivo.dados;
 
-  if (!file) return NextResponse.json({ error: "Arquivo obrigatório" }, { status: 400 });
+  const v = validar(delimitadorSchema, formData.get("delimitador"));
+  if (!v.ok) return v.resposta;
+  const delimitador = v.dados || ",";
 
   const texto = await file.text();
   const linhas = parseCSV(texto, delimitador);

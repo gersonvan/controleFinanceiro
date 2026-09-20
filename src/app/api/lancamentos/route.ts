@@ -1,40 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { dadosAtualizaveisDoUsuario, dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { filtrosLancamentoSchema, montarWhereLancamentos } from "@/lib/filtros";
+import {
+  categoriaSchema, idSchema, lerCorpo, lerQuery, opcional, textoCurto, textoLongo,
+  tipoSchema, validar,
+} from "@/lib/validacao";
+
+const listagemSchema = filtrosLancamentoSchema.extend({
+  page: opcional(z.coerce.number().int().min(1)).default(1),
+  limit: opcional(z.coerce.number().int().min(1).max(500)).default(50),
+});
+
+// Campos que o cliente pode escrever; tudo fora daqui (id, createdAt, userId…) é descartado.
+const camposLancamento = z.object({
+  data: z.coerce.date(),
+  descricao: textoLongo,
+  valor: z.number().finite(),
+  tipo: tipoSchema,
+  conta: textoCurto,
+  categoria: categoriaSchema.nullable().optional(),
+  pessoa: textoCurto.nullable().optional(),
+  mesReferencia: z.coerce.date().nullable().optional(),
+  fonte: textoCurto.nullable().optional(),
+});
+
+const criacaoSchema = camposLancamento;
+const edicaoSchema = camposLancamento.partial().extend({ id: idSchema });
+
+const recategorizacaoSchema = z
+  .object({
+    ids: z.array(idSchema).max(1000).optional(),
+    descricaoContem: textoCurto.optional(),
+    categoriaErrada: z.string().trim().min(1).max(100).optional(),
+    categoriaCorreta: categoriaSchema,
+  })
+  // Sem nenhum critério o updateMany atingiria todos os lançamentos do usuário.
+  .refine((v) => v.ids?.length || v.descricaoContem || v.categoriaErrada, {
+    message: "Informe ids, descricaoContem ou categoriaErrada",
+  });
 
 export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
-  const conta = searchParams.get("conta");
-  const categoria = searchParams.get("categoria");
-  const tipo = searchParams.get("tipo");
-  const busca = searchParams.get("busca");
-  const pessoa = searchParams.get("pessoa");
-  const dataInicio = searchParams.get("dataInicio");
-  const dataFim = searchParams.get("dataFim");
+  const v = validar(listagemSchema, lerQuery(req));
+  if (!v.ok) return v.resposta;
+  const { page, limit, ...filtros } = v.dados;
 
-  const where = escopoDoUsuario(userId);
-  if (conta) where.conta = conta;
-  if (categoria === "__sem__") where.categoria = null;
-  else if (categoria) where.categoria = categoria;
-  if (tipo) where.tipo = tipo;
-  if (pessoa) where.pessoa = { contains: pessoa, mode: "insensitive" };
-  if (busca) where.descricao = { contains: busca, mode: "insensitive" };
-  if (dataInicio || dataFim) {
-    const dateFilter: Record<string, Date> = {};
-    if (dataInicio) dateFilter.gte = new Date(dataInicio);
-    if (dataFim)    dateFilter.lte = new Date(dataFim);
-    where.OR = [
-      { mesReferencia: { not: null, ...dateFilter } },
-      { mesReferencia: null, data: dateFilter },
-    ];
-  }
+  const where = montarWhereLancamentos(userId, filtros);
 
   const [total, lancamentos] = await Promise.all([
     prisma.lancamento.count({ where }),
@@ -53,9 +69,11 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json() as Record<string, unknown>;
+  const v = validar(criacaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+
   const lancamento = await prisma.lancamento.create({
-    data: dadosDoUsuario(userId, body) as Prisma.LancamentoUncheckedCreateInput,
+    data: dadosDoUsuario(userId, v.dados),
   });
   return NextResponse.json(lancamento, { status: 201 });
 }
@@ -64,10 +82,10 @@ export async function DELETE(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await prisma.lancamento.deleteMany({ where: escopoDoUsuario(userId, { id: parseInt(id) }) });
+  const v = validar(idSchema, lerQuery(req).id);
+  if (!v.ok) return v.resposta;
+
+  await prisma.lancamento.deleteMany({ where: escopoDoUsuario(userId, { id: v.dados }) });
   return NextResponse.json({ ok: true });
 }
 
@@ -75,9 +93,10 @@ export async function PATCH(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json() as Record<string, unknown>;
-  const { id, ...data } = body;
-  if (typeof id !== "number") return NextResponse.json({ error: "id required" }, { status: 400 });
+  const v = validar(edicaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+  const { id, ...data } = v.dados;
+
   const lancamento = await prisma.lancamento.updateMany({
     where: escopoDoUsuario(userId, { id }),
     data: dadosAtualizaveisDoUsuario(userId, data),
@@ -89,12 +108,9 @@ export async function PUT(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { ids, descricaoContem, categoriaErrada, categoriaCorreta } = await req.json() as {
-    ids?: number[];
-    descricaoContem?: string;
-    categoriaErrada?: string;
-    categoriaCorreta: string;
-  };
+  const v = validar(recategorizacaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+  const { ids, descricaoContem, categoriaErrada, categoriaCorreta } = v.dados;
 
   const where = escopoDoUsuario(userId);
   if (ids?.length)     where.id       = { in: ids };
