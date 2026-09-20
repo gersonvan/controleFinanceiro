@@ -6,18 +6,32 @@ import { authConfig } from "./auth.config";
 const ALLOWED_EMAILS = new Set(
   (process.env.ALLOWED_EMAILS ?? "gersonvan@gmail.com")
     .split(",")
-    .map((e) => e.trim())
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
 );
+
+function emailPermitido(email: string | null | undefined): boolean {
+  return !!email && ALLOWED_EMAILS.has(email.toLowerCase());
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [Google],
+  session: {
+    // Sessão JWT sem revogação no servidor: quanto menor, menor a janela de exposição.
+    maxAge: 7 * 24 * 60 * 60,
+  },
   callbacks: {
-    signIn({ user }) {
-      return ALLOWED_EMAILS.has(user.email ?? "");
+    signIn({ user, profile }) {
+      // Google informa se o e-mail foi verificado; sem isso não há garantia de identidade.
+      if (profile && profile.email_verified !== true) return false;
+      return emailPermitido(user.email);
     },
     async jwt({ token, user, trigger, session: updatedSession }) {
+      // Revalida a allowlist a cada requisição: remover um e-mail derruba a sessão
+      // existente em vez de esperar o JWT expirar.
+      if (!emailPermitido(token.email)) return null;
+
       // On login: check or create UserProfile
       if (user?.email) {
         const email = user.email;
