@@ -45,7 +45,8 @@ export function valorMensal(item: ItemPlanejado, mesesAFrente = 0): number {
 
 export function parcelaDevida(item: ItemPlanejado, mesesAFrente = 0): boolean {
   if (item.parcelaAtual == null || item.parcelaTotal == null) return false;
-  return item.parcelaAtual + mesesAFrente <= item.parcelaTotal;
+  const n = item.parcelaAtual + mesesAFrente;
+  return n >= 1 && n <= item.parcelaTotal; // mesesAFrente negativo = mês passado
 }
 
 /** Número da parcela que vence em `mesesAFrente` meses, ou null se já quitou. */

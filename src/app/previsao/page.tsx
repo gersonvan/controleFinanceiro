@@ -201,6 +201,7 @@ export default function PrevisaoPage() {
             <option value="">Todos os tipos</option>
             <option value="Parcelamento">Parcelamentos</option>
             <option value="Fixo">Gastos Fixos</option>
+            <option value="Planejado">Planejados (fotografia)</option>
           </select>
         </div>
       </div>
@@ -281,6 +282,8 @@ export default function PrevisaoPage() {
                             <span className={`badge ${
                               item.tipoPrevisao === "Parcelamento"
                                 ? "bg-orange-50 text-orange-700"
+                                : item.tipoPrevisao === "Planejado"
+                                ? "bg-teal-50 text-teal-700"
                                 : "bg-purple-50 text-purple-700"
                             }`}>
                               {item.tipoPrevisao}

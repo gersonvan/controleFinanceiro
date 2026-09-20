@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { CATEGORIAS_FIXAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
+import { numeroParcela, valorMensal, type ItemPlanejado } from "@/lib/planejamento";
 
 const REGEX_PARCELA = /\((\d+)\/(\d+)\)/;
 
@@ -35,17 +36,20 @@ export async function GET() {
   hoje.setDate(1);
   hoje.setHours(0, 0, 0, 0);
 
-  const lancamentos = await prisma.lancamento.findMany({
-    where: escopoDoUsuario(userId),
-    select: {
-      descricao: true,
-      categoria: true,
-      valor: true,
-      tipo: true,
-      data: true,
-      mesReferencia: true,
-    },
-  });
+  const [lancamentos, planejados] = await Promise.all([
+    prisma.lancamento.findMany({
+      where: escopoDoUsuario(userId),
+      select: {
+        descricao: true,
+        categoria: true,
+        valor: true,
+        tipo: true,
+        data: true,
+        mesReferencia: true,
+      },
+    }),
+    prisma.planejamentoItem.findMany({ where: escopoDoUsuario(userId) }) as Promise<ItemPlanejado[]>,
+  ]);
 
   const previsoes: PrevisaoItem[] = [];
 
@@ -137,6 +141,40 @@ export async function GET() {
           valor: parseFloat(d.soma.toFixed(2)),
           lancamentos: d.items,
         })),
+      });
+    }
+  }
+
+  // --- 3. Fotografia do mês (base para quem ainda não tem histórico) ---
+  // Categorias que já têm média por histórico prevalecem; parcelas já vistas
+  // nos lançamentos (mesma descrição) não entram de novo.
+  const descricoesParceladas = [...parcelasProcessadas].map((c) => c.split("|")[0].toLowerCase());
+  for (let i = 1; i <= 12; i++) {
+    const dataPrevista = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+    const mes = `${String(dataPrevista.getMonth() + 1).padStart(2, "0")}/${dataPrevista.getFullYear()}`;
+
+    for (const item of planejados) {
+      if (item.grupo === "entrada") continue;
+      if (item.grupo === "parcela") {
+        const desc = item.descricao.toLowerCase();
+        if (descricoesParceladas.some((d) => d.includes(desc) || desc.includes(d))) continue;
+        const n = numeroParcela(item, i);
+        if (n === null) continue;
+        previsoes.push({
+          mes, descricao: item.descricao, categoria: item.categoria, valor: item.valor,
+          tipoPrevisao: "Parcelamento", detalhe: `Parcela ${n}/${item.parcelaTotal} (fotografia)`,
+        });
+        continue;
+      }
+      if (porCategoriaMes[item.categoria]) continue; // histórico manda
+      const valor = valorMensal(item, i);
+      if (valor <= 0) continue;
+      previsoes.push({
+        mes, descricao: item.descricao, categoria: item.categoria,
+        valor: parseFloat(valor.toFixed(2)),
+        tipoPrevisao: "Planejado",
+        detalhe: item.periodicidade === "anual" ? "Anual ÷ 12 (fotografia)"
+          : item.periodicidade === "semanal" ? "Semanal × 4,33 (fotografia)" : "Fotografia do mês",
       });
     }
   }

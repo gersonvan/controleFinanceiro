@@ -7,6 +7,7 @@ import type { Session } from "next-auth";
 
 const links = [
   { href: "/", label: "Dashboard", icon: "📊" },
+  { href: "/planejamento", label: "Planejamento", icon: "📸" },
   { href: "/lancamentos", label: "Lançamentos", icon: "📋" },
   { href: "/matriz", label: "Matriz", icon: "🗂️" },
   { href: "/importar", label: "Importar Lançamentos", icon: "📂" },

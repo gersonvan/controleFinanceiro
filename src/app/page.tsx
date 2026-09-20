@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -31,6 +32,28 @@ export default function Dashboard() {
   const [mes, setMes] = useState<number | "">("");
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = ainda não sabemos; false = fotografia pendente; true = concluída
+  const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
+  const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number } } | null>(null);
+
+  useEffect(() => {
+    if (fotografiaFeita !== true) return;
+    let ativo = true;
+    fetch("/api/planejamento/realizado")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (ativo && json?.temFotografia) setComparacao(json); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, [fotografiaFeita]);
+
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/planejamento")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (ativo && json) setFotografiaFeita(!!json.fotografiaConcluidaEm); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -64,6 +87,37 @@ export default function Dashboard() {
           </select>
         </div>
       </div>
+
+      {fotografiaFeita === false && (
+        <div className="card flex items-center justify-between gap-4 flex-wrap border-blue-200 bg-blue-50">
+          <div>
+            <div className="font-semibold text-slate-800">📸 Faça sua fotografia do mês</div>
+            <div className="text-sm text-slate-600 mt-0.5">
+              Cinco minutos para registrar o que entra, o que sai e quanto sobra. Depois comparamos com seus lançamentos.
+            </div>
+          </div>
+          <Link href="/planejamento" className="btn btn-primary">Começar</Link>
+        </div>
+      )}
+
+      {comparacao && (() => {
+        const dif = comparacao.saidas.planejado - comparacao.saidas.realizado;
+        return (
+          <Link href="/planejamento?aba=comparacao" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors">
+            <div>
+              <div className="text-sm text-slate-500">📸 Este mês vs. sua fotografia</div>
+              <div className="text-slate-800 mt-0.5">
+                Saídas: <span className="font-semibold">{fmt(comparacao.saidas.realizado)}</span> de{" "}
+                <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> planejados ·{" "}
+                <span className={dif >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                  {dif >= 0 ? `${fmt(dif)} dentro do plano` : `${fmt(-dif)} acima do plano`}
+                </span>
+              </div>
+            </div>
+            <span className="text-sm text-blue-600">Ver comparação →</span>
+          </Link>
+        );
+      })()}
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>

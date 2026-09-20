@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import FotografiaWizard from "@/components/planejamento/FotografiaWizard";
 
 type Perfil = {
   id: number;
@@ -13,7 +14,7 @@ type Perfil = {
   ativo: boolean;
 };
 
-const PASSOS = ["Boas-vindas", "Seus bancos", "Pronto!"];
+const PASSOS = ["Boas-vindas", "Fotografia", "Seus bancos", "Pronto!"];
 
 export default function OnboardingPage() {
   const { data: session, update } = useSession();
@@ -42,7 +43,7 @@ export default function OnboardingPage() {
 
   // Load bank profiles when reaching step 2 (also triggers seeding)
   useEffect(() => {
-    if (passo === 2 && perfis.length === 0) {
+    if (passo === 3 && perfis.length === 0) {
       let ativo = true;
       async function carregarPerfis() {
         const r = await fetch("/api/perfis?todos=true");
@@ -59,7 +60,7 @@ export default function OnboardingPage() {
 
   const irParaBancos = () => {
     if (perfis.length === 0) setCarregando(true);
-    setPasso(2);
+    setPasso(3);
   };
 
   const togglePerfil = async (id: number, ativo: boolean) => {
@@ -146,7 +147,7 @@ export default function OnboardingPage() {
 
       {/* Content */}
       <div className="flex-1 flex items-start justify-center px-4 pt-8">
-        <div className="w-full max-w-lg">
+        <div className="w-full max-w-2xl">
 
           {/* Passo 1: Boas-vindas */}
           {passo === 1 && (
@@ -172,7 +173,7 @@ export default function OnboardingPage() {
 
               <div className="flex justify-end">
                 <button
-                  onClick={irParaBancos}
+                  onClick={() => setPasso(2)}
                   disabled={!nome.trim()}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
@@ -182,15 +183,34 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Passo 2: Seus bancos */}
+          {/* Passo 2: Fotografia do mês */}
           {passo === 2 && (
+            <div>
+              <div className="mb-4">
+                <h1 className="text-2xl font-bold text-slate-800">Antes de tudo, uma fotografia do seu mês</h1>
+                <p className="text-slate-500 mt-1">
+                  Cinco minutos: o que entra, o que sai e quanto sobra. Não precisa ser exato —
+                  é o ponto de partida para comparar com o que os extratos mostram depois.
+                </p>
+              </div>
+              <FotografiaWizard
+                modo="onboarding"
+                onConcluir={irParaBancos}
+                onDepois={irParaBancos}
+              />
+            </div>
+          )}
+
+          {/* Passo 3: Seus bancos */}
+          {passo === 3 && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
               <div className="text-4xl mb-4">🏦</div>
               <h1 className="text-2xl font-bold text-slate-800 mb-1">
-                Quais bancos você usa?
+                De onde vêm seus extratos?
               </h1>
               <p className="text-slate-500 mb-6">
-                Ative os bancos para importar extratos e faturas. Você pode alterar depois em{" "}
+                Marque os bancos que você usa para importar extratos e faturas. É opcional —
+                dá para lançar à mão também — e você pode alterar depois em{" "}
                 <span className="font-medium">Configurações</span>.
               </p>
 
@@ -248,13 +268,13 @@ export default function OnboardingPage() {
 
               <div className="flex justify-between mt-8">
                 <button
-                  onClick={() => setPasso(1)}
+                  onClick={() => setPasso(2)}
                   className="text-slate-500 px-4 py-2 rounded-lg text-sm hover:bg-slate-100 transition-colors"
                 >
                   ← Voltar
                 </button>
                 <button
-                  onClick={() => setPasso(3)}
+                  onClick={() => setPasso(4)}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
                   Próximo →
@@ -263,8 +283,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Passo 3: Pronto! */}
-          {passo === 3 && (
+          {/* Passo 4: Pronto! */}
+          {passo === 4 && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
               <div className="text-4xl mb-4">✅</div>
               <h1 className="text-2xl font-bold text-slate-800 mb-1">
