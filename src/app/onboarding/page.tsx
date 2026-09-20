@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import FotografiaWizard from "@/components/planejamento/FotografiaWizard";
+import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 
 type Perfil = {
   id: number;
@@ -266,6 +267,8 @@ export default function OnboardingPage() {
                 </div>
               )}
 
+              <div className="mt-6"><ComoBaixarExtrato /></div>
+
               <div className="flex justify-between mt-8">
                 <button
                   onClick={() => setPasso(2)}
@@ -288,19 +291,27 @@ export default function OnboardingPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
               <div className="text-4xl mb-4">✅</div>
               <h1 className="text-2xl font-bold text-slate-800 mb-1">
-                Tudo configurado, {nome}!
+                Tudo pronto, {nome}!
               </h1>
               <p className="text-slate-500 mb-6">
-                Você já pode importar seus extratos. Baixe um arquivo OFX ou PDF do
-                seu banco e arraste na área de importação — o sistema detecta o banco
-                automaticamente.
+                Sua conta está configurada. Estes são os próximos passos — escolha por onde começar:
               </p>
 
-              <div className="bg-slate-50 rounded-xl p-4 mb-6 text-sm text-slate-600 space-y-2">
-                <p className="font-medium text-slate-700">Dicas rápidas:</p>
-                <p>• <span className="font-medium">OFX</span> — extratos de conta corrente. Baixe no internet banking.</p>
-                <p>• <span className="font-medium">PDF</span> — faturas de cartão de crédito.</p>
-                <p>• <span className="font-medium">CSV</span> — planilhas exportadas de qualquer banco.</p>
+              <div className="space-y-2 mb-8">
+                {[
+                  { n: 1, titulo: "Registrar o que aconteceu", texto: "Importe o extrato do banco ou lance à mão o que você gastou.", destino: "/importar", acao: "Importar" },
+                  { n: 2, titulo: "Categorizar", texto: "Cada lançamento ganha uma categoria — boa parte é automática, o resto é um clique.", destino: "/lancamentos", acao: "Ver lançamentos" },
+                  { n: 3, titulo: "Comparar com a fotografia", texto: "Veja onde o mês real ficou acima ou abaixo do que você planejou.", destino: "/planejamento?aba=comparacao", acao: "Comparar" },
+                ].map((p) => (
+                  <div key={p.n} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3">
+                    <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-medium flex items-center justify-center shrink-0">{p.n}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800">{p.titulo}</div>
+                      <div className="text-sm text-slate-500">{p.texto}</div>
+                    </div>
+                    <button onClick={() => concluir(p.destino)} disabled={salvando} className="btn btn-secondary shrink-0">{p.acao}</button>
+                  </div>
+                ))}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-between">
@@ -312,18 +323,18 @@ export default function OnboardingPage() {
                 </button>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => concluir("/")}
+                    onClick={() => concluir("/lancamentos?novo=1")}
                     disabled={salvando}
                     className="border border-slate-300 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-40 transition-colors"
                   >
-                    Ir ao Dashboard
+                    Lançar à mão
                   </button>
                   <button
-                    onClick={() => concluir("/importar")}
+                    onClick={() => concluir("/")}
                     disabled={salvando}
                     className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors"
                   >
-                    {salvando ? "Salvando..." : "Importar agora →"}
+                    {salvando ? "Salvando..." : "Ir ao Dashboard →"}
                   </button>
                 </div>
               </div>

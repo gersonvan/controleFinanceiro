@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
 import type { ResumoFiltro } from "@/app/api/resumo/route";
+import LancamentoForm from "@/components/LancamentoForm";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -55,6 +56,7 @@ function LancamentosContent() {
   const initMes = mesAtual();
 
   const [lancamentos, setLancamentos]         = useState<Lancamento[]>([]);
+  const [novoAberto, setNovoAberto]           = useState(() => searchParams.get("novo") === "1");
   const [total, setTotal]                     = useState(0);
   const [page, setPage]                       = useState(1);
   const [loading, setLoading]                 = useState(true);
@@ -270,6 +272,12 @@ function LancamentosContent() {
         </div>
       )}
 
+      <LancamentoForm
+        aberto={novoAberto}
+        onFechar={() => setNovoAberto(false)}
+        onSalvo={() => { carregar(); showToast("✅ Lançamento salvo."); }}
+      />
+
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -284,6 +292,7 @@ function LancamentosContent() {
           )}
         </div>
         <div className="flex gap-2">
+          <button className="btn btn-primary" onClick={() => setNovoAberto(true)}>+ Novo</button>
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
             {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>

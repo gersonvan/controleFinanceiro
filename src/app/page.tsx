@@ -121,6 +121,20 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>
+      ) : data && data.porCategoria.length === 0 && data.porMes.length === 0 && data.totalEntradas === 0 && data.totalSaidas === 0 ? (
+        <div className="card text-center py-14 space-y-4">
+          <div className="text-4xl">📂</div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Nenhum lançamento em {mes ? `${MESES[mes - 1]}/${ano}` : ano}</h2>
+            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              O dashboard ganha vida com seus lançamentos. Importe o extrato do banco ou comece registrando à mão.
+            </p>
+          </div>
+          <div className="flex justify-center gap-3 flex-wrap">
+            <Link href="/importar" className="btn btn-primary">📂 Importar extrato</Link>
+            <Link href="/lancamentos?novo=1" className="btn btn-secondary">✏️ Lançar à mão</Link>
+          </div>
+        </div>
       ) : data ? (
         <>
           <div className="grid grid-cols-3 gap-4">

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
+import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 
 interface Perfil {
@@ -307,7 +308,10 @@ export default function ImportarPage() {
 
       {/* UPLOAD */}
       {fase === "upload" && (
-        <DropZone onFile={processarArquivo} inputRef={inputRef} />
+        <>
+          <DropZone onFile={processarArquivo} inputRef={inputRef} />
+          <ComoBaixarExtrato />
+        </>
       )}
 
       {/* DETECTANDO */}
