@@ -1,7 +1,7 @@
 # Contexto do Projeto — financeiro-web
 
 > Documento de handoff para trabalhar com qualquer assistente de IA.
-> Última atualização: 2026-07-23.
+> Última atualização: 2026-09-20.
 
 ---
 
@@ -18,18 +18,19 @@
 
 | Tecnologia | Versão | Observação |
 |---|---|---|
-| Next.js | 16.2.7 | App Router + Turbopack. **Atenção: Next 16 tem breaking changes** — consultar `node_modules/next/dist/docs/` antes de codar (instrução do AGENTS.md) |
+| Next.js | 16.3.5 | App Router + Turbopack. **Atenção: Next 16 tem breaking changes** — consultar `node_modules/next/dist/docs/` antes de codar (instrução do AGENTS.md) |
 | React | 19.2.4 | |
 | TypeScript | 5.9.3 | Path alias `@/` → `src/` |
-| Prisma | 7.8.0 | Com `@prisma/adapter-pg` + driver `pg` 8.21.0 |
+| Prisma | 7.10.0 | Com `@prisma/adapter-pg` + driver `pg` 8.21.0 |
 | Banco | Neon PostgreSQL (serverless) | Via `DATABASE_URL` |
-| NextAuth | 5.0.0-beta.31 | Google OAuth, sessão JWT (stateless) |
+| NextAuth | 5.0.0-beta.32 | Google OAuth, sessão JWT (stateless, 7 dias) |
 | Tailwind CSS | 4.3.0 | |
 | recharts | 3.8.1 | Gráficos do dashboard |
 | papaparse 5.5.3 / pdf-parse 2.4.5 | | Parsers de importação |
-| Gemini | gemini-2.0-flash-lite | REST direto via fetch, `GEMINI_API_KEY` |
+| zod | 4.x | Validação de toda entrada das APIs (`src/lib/validacao.ts`) |
+| Gemini | gemini-2.0-flash-lite | REST direto via fetch, `GEMINI_API_KEY` no header `x-goog-api-key` |
 
-`next.config.ts` tem `serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pdf-parse"]` — obrigatório, não remover.
+`next.config.ts` tem `serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pdf-parse"]` — obrigatório, não remover. Também define os cabeçalhos de segurança (CSP, `frame-ancestors 'none'`, nosniff, Referrer-Policy, HSTS) via `headers()`; ao adicionar origem externa (fonte, imagem, API chamada do navegador), incluir na CSP.
 
 ## 3. Modelo de dados (prisma/schema.prisma)
 
@@ -38,7 +39,7 @@
 - **Lancamento** — id, userId, data, descricao, valor (float, negativo = saída), tipo ("Entrada"/"Saída"), conta, categoria (nullable), pessoa (nullable, p/ empréstimos), mesReferencia (nullable, competência de fatura de cartão).
 - **UserProfile** — userId (PK, e-mail), nome, onboardingCompleto (bool), createdAt.
 - **MemoriaIA** — regras descrição→categoria por usuário; `@@unique([descricao, userId])`.
-- **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool).
+- **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool). `@@unique([userId, builtin])` garante um perfil nativo por usuário (migração `20260920120000_perfil_builtin_unique`).
 
 **Regra de período importante**: quando `mesReferencia` está preenchido, ele é usado no lugar de `data` para todos os filtros de período. Padrão repetido em várias APIs:
 ```ts
@@ -51,9 +52,11 @@ OR: [
 ## 4. Arquitetura e decisões-chave
 
 - **Camadas**: páginas/rotas em `src/app/`, APIs em `src/app/api/*/route.ts`, domínio em `src/lib/`, componentes em `src/components/`.
-- **Auth split (crítico)**: `src/auth.config.ts` é a config mínima Edge-compatible (sem Prisma) usada só pelo `middleware.ts`; `src/auth.ts` é a config completa (Google provider + callbacks com Prisma) usada no resto. **Nunca importar Prisma (direta ou indiretamente) no middleware** — já causou falha de deploy na Vercel (Edge Runtime não suporta módulos nativos). Corrigido no commit `25896ef`.
+- **Auth split (crítico)**: `src/auth.config.ts` é a config mínima Edge-compatible (sem Prisma) usada só pelo `src/proxy.ts`; `src/auth.ts` é a config completa (Google provider + callbacks com Prisma) usada no resto. **Nunca importar Prisma (direta ou indiretamente) no proxy** — já causou falha de deploy na Vercel (Edge Runtime não suporta módulos nativos). Corrigido no commit `25896ef`.
+- **Proxy, não middleware**: o Next 16 renomeou a convenção `middleware.ts` → `proxy.ts`, e com pasta `src/` o arquivo precisa ficar em `src/proxy.ts`. Em 2026-09-20 verificou-se que o `middleware.ts` na raiz era compilado mas **não executava no dev server** (produção funcionava); as APIs continuaram protegidas porque cada rota revalida a sessão. Não voltar para `middleware.ts`.
+- **Validação de entrada**: toda rota que recebe corpo, query ou upload valida com zod via `validar()`/`lerCorpo()`/`lerQuery()`/`lerArquivo()` de `src/lib/validacao.ts`. Campos desconhecidos são descartados (sem mass assignment), `categoria` é restrita a `CATEGORIAS`, uploads têm teto de 8 MB e PDFs são checados pelo magic byte. Filtros de período compartilhados em `src/lib/filtros.ts`. Ao criar rota nova, seguir o padrão.
 - **Multi-tenancy**: linha por tenant com `userId` em todo `where` de todas as queries. Não há Row-Level Security nem middleware Prisma — o isolamento depende de disciplina de código. `getSessionUserId()` (`src/lib/session.ts`) retorna o e-mail da sessão; toda API começa com esse check e responde 401 se null.
-- **Autorização de acesso**: lista `ALLOWED_EMAILS` (env var, default `gersonvan@gmail.com`) checada no callback `signIn` de `src/auth.ts`.
+- **Autorização de acesso**: lista `ALLOWED_EMAILS` (env var, default `gersonvan@gmail.com`, comparação case-insensitive) checada no `signIn` (que também exige `email_verified` do Google) **e** revalidada a cada requisição no callback `jwt` — remover um e-mail da lista encerra a sessão existente. `session.maxAge` = 7 dias.
 - **Onboarding**: `onboardingCompleto` vive no JWT (setado no callback `jwt` no login; atualizado via `update()` do next-auth/react quando o wizard termina). O middleware redireciona para `/onboarding` se `=== false` (check estrito: `undefined` de sessões antigas passa). Auto-graduação: usuário sem UserProfile mas com Lancamentos ganha `onboardingCompleto: true` no primeiro login.
 - **Categorias**: lista estática de 36 categorias em `src/lib/categorias.ts` (const `CATEGORIAS`). Adicionar categoria = mudança de código. Subconjuntos: `CATEGORIAS_FIXAS` (previsão), `CATEGORIAS_EMPRESTIMO`, categorias neutras (`CATEGORIAS_NEUTRAS` nos endpoints dashboard/resumo — excluídas dos totais por serem movimentação interna).
 
@@ -121,21 +124,24 @@ Migrações: `npx prisma migrate dev` (dev) / `npx prisma migrate deploy` (prod)
 - ✅ Fix do deploy Vercel (split auth.config.ts/auth.ts para Edge Runtime) — commit `25896ef`
 - ✅ Documentação PADTec L2 completa em `docs/` (16 arquivos: 01–11, auth, banco-de-dados, integracoes-externas, multi-tenancy, 13-glossario) — gerada em 2026-07-23
 - ✅ Framework PADTec copiado para `padtec/` no projeto (templates L1/L2/L3, prompts, checklist)
+- ✅ Edição de perfis de importação personalizados e coluna de parcela no CSV (`colParcela`) — commits `681e084`, `1b9b92e` (06/08)
+- ✅ Revisão de segurança (20/09): upgrade Next 16.3.5 / next-auth beta.32 / Prisma 7.10 (CVEs críticos), validação zod em todas as APIs, cabeçalhos de segurança + CSP, sessão de 7 dias com allowlist por requisição, migração `middleware.ts` → `src/proxy.ts`, chave Gemini no header e teto de 50 chamadas/requisição, unique em perfis nativos
 
 ## 11. Backlog / próximos passos e dívidas conhecidas
 
 Itens identificados como carência na documentação ou pendências naturais (nenhum foi explicitamente priorizado pelo Gerson ainda — confirmar antes de atacar):
 
 **Dívidas técnicas / riscos**
-- Cobertura automatizada inicial: Vitest e 10 testes para helpers de tenant, CRUD de lançamentos e categorização. Ainda faltam testes dos demais endpoints, importadores e interface.
-- Índices compostos para `Lancamento(userId, data)`, `Lancamento(userId, mesReferencia)`, `Lancamento(userId, categoria)` e `Lancamento(userId, pessoa)` já estão na migração pendente de aplicação.
+- Cobertura automatizada: Vitest com 26 testes (helpers de tenant, CRUD e validação de lançamentos, categorização, importadores). Ainda faltam testes de perfis, memória, onboarding e interface.
+- **Migração pendente de deploy**: `20260920120000_perfil_builtin_unique` (dedup + unique em `PerfilImportacao(userId, builtin)`) — rodar `npx prisma migrate deploy` contra o Neon antes/junto do próximo deploy.
+- `npm audit` ainda acusa 4 itens *high* dentro do CLI do Prisma (`@prisma/config`, `deepmerge-ts`, `mysql2`): ferramenta de dev, não vão para o bundle; o "fix" sugerido é downgrade para Prisma 6 — ignorar até o Prisma 7 corrigir.
+- Sem rate limiting nas APIs e sem checagem de `Origin` (CSRF depende do cookie `SameSite=Lax` do Auth.js).
 - Isolamento multi-tenant possui helpers de aplicação (`escopoDoUsuario`, `dadosDoUsuario`, `dadosAtualizaveisDoUsuario`), mas continua sem RLS no Postgres ou interceptor Prisma; uma query nova que ignore os helpers ainda poderia vazar dados.
 - Categorização usa transações para cada lote local (Memória IA e regras). A fase Gemini continua individual para não manter transação aberta durante chamadas externas e rate limit.
 - Parsers legados C6/Nubank duplicam lógica do motor genérico (considerar migrar para perfis genéricos e aposentar `parsers.ts`).
 - Regras de categorização em `mapearCategoria()` são hardcoded e pessoais do Gerson (nomes próprios, fornecedores) — para SaaS real, precisariam virar dados por usuário.
 - `NOMES_PROPRIOS` hardcoded em `src/lib/categorias.ts` — mesmo problema.
 - Sem CI/CD além do deploy automático Vercel; sem monitoramento/health check; sem trilha de auditoria de login.
-- Duração de sessão JWT no default do NextAuth (30 dias), sem revogação.
 - Sem gestão de ciclo de vida de tenant (suspensão/remoção de dados de um usuário).
 
 **Funcional (fora de escopo atual, candidatos futuros)**
@@ -158,16 +164,19 @@ Itens identificados como carência na documentação ou pendências naturais (ne
 
 ```
 financeiro-web/
-├── middleware.ts              # Auth Edge + redirect onboarding (NUNCA importar Prisma aqui)
-├── next.config.ts             # serverExternalPackages (não remover)
+├── next.config.ts             # serverExternalPackages (não remover) + cabeçalhos de segurança/CSP
 ├── prisma/schema.prisma       # 4 models
 ├── src/
-│   ├── auth.ts                # NextAuth completo (Node, Prisma, callbacks JWT)
+│   ├── proxy.ts               # Gate de sessão + redirect onboarding (NUNCA importar Prisma aqui)
+│   ├── auth.ts                # NextAuth completo (Node, Prisma, callbacks JWT, allowlist por requisição)
 │   ├── auth.config.ts         # NextAuth mínimo (Edge)
 │   ├── types/next-auth.d.ts   # Augment de Session/JWT com onboardingCompleto
 │   ├── lib/
 │   │   ├── db.ts              # Prisma singleton + PrismaPg + pg.Pool
 │   │   ├── session.ts         # getSessionUserId()
+│   │   ├── tenant.ts          # escopoDoUsuario / dadosDoUsuario (isolamento)
+│   │   ├── validacao.ts       # zod: validar(), lerCorpo(), lerQuery(), lerArquivo()
+│   │   ├── filtros.ts         # filtros de período compartilhados (lancamentos/resumo/matriz)
 │   │   ├── categorias.ts      # CATEGORIAS + mapearCategoria() (regras)
 │   │   ├── parsers.ts         # Parsers legados C6/Nubank
 │   │   └── importacao/        # engine, csv, ofx, pdf, detectar, tipos

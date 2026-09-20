@@ -14,7 +14,7 @@
 | Tipo de entrada | Fonte do identificador | Resolvedor | Evidência |
 |---|---|---|---|
 | Requisição HTTP para API Routes | Cookie JWT `next-auth.session-token` (campo `email`) | `getSessionUserId()` em `src/lib/session.ts` | `src/lib/session.ts:1` |
-| Requisição HTTP para Middleware | Cookie JWT (campo `onboardingCompleto` na sessão) | `NextAuth(authConfig)` no middleware Edge | `middleware.ts:5` |
+| Requisição HTTP para Middleware | Cookie JWT (campo `onboardingCompleto` na sessão) | `NextAuth(authConfig)` no middleware Edge | `src/proxy.ts:8` |
 | Login inicial | Callback `jwt()` do NextAuth, campo `user.email` | `src/auth.ts:22` | `src/auth.ts:22` |
 
 ## Diagrama de resolução do tenant

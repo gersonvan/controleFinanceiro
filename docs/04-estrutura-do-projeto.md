@@ -15,7 +15,7 @@
 | `padtec/` | Framework de documentação PADTec (templates, prompts, checklist) | documentação | `padtec/README.md` |
 | `scripts/` | Scripts auxiliares (seed, utilidades) | automação | `scripts/` |
 | `public/` | Ativos estáticos servidos diretamente | código | `public/` |
-| `middleware.ts` | Middleware de autenticação e redirecionamento de onboarding (Edge Runtime) | código | `middleware.ts:1` |
+| `src/proxy.ts` | Middleware de autenticação e redirecionamento de onboarding (Edge Runtime) | código | `src/proxy.ts:1` |
 | `src/auth.ts` | Configuração completa do NextAuth com Prisma (Node.js) | código | `src/auth.ts:1` |
 | `src/auth.config.ts` | Configuração mínima NextAuth sem imports Node.js (Edge-compatible) | código | `src/auth.config.ts:1` |
 | `next.config.ts` | Configuração do Next.js (Turbopack, serverExternalPackages) | configuração | `next.config.ts:1` |
@@ -45,7 +45,7 @@ O projeto segue uma organização **por camada** (não por feature). Cada camada
 
 | Regra | Aplicação automatizada | Evidência |
 |---|---|---|
-| `middleware.ts` importa apenas de `src/auth.config.ts` (sem Prisma) | Não — convenção manual | `middleware.ts:2`; violação causaria erro de runtime no Edge |
+| `src/proxy.ts` importa apenas de `src/auth.config.ts` (sem Prisma) | Não — convenção manual | `src/proxy.ts:5`; violação causaria erro de runtime no Edge |
 | `src/auth.config.ts` não importa módulos Node.js | Não — convenção manual | `src/auth.config.ts:1` |
 | API Routes não importam `src/auth.ts` diretamente; usam `getSessionUserId()` de `src/lib/session.ts` | Não | `src/lib/session.ts:1` |
 | Proibição de dependências cíclicas entre módulos | Não — sem configuração de lint para ciclos | // CARÊNCIA: não identificado no código |
@@ -55,7 +55,7 @@ O projeto segue uma organização **por camada** (não por feature). Cada camada
 
 | Arquivo | Função | Risco de modificação | Evidência |
 |---|---|---|---|
-| `middleware.ts` | Ponto de entrada para toda requisição autenticada; controla redirecionamentos de onboarding | Modificação pode expor rotas protegidas ou bloquear usuários legítimos | `middleware.ts:1` |
+| `src/proxy.ts` | Ponto de entrada para toda requisição autenticada; controla redirecionamentos de onboarding | Modificação pode expor rotas protegidas ou bloquear usuários legítimos | `src/proxy.ts:1` |
 | `src/auth.ts` | Define callbacks JWT e de sessão; impõe lista de e-mails permitidos | Modificação pode conceder acesso indevido a usuários não autorizados | `src/auth.ts:6` |
 | `src/auth.config.ts` | Configuração base do NextAuth usada no Edge; `pages` de login/erro definidos aqui | Modificação afeta redirecionamento de login em todo o sistema | `src/auth.config.ts:4` |
 | `prisma/schema.prisma` | Define o modelo de dados completo e relacionamentos | Modificação sem migration pode corromper o banco de produção | `prisma/schema.prisma:1` |

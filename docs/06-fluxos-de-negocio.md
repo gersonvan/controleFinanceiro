@@ -4,7 +4,7 @@
 
 | Fluxo | Ator iniciador | Ponto de entrada | Evidência |
 |---|---|---|---|
-| Autenticação e onboarding | Usuário | `GET /login` → Google OAuth → `/onboarding` | `src/auth.ts:16`, `middleware.ts:20` |
+| Autenticação e onboarding | Usuário | `GET /login` → Google OAuth → `/onboarding` | `src/auth.ts:16`, `src/proxy.ts:23` |
 | Importação de extrato | Usuário | `POST /api/importar` (rota interna de preview + confirmação) | `src/app/importar/page.tsx` |
 | Categorização automática | Usuário | `POST /api/categorizar` | `src/app/api/categorizar/route.ts:7` |
 | Visualização do dashboard | Usuário | `GET /api/dashboard` | `src/app/api/dashboard/route.ts:173` |

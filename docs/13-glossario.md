@@ -57,7 +57,7 @@ Mínimo L2: 60 termos. Este glossário contém 75 termos do domínio do sistema 
 | 49 | **Edge Runtime** | Ambiente de execução V8 (sem Node.js nativo) usado pelo middleware do Vercel/Next.js. Não suporta Prisma. |
 | 50 | **`auth.config.ts`** | Arquivo de configuração mínima do NextAuth compatível com Edge Runtime (sem imports Prisma). Usado exclusivamente no middleware. |
 | 51 | **`auth.ts`** | Arquivo de configuração completa do NextAuth com Google Provider e callbacks que acessam Prisma. Usado nas API Routes. |
-| 52 | **Middleware** | `middleware.ts` — intercepta toda requisição HTTP antes do roteamento; verifica autenticação e estado de onboarding. |
+| 52 | **Proxy (ex-Middleware)** | `src/proxy.ts` — intercepta toda requisição HTTP antes do roteamento; verifica autenticação e estado de onboarding. No Next 16 a convenção `middleware.ts` foi renomeada para `proxy.ts` e passou a rodar em Node.js por padrão. |
 | 53 | **ALLOWED_EMAILS** | Variável de ambiente com lista de e-mails autorizados a acessar o sistema. Separados por vírgula. |
 | 54 | **Google OAuth 2.0** | Protocolo de autorização usado para autenticar usuários com conta Google. |
 | 55 | **OIDC** | OpenID Connect — camada de identidade sobre OAuth 2.0; fornece `id_token` com claims de identidade (email, name). |

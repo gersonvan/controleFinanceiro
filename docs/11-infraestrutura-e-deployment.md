@@ -38,7 +38,7 @@ O projeto é projetado para deploy na **Vercel** (plataforma serverless para Nex
 
 | Componente | Runtime | Motivo |
 |---|---|---|
-| `middleware.ts` | Edge Runtime (V8 Isolates) | Executa em todos os edge nodes do Vercel; não suporta módulos nativos Node.js | `middleware.ts:1` |
+| `src/proxy.ts` | Node.js (padrão do Proxy no Next 16) | Continua importando só `auth.config.ts` (sem Prisma) por segurança, caso volte a rodar no Edge | `src/proxy.ts:1` |
 | API Routes (`/api/**`) | Node.js (serverless function) | Requer Prisma (`@prisma/client` com módulos nativos) e pdf-parse | `next.config.ts:serverExternalPackages` |
 | Páginas SSR | Node.js (serverless function) | Renderização de Server Components | `src/app/layout.tsx` |
 | Assets estáticos | CDN Edge | Arquivos em `public/` e chunks JS/CSS gerados pelo build | — |

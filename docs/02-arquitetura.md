@@ -20,7 +20,7 @@ flowchart TB
     end
 
     subgraph Aplicação
-        MWARE[Middleware\nmiddleware.ts]
+        MWARE[Middleware\nsrc/proxy.ts]
         ROUTES[API Routes\n/api/*/route.ts]
     end
 
@@ -56,24 +56,24 @@ flowchart TB
 
 Exemplo: usuário acessa `/lancamentos` após autenticado.
 
-1. Navegador envia `GET /lancamentos` — o middleware `middleware.ts:7` intercepta a requisição antes de chegar ao servidor Next.js.
-2. Middleware instancia NextAuth com `authConfig` (Edge-compatible) e valida o cookie JWT — `middleware.ts:5`.
-3. Se `onboardingCompleto === false`, redireciona para `/onboarding`; caso contrário, passa adiante — `middleware.ts:20`.
+1. Navegador envia `GET /lancamentos` — o middleware `src/proxy.ts:10` intercepta a requisição antes de chegar ao servidor Next.js.
+2. Middleware instancia NextAuth com `authConfig` (Edge-compatible) e valida o cookie JWT — `src/proxy.ts:8`.
+3. Se `onboardingCompleto === false`, redireciona para `/onboarding`; caso contrário, passa adiante — `src/proxy.ts:23`.
 4. Next.js App Router roteia para `src/app/lancamentos/page.tsx` (Server Component), que é renderizado no servidor.
 5. O Client Component embutido na página chama `GET /api/lancamentos` via `fetch` com parâmetros de filtro — `src/app/api/lancamentos/route.ts:348`.
 6. A API Route chama `getSessionUserId()` para extrair o `userId` da sessão — `src/lib/session.ts`.
 7. Prisma executa `findMany({ where: { userId, ...filtros } })` no Neon PostgreSQL — `src/app/api/lancamentos/route.ts:380`.
 8. O JSON retornado é hidratado no Client Component e exibido na tabela de lançamentos.
 
-**Caminho de erro mais comum**: token JWT expirado ou ausente — o middleware redireciona para `/login` — `middleware.ts:8`.
+**Caminho de erro mais comum**: token JWT expirado ou ausente — o middleware redireciona para `/login` — `src/proxy.ts:11`.
 
 ## Decisões de design
 
 | Decisão | Motivo | Consequência aceita | Evidência |
 |---|---|---|---|
-| Separar `auth.config.ts` de `auth.ts` | O middleware roda no Edge Runtime; Prisma (Node.js nativo) não pode ser importado nesse contexto | A configuração de provedores OAuth fica duplicada em dois arquivos | `src/auth.config.ts:1`, `middleware.ts:2` |
+| Separar `auth.config.ts` de `auth.ts` | O middleware roda no Edge Runtime; Prisma (Node.js nativo) não pode ser importado nesse contexto | A configuração de provedores OAuth fica duplicada em dois arquivos | `src/auth.config.ts:1`, `src/proxy.ts:5` |
 | `userId` = e-mail Google como discriminador de tenant | Simplicidade — o e-mail é único, estável e já disponível na sessão JWT | Dependência de e-mail Google como chave estrangeira lógica em todas as tabelas | `src/lib/session.ts:1`, `prisma/schema.prisma:1` |
-| `onboardingCompleto` armazenado no JWT | O middleware Edge não pode consultar banco; precisa da informação no token | Se o estado muda no servidor, requer chamada `update()` do lado do cliente para refletir imediatamente | `src/auth.ts:32`, `middleware.ts:20` |
+| `onboardingCompleto` armazenado no JWT | O middleware Edge não pode consultar banco; precisa da informação no token | Se o estado muda no servidor, requer chamada `update()` do lado do cliente para refletir imediatamente | `src/auth.ts:32`, `src/proxy.ts:23` |
 | Motor de importação com perfis configuráveis + legado | O sistema começou com parsers fixos para C6/Nubank; precisou evoluir para suporte a qualquer banco | Dois caminhos de execução coexistem em `engine.ts` (builtin e genérico) | `src/lib/importacao/engine.ts:29` |
 | Categorias como lista estática tipada | Evita entidade de banco para categorias; simplifica categorização e relatórios | Adicionar nova categoria requer código, não apenas dado | `src/lib/categorias.ts:1` |
 | `serverExternalPackages` para Prisma e pdf-parse | Esses pacotes usam módulos nativos Node.js; o bundler Next.js os excluiria do bundle | Ligeiramente maior cold start de funções serverless | `next.config.ts:1` |

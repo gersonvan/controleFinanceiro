@@ -62,7 +62,7 @@ erDiagram
 | Operações de leitura e escrita nunca atravessam fronteiras de usuário (filtro `userId` obrigatório em todo `findMany`) | Todas | Convenção manual nas API Routes | `src/app/api/lancamentos/route.ts:363` |
 | Uma `MemoriaIA` tem chave única composta `(descricao, userId)` — não há regras duplicadas por usuário | `MemoriaIA` | Restrição `@@unique([descricao, userId])` no schema Prisma + `upsert` na API | `prisma/schema.prisma:MemoriaIA`, `src/app/api/memoria-ia/route.ts:610` |
 | Um `PerfilImportacao` marcado como `builtin` não pode ser excluído | `PerfilImportacao` | Filtro `builtin: null` no DELETE da API | `src/app/api/perfis/route.ts:790` |
-| Um usuário só acessa o sistema principal após `onboardingCompleto = true` | `UserProfile` | Middleware verifica `session.onboardingCompleto === false` e redireciona | `middleware.ts:20` |
+| Um usuário só acessa o sistema principal após `onboardingCompleto = true` | `UserProfile` | Middleware verifica `session.onboardingCompleto === false` e redireciona | `src/proxy.ts:23` |
 | `tipo` de um lançamento é restrito a `"Entrada"` ou `"Saída"` | `Lancamento` | // CARÊNCIA: não há constraint de banco; imposição é feita nos parsers de importação | `src/lib/importacao/tipos.ts:9` |
 
 ## Vocabulário ubíquo

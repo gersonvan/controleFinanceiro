@@ -20,9 +20,9 @@ Não há autenticação por credenciais locais (e-mail/senha), tokens de API ou 
 
 ## Fluxo de autenticação principal — passo a passo
 
-1. Usuário acessa qualquer rota protegida — `middleware.ts:7`.
-2. Middleware verifica o cookie JWT com `NextAuth(authConfig)` (Edge-compatible, sem Prisma) — `middleware.ts:5`.
-3. Sessão ausente → middleware redireciona para `/login` — `middleware.ts:8`.
+1. Usuário acessa qualquer rota protegida — `src/proxy.ts:10`.
+2. Middleware verifica o cookie JWT com `NextAuth(authConfig)` (Edge-compatible, sem Prisma) — `src/proxy.ts:8`.
+3. Sessão ausente → middleware redireciona para `/login` — `src/proxy.ts:11`. Cada rota de API revalida a sessão por conta própria (`getSessionUserId`), então o proxy é a primeira camada, não a única.
 4. Usuário clica em "Entrar com Google" na página `/login` — `src/app/login/page.tsx`.
 5. NextAuth redireciona para o endpoint de autorização do Google com `scope=openid email profile`.
 6. Usuário autentica no Google e consente.
@@ -36,8 +36,8 @@ Não há autenticação por credenciais locais (e-mail/senha), tokens de API ou 
 14. `token.onboardingCompleto` é definido com o valor do perfil — `src/auth.ts:32`.
 15. Callback `session()` adiciona `onboardingCompleto` ao objeto de sessão — `src/auth.ts:40`.
 16. NextAuth cria o cookie JWT assinado com `AUTH_SECRET` e redireciona para a rota original.
-17. Middleware lê o JWT no cookie e verifica `onboardingCompleto === false` — `middleware.ts:20`.
-18. Se `false`: redireciona para `/onboarding`; se `true` ou `undefined` (sessões antigas): deixa passar — `middleware.ts:20`.
+17. Middleware lê o JWT no cookie e verifica `onboardingCompleto === false` — `src/proxy.ts:23`. Antes disso, o callback `jwt` revalida o e-mail contra `ALLOWED_EMAILS` a cada requisição e devolve `null` (sessão encerrada) se ele foi removido — `src/auth.ts:34`. A sessão dura 7 dias (`session.maxAge`) — `src/auth.ts:21`.
+18. Se `false`: redireciona para `/onboarding`; se `true` ou `undefined` (sessões antigas): deixa passar — `src/proxy.ts:23`.
 19. Usuário conclui onboarding → frontend chama `PATCH /api/onboarding` + `update({ onboardingCompleto: true })` — `src/app/onboarding/page.tsx`.
 20. NextAuth atualiza o JWT com o novo valor via o trigger `"update"` no callback `jwt()` — `src/auth.ts:35`.
 
@@ -90,8 +90,8 @@ sequenceDiagram
 | Papel ou atributo | Capacidades concedidas | Ponto de imposição | Evidência |
 |---|---|---|---|
 | E-mail na `ALLOWED_EMAILS` | Acesso completo ao sistema; todos os dados são isolados por `userId` | Callback `signIn()` em `src/auth.ts:17` | `src/auth.ts:6` |
-| `onboardingCompleto = true` | Acesso às rotas principais (dashboard, lançamentos, etc.) | Middleware — `middleware.ts:20` | `middleware.ts:20` |
-| `onboardingCompleto = false` | Acesso restrito a `/onboarding` e `/api/*` | Middleware — `middleware.ts:15` | `middleware.ts:15` |
+| `onboardingCompleto = true` | Acesso às rotas principais (dashboard, lançamentos, etc.) | Middleware — `src/proxy.ts:23` | `src/proxy.ts:23` |
+| `onboardingCompleto = false` | Acesso restrito a `/onboarding` e `/api/*` | Middleware — `src/proxy.ts:18` | `src/proxy.ts:18` |
 | E-mail fora da `ALLOWED_EMAILS` | Sem acesso; redirecionado para `/login?error=AccessDenied` | Callback `signIn()` retorna `false` | `src/auth.ts:18` |
 
 Não há papéis (roles) diferenciados entre usuários autorizados; todos têm as mesmas capacidades dentro do seu tenant.
