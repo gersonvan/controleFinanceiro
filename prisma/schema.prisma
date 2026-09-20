@@ -38,6 +38,28 @@ model UserProfile {
   nome               String   @default("")
   onboardingCompleto Boolean  @default(false)
   createdAt          DateTime @default(now())
+
+  // Fotografia do mês
+  margemPercentual      Float     @default(20) // reserva sobre as entradas
+  fotografiaConcluidaEm DateTime?               // null = dashboard lembra de fazer
+}
+
+// Item da Fotografia do mês: o que o usuário planeja receber/gastar.
+model PlanejamentoItem {
+  id            Int      @id @default(autoincrement())
+  userId        String
+  grupo         String   // "entrada" | "fixo" | "variavel" | "sazonal" | "parcela"
+  descricao     String
+  categoria     String   // sempre uma de CATEGORIAS
+  valor         Float    // positivo; unidade definida por periodicidade
+  periodicidade String   @default("mensal") // "mensal" | "semanal" | "anual"
+  parcelaAtual  Int?     // só grupo "parcela"
+  parcelaTotal  Int?
+  ordem         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, grupo])
 }
 
 model MemoriaIA {

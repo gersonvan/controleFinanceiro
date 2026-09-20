@@ -25,6 +25,7 @@ export const CATEGORIAS = [
   "Consultas e Terapias",
   "Academia e Bem-estar",
   "Farmácia",
+  "Plano de Saúde",
   // Educação
   "Mensalidades e Cursos",
   // Pessoal e Lazer
@@ -32,6 +33,9 @@ export const CATEGORIAS = [
   "Lazer e Entretenimento",
   "Assinaturas Digitais",
   "Gastos de Terceiros",
+  "Cuidados Pessoais",
+  "Presentes",
+  "Pets",
   // Empréstimos
   "Empréstimo",
   // Financeiro e Transferências
@@ -39,6 +43,7 @@ export const CATEGORIAS = [
   "Investimentos (Aportes)",
   "Pagamento de Empréstimo",
   "Taxas e Anuidades",
+  "Impostos e Tributos",
   "Seguros",
   "Transferência para Terceiros",
   "Transferência entre Contas",
@@ -77,15 +82,20 @@ export const CATEGORIAS_SAIDA = [
   "Condomínio",
   "Consultas e Terapias",
   "Contas de Consumo",
+  "Cuidados Pessoais",
   "Delivery e iFood",
   "Empréstimo",
   "Farmácia",
   "Gastos de Terceiros",
+  "Impostos e Tributos",
   "Investimentos (Aportes)",
   "Lazer e Entretenimento",
   "Mensalidades e Cursos",
   "Pagamento de Cartão de Crédito",
   "Pagamento de Empréstimo",
+  "Pets",
+  "Plano de Saúde",
+  "Presentes",
   "Restaurantes e Lanches",
   "Seguros",
   "Serviços Domésticos",
@@ -108,7 +118,20 @@ export const CATEGORIAS_FIXAS = [
   "Mensalidades e Cursos",
   "Consultas e Terapias",
   "Academia e Bem-estar",
+  "Plano de Saúde",
+  "Pets",
 ];
+
+/**
+ * Movimentações internas: não são receita nem despesa real (pagamento da
+ * fatura, transferência entre contas próprias). Excluídas dos totais do
+ * dashboard, do resumo e do Planejado × Realizado.
+ */
+export const CATEGORIAS_NEUTRAS = new Set<string>([
+  "Pagamento de Cartão de Crédito",
+  "Transferência entre Contas",
+  "Gastos de Terceiros",
+]);
 
 const NOMES_PROPRIOS = ["gerson neto", "gerson albuquerque"];
 
@@ -206,6 +229,8 @@ export function mapearCategoria(
     return "Automóvel";
 
   // Saúde
+  if (d.includes("unimed") || d.includes("hapvida") || d.includes("amil") || d.includes("bradesco saude"))
+    return "Plano de Saúde";
   if (d.includes("narjara") || d.includes("correia e duete servicos medicos ltda"))
     return "Consultas e Terapias";
   if (d.includes("stark") || d.includes("wellhub")) return "Academia e Bem-estar";
@@ -216,8 +241,16 @@ export function mapearCategoria(
     return "Mensalidades e Cursos";
 
   // Pessoal e Lazer
+  if (d.includes("petz") || d.includes("cobasi") || d.includes("pet shop") || d.includes("petlove"))
+    return "Pets";
+  if (d.includes("barbearia") || d.includes("salao de beleza") || d.includes("salão de beleza"))
+    return "Cuidados Pessoais";
   if (d.includes("temu") || d.includes("vestuário")) return "Compras";
   if (d.includes("entretenimento")) return "Lazer e Entretenimento";
+
+  // Impostos
+  if (d.includes("ipva") || d.includes("iptu") || d.includes("darf") || d.includes("sefaz"))
+    return "Impostos e Tributos";
 
   // Financeiro
   if (

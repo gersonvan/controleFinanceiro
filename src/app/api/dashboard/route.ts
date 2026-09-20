@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { lerQuery, opcional, validar } from "@/lib/validacao";
 import { z } from "zod";
@@ -10,12 +11,6 @@ const periodoSchema = z.object({
   mes: opcional(z.coerce.number().int().min(1).max(12)),
 });
 
-// Categorias de movimentação interna que não representam receita nem despesa real
-const CATEGORIAS_NEUTRAS = new Set([
-  "Pagamento de Cartão de Crédito",
-  "Transferência entre Contas",
-  "Gastos de Terceiros",
-]);
 
 export async function GET(req: NextRequest) {
   const userId = await getSessionUserId();

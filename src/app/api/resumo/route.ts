@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
+import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
 import { filtrosLancamentoSchema, montarWhereLancamentos } from "@/lib/filtros";
 import { lerQuery, validar } from "@/lib/validacao";
 
-// Categorias que representam movimentações internas (pagamento de fatura,
-// transferências entre contas próprias) e não devem entrar nos totais de
-// Entradas ou Saídas reais — independente do tipo registrado no extrato.
-const CATEGORIAS_NEUTRAS = new Set([
-  "Pagamento de Cartão de Crédito",
-  "Transferência entre Contas",
-  "Gastos de Terceiros",
-]);
 
 export interface ResumoFiltro {
   totalEntradas: number;
