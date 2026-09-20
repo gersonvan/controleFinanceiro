@@ -1,3 +1,6 @@
+// Proxy (antigo middleware.ts — renomeado no Next 16). Gate de sessão para
+// páginas e redirecionamento ao onboarding. Cada rota de API revalida a sessão
+// por conta própria, então isto é a primeira camada, não a única.
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 import { NextResponse } from "next/server";
