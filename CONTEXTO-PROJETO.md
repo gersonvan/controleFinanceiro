@@ -34,10 +34,11 @@
 
 ## 3. Modelo de dados (prisma/schema.prisma)
 
-4 entidades, todas com discriminador `userId` (= e-mail Google do usuário):
+5 entidades, todas com discriminador `userId` (= e-mail Google do usuário):
 
 - **Lancamento** — id, userId, data, descricao, valor (float, negativo = saída), tipo ("Entrada"/"Saída"), conta, categoria (nullable), pessoa (nullable, p/ empréstimos), mesReferencia (nullable, competência de fatura de cartão).
-- **UserProfile** — userId (PK, e-mail), nome, onboardingCompleto (bool), createdAt.
+- **UserProfile** — userId (PK, e-mail), nome, onboardingCompleto (bool), createdAt, margemPercentual (default 20), fotografiaConcluidaEm (null = dashboard lembra de fazer a fotografia).
+- **PlanejamentoItem** — a *Fotografia do mês*: grupo ("entrada"|"fixo"|"variavel"|"sazonal"|"parcela"), descricao, categoria (sempre de `CATEGORIAS`), valor (positivo), periodicidade ("mensal"|"semanal"|"anual"), parcelaAtual/parcelaTotal (só parcelas), ordem. Mensalização em `src/lib/planejamento.ts` (`valorMensal`: semanal × 52/12, anual ÷ 12, parcela pesa até a última).
 - **MemoriaIA** — regras descrição→categoria por usuário; `@@unique([descricao, userId])`.
 - **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool). `@@unique([userId, builtin])` garante um perfil nativo por usuário (migração `20260920120000_perfil_builtin_unique`).
 
@@ -58,7 +59,8 @@ OR: [
 - **Multi-tenancy**: linha por tenant com `userId` em todo `where` de todas as queries. Não há Row-Level Security nem middleware Prisma — o isolamento depende de disciplina de código. `getSessionUserId()` (`src/lib/session.ts`) retorna o e-mail da sessão; toda API começa com esse check e responde 401 se null.
 - **Autorização de acesso**: lista `ALLOWED_EMAILS` (env var, default `gersonvan@gmail.com`, comparação case-insensitive) checada no `signIn` (que também exige `email_verified` do Google) **e** revalidada a cada requisição no callback `jwt` — remover um e-mail da lista encerra a sessão existente. `session.maxAge` = 7 dias.
 - **Onboarding**: `onboardingCompleto` vive no JWT (setado no callback `jwt` no login; atualizado via `update()` do next-auth/react quando o wizard termina). O middleware redireciona para `/onboarding` se `=== false` (check estrito: `undefined` de sessões antigas passa). Auto-graduação: usuário sem UserProfile mas com Lancamentos ganha `onboardingCompleto: true` no primeiro login.
-- **Categorias**: lista estática de 36 categorias em `src/lib/categorias.ts` (const `CATEGORIAS`). Adicionar categoria = mudança de código. Subconjuntos: `CATEGORIAS_FIXAS` (previsão), `CATEGORIAS_EMPRESTIMO`, categorias neutras (`CATEGORIAS_NEUTRAS` nos endpoints dashboard/resumo — excluídas dos totais por serem movimentação interna).
+- **Categorias**: lista estática de 41 categorias em `src/lib/categorias.ts` (const `CATEGORIAS`). Adicionar categoria = mudança de código (e o `categoriaSchema` da validação passa a aceitá-la). Subconjuntos: `CATEGORIAS_FIXAS` (previsão), `CATEGORIAS_EMPRESTIMO`, `CATEGORIAS_NEUTRAS` (movimentação interna, excluída dos totais do dashboard, resumo e Planejado × Realizado). Em 20/09 entraram Plano de Saúde, Pets, Cuidados Pessoais, Presentes e Impostos e Tributos, com regras genéricas em `mapearCategoria`.
+- **Fotografia do mês** (`/planejamento`): pré-configuração opcional e sugerida no onboarding — entradas, fixos, variáveis (mês/semana), sazonais (ano ÷ 12), parcelas e margem (% das entradas) → "sobra/falta". Alimenta o Planejado × Realizado (`/api/planejamento/realizado`) e a Previsão (categorias sem histórico ganham `tipoPrevisao: "Planejado"`; parcelas da fotografia não repetem parcelas já vistas nos lançamentos). Sugestões (chips) em `src/lib/planejamento-sugestoes.ts`. Inspirada na planilha de consultoria da irmã do Gerson — ideia, não cópia.
 
 ## 5. Motor de importação (src/lib/importacao/)
 
@@ -92,12 +94,14 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 | `/api/categorizar` | POST | Categorização 3 fases |
 | `/api/perfis` | GET (`?todos=true` inclui inativos), POST, PATCH (ativo), DELETE | Perfis de importação |
 | `/api/onboarding` | PATCH | Marca onboarding completo + salva nome |
+| `/api/planejamento` | GET, PUT | Fotografia do mês: itens + margem + totais; PUT substitui o conjunto inteiro numa transação (`concluir: true` grava `fotografiaConcluidaEm`) |
+| `/api/planejamento/realizado` | GET (ano, mes) | Planejado (mensalizado para o mês) × realizado por categoria, entradas, saídas, margem e gastos não planejados |
 
 ## 8. Páginas (frontend)
 
-`/` dashboard · `/lancamentos` · `/matriz` · `/importar` · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (gerencia perfis) · `/onboarding` (wizard 3 etapas: nome → seleção de bancos → conclusão) · `/login`.
+`/` dashboard (lembrete/card da fotografia, estado vazio com CTAs) · `/planejamento` (abas Fotografia do mês e Planejado × Realizado; `?aba=comparacao`) · `/lancamentos` (botão **+ Novo** = lançamento manual via `LancamentoForm`; `?novo=1` abre direto) · `/matriz` · `/importar` (com `ComoBaixarExtrato`) · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (gerencia perfis) · `/onboarding` (wizard 4 etapas: nome → fotografia do mês (opcional, "Fazer depois") → bancos → checklist de próximos passos) · `/login`.
 
-Layout raiz (`src/app/layout.tsx`, Server Component): sem sessão ou onboarding incompleto → body sem Nav; caso contrário SessionProvider + Nav (8 links). Dados carregados client-side via fetch às APIs; sem Server Actions; sem estado global.
+Layout raiz (`src/app/layout.tsx`, Server Component): sem sessão ou onboarding incompleto → body sem Nav; caso contrário SessionProvider + Nav (9 links). Dados carregados client-side via fetch às APIs; sem Server Actions; sem estado global.
 
 ## 9. Variáveis de ambiente
 
@@ -125,6 +129,7 @@ Migrações: `npx prisma migrate dev` (dev) / `npx prisma migrate deploy` (prod)
 - ✅ Documentação PADTec L2 completa em `docs/` (16 arquivos: 01–11, auth, banco-de-dados, integracoes-externas, multi-tenancy, 13-glossario) — gerada em 2026-07-23
 - ✅ Framework PADTec copiado para `padtec/` no projeto (templates L1/L2/L3, prompts, checklist)
 - ✅ Edição de perfis de importação personalizados e coluna de parcela no CSV (`colParcela`) — commits `681e084`, `1b9b92e` (06/08)
+- ✅ Fotografia do mês + nova jornada de entrada (20/09): wizard no onboarding e em `/planejamento`, Planejado × Realizado, Previsão com base na fotografia, lançamento manual, estados vazios e ajuda de download de extrato — pensado para a irmã do Gerson como primeira usuária externa
 - ✅ Revisão de segurança (20/09): upgrade Next 16.3.5 / next-auth beta.32 / Prisma 7.10 (CVEs críticos), validação zod em todas as APIs, cabeçalhos de segurança + CSP, sessão de 7 dias com allowlist por requisição, migração `middleware.ts` → `src/proxy.ts`, chave Gemini no header e teto de 50 chamadas/requisição, unique em perfis nativos
 
 ## 11. Backlog / próximos passos e dívidas conhecidas
@@ -133,7 +138,8 @@ Itens identificados como carência na documentação ou pendências naturais (ne
 
 **Dívidas técnicas / riscos**
 - Cobertura automatizada: Vitest com 26 testes (helpers de tenant, CRUD e validação de lançamentos, categorização, importadores). Ainda faltam testes de perfis, memória, onboarding e interface.
-- **Migração pendente de deploy**: `20260920120000_perfil_builtin_unique` (dedup + unique em `PerfilImportacao(userId, builtin)`) — rodar `npx prisma migrate deploy` contra o Neon antes/junto do próximo deploy.
+- **Histórico de migrações incompleto**: `UserProfile` e `PerfilImportacao` existem em produção mas nenhuma migração as cria (foram levadas por `db push`). A migração `20260920150000_planejamento` usa `IF NOT EXISTS` para conviver com isso; um banco novo a partir de `migrate deploy` ainda ficaria sem `PerfilImportacao`. Vale criar uma migração-baseline.
+- `CONTAS` do filtro de `/lancamentos` é lista fixa das contas do Gerson; para outros usuários deveria vir dos perfis (o formulário manual já faz isso).
 - `npm audit` ainda acusa 4 itens *high* dentro do CLI do Prisma (`@prisma/config`, `deepmerge-ts`, `mysql2`): ferramenta de dev, não vão para o bundle; o "fix" sugerido é downgrade para Prisma 6 — ignorar até o Prisma 7 corrigir.
 - Sem rate limiting nas APIs e sem checagem de `Origin` (CSRF depende do cookie `SameSite=Lax` do Auth.js).
 - Isolamento multi-tenant possui helpers de aplicação (`escopoDoUsuario`, `dadosDoUsuario`, `dadosAtualizaveisDoUsuario`), mas continua sem RLS no Postgres ou interceptor Prisma; uma query nova que ignore os helpers ainda poderia vazar dados.
@@ -176,15 +182,22 @@ financeiro-web/
 │   │   ├── session.ts         # getSessionUserId()
 │   │   ├── tenant.ts          # escopoDoUsuario / dadosDoUsuario (isolamento)
 │   │   ├── validacao.ts       # zod: validar(), lerCorpo(), lerQuery(), lerArquivo()
+│   │   ├── planejamento.ts    # Fotografia do mês: mensalização, totais, planejado por categoria
+│   │   ├── planejamento-sugestoes.ts # chips do wizard (nome → categoria)
 │   │   ├── filtros.ts         # filtros de período compartilhados (lancamentos/resumo/matriz)
 │   │   ├── categorias.ts      # CATEGORIAS + mapearCategoria() (regras)
 │   │   ├── parsers.ts         # Parsers legados C6/Nubank
 │   │   └── importacao/        # engine, csv, ofx, pdf, detectar, tipos
-│   ├── components/Nav.tsx
+│   ├── components/
+│   │   ├── Nav.tsx
+│   │   ├── LancamentoForm.tsx         # lançamento manual (modal)
+│   │   ├── ComoBaixarExtrato.tsx      # ajuda de download (onboarding + importar)
+│   │   └── planejamento/              # FotografiaWizard, PlanejadoRealizado
 │   └── app/
 │       ├── layout.tsx         # Sessão + Nav condicional
-│       ├── onboarding/page.tsx
-│       └── api/*/route.ts     # 10 endpoints
+│       ├── onboarding/page.tsx    # 4 passos
+│       ├── planejamento/page.tsx  # Fotografia + Planejado × Realizado
+│       └── api/*/route.ts     # 12 endpoints
 ├── docs/                      # Documentação PADTec L2 (16 arquivos)
 ├── padtec/                    # Framework de documentação (templates/prompts)
 ├── SETUP.md                   # Setup de env vars e deploy

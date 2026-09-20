@@ -12,22 +12,28 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 
 | Rota | Arquivo | Descrição | Acesso |
 |---|---|---|---|
-| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal | Requer autenticação + onboarding |
-| `/lancamentos` | `src/app/lancamentos/page.tsx` | Lista paginada de lançamentos com filtros e edição inline | Requer autenticação + onboarding |
+| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal; lembrete da fotografia enquanto não feita, card Planejado × Realizado do mês quando feita, estado vazio com CTAs de importar/lançar à mão | Requer autenticação + onboarding |
+| `/planejamento` | `src/app/planejamento/page.tsx` | Abas Fotografia do mês (wizard) e Planejado × Realizado; `?aba=comparacao` abre a segunda | Requer autenticação + onboarding |
+| `/lancamentos` | `src/app/lancamentos/page.tsx` | Lista paginada de lançamentos com filtros e edição inline; botão **+ Novo** abre o lançamento manual (`?novo=1` abre direto) | Requer autenticação + onboarding |
 | `/matriz` | `src/app/matriz/page.tsx` | Matriz de gastos: categorias × meses, com drill-down por descrição | Requer autenticação + onboarding |
 | `/importar` | `src/app/importar/page.tsx` | Fluxo de importação de extrato (upload, preview, confirmação) | Requer autenticação + onboarding |
 | `/previsao` | `src/app/previsao/page.tsx` | Previsão de despesas dos próximos 12 meses | Requer autenticação + onboarding |
 | `/emprestimos` | `src/app/emprestimos/page.tsx` | Controle de empréstimos por pessoa com status | Requer autenticação + onboarding |
 | `/memoria-ia` | `src/app/memoria-ia/page.tsx` | Gerenciamento de regras da memória de IA | Requer autenticação + onboarding |
 | `/configuracoes` | `src/app/configuracoes/page.tsx` | Gerenciamento de perfis de importação (ativar/desativar/criar/excluir) | Requer autenticação + onboarding |
-| `/onboarding` | `src/app/onboarding/page.tsx` | Wizard de 3 etapas para configuração inicial do usuário | Requer autenticação; acessível sem onboarding |
+| `/onboarding` | `src/app/onboarding/page.tsx` | Wizard de 4 etapas para configuração inicial do usuário | Requer autenticação; acessível sem onboarding |
 | `/login` | `src/app/login/page.tsx` | Página de login com botão "Entrar com Google" | Público |
 
 ## Componentes compartilhados
 
 | Componente | Arquivo | Responsabilidade |
 |---|---|---|
-| `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral/superior com 8 links; ocultada durante onboarding e em sessões sem autenticação |
+| `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral com 9 links; ocultada durante onboarding e em sessões sem autenticação |
+| `FotografiaWizard` | `src/components/planejamento/FotografiaWizard.tsx` | Wizard da Fotografia do mês (entradas → fixos → variáveis → sazonais → parcelas → resumo); `modo="onboarding"` mostra "Fazer depois", `modo="pagina"` permite salvar em qualquer etapa; sempre envia o conjunto inteiro ao `PUT /api/planejamento` |
+| `PlanejadoRealizado` | `src/components/planejamento/PlanejadoRealizado.tsx` | Tabela e cartões do Planejado × Realizado de um mês (`GET /api/planejamento/realizado`) |
+| `LancamentoForm` | `src/components/LancamentoForm.tsx` | Modal de lançamento manual (`POST /api/lancamentos`); contas sugeridas a partir dos perfis |
+| `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |
+| `CategoriaSelect` | `src/components/CategoriaSelect.tsx` | Select de categorias agrupado em Saídas/Entradas |
 
 ## Layout raiz e controle de sessão
 
@@ -45,13 +51,14 @@ src/app/layout.tsx:
 
 ## Wizard de onboarding
 
-`src/app/onboarding/page.tsx` é um Client Component com 3 etapas:
+`src/app/onboarding/page.tsx` é um Client Component com 4 etapas:
 
 | Etapa | Conteúdo |
 |---|---|
 | 1 | Boas-vindas e campo de nome do usuário |
-| 2 | Seleção de bancos (toggle de perfis via `GET /api/perfis?todos=true`) |
-| 3 | Conclusão com opção de ir para importação ou dashboard |
+| 2 | Fotografia do mês (`FotografiaWizard` em modo onboarding) — opcional, com "Fazer depois"; concluir grava `fotografiaConcluidaEm` |
+| 3 | Seleção de bancos (toggle de perfis via `GET /api/perfis?todos=true`) + `ComoBaixarExtrato` |
+| 4 | Checklist de próximos passos (importar ou lançar à mão → categorizar → comparar com a fotografia); cada item conclui o onboarding e leva ao destino |
 
 Ao finalizar:
 1. Chama `PATCH /api/onboarding` com o nome informado.
@@ -65,6 +72,7 @@ Ao finalizar:
 | Rota | Rótulo |
 |---|---|
 | `/` | Dashboard |
+| `/planejamento` | Planejamento |
 | `/lancamentos` | Lançamentos |
 | `/matriz` | Matriz |
 | `/importar` | Importar |

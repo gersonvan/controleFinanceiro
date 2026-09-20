@@ -5,7 +5,8 @@
 | Entidade | Responsabilidade no domínio | Evidência |
 |---|---|---|
 | `Lancamento` | Registro de uma transação financeira (débito ou crédito) em uma conta ou cartão de um usuário | `prisma/schema.prisma:Lancamento` |
-| `UserProfile` | Perfil do usuário com nome configurado e estado do fluxo de onboarding | `prisma/schema.prisma:UserProfile` |
+| `UserProfile` | Perfil do usuário com nome, estado do onboarding, margem da fotografia (`margemPercentual`) e data de conclusão da fotografia (`fotografiaConcluidaEm`) | `prisma/schema.prisma:UserProfile` |
+| `PlanejamentoItem` | Item da Fotografia do mês: o que o usuário planeja receber (entrada) ou gastar (fixo, variável, sazonal, parcela), com categoria do sistema, valor e periodicidade; parcelas guardam atual/total | `prisma/schema.prisma:PlanejamentoItem`, `src/lib/planejamento.ts:1` |
 | `MemoriaIA` | Regra de correção de categoria vinculada a uma descrição exata; base de conhecimento por usuário | `prisma/schema.prisma:MemoriaIA` |
 | `PerfilImportacao` | Configuração de mapeamento de colunas e metadados para um banco/formato de importação específico | `prisma/schema.prisma:PerfilImportacao` |
 
