@@ -75,7 +75,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
         <div className="flex gap-2">
           <select value={mes} onChange={(e) => setMes(e.target.value === "" ? "" : parseInt(e.target.value))}>
@@ -144,7 +144,7 @@ export default function Dashboard() {
         </div>
       ) : data ? (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: "Total Entradas", valor: data.totalEntradas, classe: "valor-positivo" },
               { label: "Total Saídas", valor: data.totalSaidas, classe: "valor-negativo" },
@@ -157,7 +157,7 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card">
               <h2 className="font-semibold text-slate-700 mb-4">Gastos por Categoria</h2>
               {data.porCategoria.length > 0 ? (
@@ -231,7 +231,7 @@ export default function Dashboard() {
           {data.porConta.length > 0 && (
             <div className="card">
               <h2 className="font-semibold text-slate-700 mb-4">Gastos por Conta</h2>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {data.porConta.map(([conta, val]) => (
                   <div key={conta} className="text-center p-4 rounded-lg bg-slate-50 border border-slate-100">
                     <div className="text-xs text-slate-500 mb-1">{conta}</div>

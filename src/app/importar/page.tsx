@@ -474,7 +474,7 @@ export default function ImportarPage() {
 
           {previewPDF.length > 0 && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Nome do banco / conta</label>
                   <input value={contaPDF} onChange={(e) => setContaPDF(e.target.value)} placeholder="Ex: Santander Cartão" className="w-full" />
@@ -521,7 +521,7 @@ export default function ImportarPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome do perfil</label>
               <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} placeholder="Ex: Sicredi Corrente" className="w-full" />
@@ -563,7 +563,7 @@ export default function ImportarPage() {
 
           <div>
             <div className="text-sm font-medium text-slate-700 mb-2">Qual perfil usar?</div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {perfisAtivos.filter((p) => p.formato === "csv" && !p.builtin).map((p) => (
                 <button
                   key={p.id}
@@ -607,7 +607,7 @@ export default function ImportarPage() {
           </div>
 
           {/* Config */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Delimitador</label>
               <select

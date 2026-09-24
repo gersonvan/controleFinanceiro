@@ -26,7 +26,7 @@ export default async function RootLayout({
     <html lang="pt-BR" className="h-full">
       <body className="min-h-full flex">
         <Nav user={session.user} />
-        <main className="flex-1 ml-56 p-6 min-h-screen">{children}</main>
+        <main className="flex-1 md:ml-56 pt-18 md:pt-6 p-4 md:p-6 min-h-screen min-w-0">{children}</main>
       </body>
     </html>
   );

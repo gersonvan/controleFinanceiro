@@ -186,7 +186,7 @@ export default function ConfiguracoesPage() {
               <p className="text-sm text-slate-500 mt-1">Ajuste como o arquivo será lido nas próximas importações.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Campo texto="Nome do perfil" value={editando.nome} onChange={(v) => atualizarEdicao("nome", v)} />
               <Campo texto="Conta" value={editando.conta} onChange={(v) => atualizarEdicao("conta", v)} />
               <label className="text-sm text-slate-700">Delimitador
@@ -209,7 +209,7 @@ export default function ConfiguracoesPage() {
 
             <div className="border-t border-slate-100 pt-4">
               <h3 className="text-sm font-medium text-slate-700 mb-3">Posição das colunas <span className="font-normal text-slate-400">(a primeira é 0)</span></h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-1 sm:grid-cols-3 gap-3">
                 <Numero texto="Data" value={editando.colData} onChange={(v) => atualizarEdicao("colData", v)} />
                 <Numero texto="Descrição" value={editando.colDescricao} onChange={(v) => atualizarEdicao("colDescricao", v)} />
                 <Numero texto="Parcela" value={editando.colParcela} onChange={(v) => atualizarEdicao("colParcela", v)} />

@@ -179,7 +179,9 @@ export async function GET() {
     }
   }
 
-  previsoes.sort((a, b) => a.mes.localeCompare(b.mes));
+  // "MM/AAAA": ordenar como texto põe 01/2027 antes de 10/2026
+  const chaveMes = (m: string) => { const [mm, aaaa] = m.split("/"); return `${aaaa}-${mm}`; };
+  previsoes.sort((a, b) => chaveMes(a.mes).localeCompare(chaveMes(b.mes)));
 
   return NextResponse.json(previsoes);
 }

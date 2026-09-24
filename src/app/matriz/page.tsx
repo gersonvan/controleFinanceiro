@@ -61,9 +61,9 @@ export default function MatrizPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Matriz de Categorias</h1>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
             <option value="Saída">Saídas</option>
             <option value="Entrada">Entradas</option>
@@ -75,7 +75,7 @@ export default function MatrizPage() {
       </div>
 
       {/* Legenda */}
-      <div className="flex items-center gap-4 text-xs text-slate-500">
+      <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-xs text-slate-500">
         <span>Intensidade relativa ao maior valor da linha:</span>
         {[["#EAF3DE","#3B6D11","baixo"],["#C0DD97","#27500A","médio"],["#97C459","#173404","alto"],["#639922","#173404","máximo"]].map(([bg, color, label]) => (
           <span key={label} className="flex items-center gap-1">

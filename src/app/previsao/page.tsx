@@ -1,6 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { PrevisaoItem, HistoricoItem, HistoricoLancamento } from "@/app/api/previsao/route";
+
+// "MM/AAAA" em ordem cronológica
+const compararMes = (a: string, b: string) => {
+  const chave = (m: string) => { const [mm, aaaa] = m.split("/"); return `${aaaa}-${mm}`; };
+  return chave(a).localeCompare(chave(b));
+};
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -171,7 +177,7 @@ export default function PrevisaoPage() {
       .then((data) => { setItens(data); setLoading(false); });
   }, []);
 
-  const meses = [...new Set(itens.map((i) => i.mes))].sort();
+  const meses = [...new Set(itens.map((i) => i.mes))].sort(compararMes);
   const filtrado = itens.filter((i) => {
     if (filtroMes && i.mes !== filtroMes) return false;
     if (filtroTipo && i.tipoPrevisao !== filtroTipo) return false;
@@ -190,7 +196,7 @@ export default function PrevisaoPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Previsão de Gastos</h1>
         <div className="flex gap-2">
           <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
@@ -214,7 +220,7 @@ export default function PrevisaoPage() {
           <div className="card">
             <h2 className="font-semibold text-slate-700 mb-3">Resumo por Mês</h2>
             <div className="flex flex-wrap gap-3">
-              {Object.entries(totalPorMes).sort((a, b) => a[0].localeCompare(b[0])).map(([mes, total]) => (
+              {Object.entries(totalPorMes).sort((a, b) => compararMes(a[0], b[0])).map(([mes, total]) => (
                 <button
                   key={mes}
                   onClick={() => setFiltroMes(filtroMes === mes ? "" : mes)}
@@ -257,8 +263,8 @@ export default function PrevisaoPage() {
                     const temHistorico = item.historico && item.historico.length > 0;
 
                     return (
-                      <>
-                        <tr key={key} className={aberto ? "bg-slate-50" : ""}>
+                      <Fragment key={key}>
+                        <tr className={aberto ? "bg-slate-50" : ""}>
                           <td className="font-medium text-slate-700">{item.mes}</td>
                           <td className="max-w-xs">
                             {temHistorico ? (
@@ -325,7 +331,7 @@ export default function PrevisaoPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })
                 )}

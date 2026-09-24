@@ -90,7 +90,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <div className="flex justify-between items-center px-8 py-4 bg-white border-b border-slate-200">
+      <div className="flex justify-between items-center px-4 sm:px-8 py-4 bg-white border-b border-slate-200">
         <span className="font-semibold text-slate-700">Controle Financeiro</span>
         {session?.user && (
           <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export default function OnboardingPage() {
                 </div>
                 {i < PASSOS.length - 1 && (
                   <div
-                    className={`w-16 h-0.5 mb-4 ${done ? "bg-emerald-400" : "bg-slate-200"}`}
+                    className={`w-6 sm:w-16 h-0.5 mb-4 ${done ? "bg-emerald-400" : "bg-slate-200"}`}
                   />
                 )}
               </div>

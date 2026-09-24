@@ -153,12 +153,12 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
   return (
     <div className="card p-0 overflow-hidden">
       {/* Sub-etapas */}
-      <div className="flex border-b border-slate-200 bg-slate-50 text-xs">
+      <div className="flex border-b border-slate-200 bg-slate-50 text-xs overflow-x-auto">
         {ETAPAS.map((e, i) => (
           <button
             key={e.grupo}
             onClick={() => setEtapa(i)}
-            className={`flex-1 py-2.5 px-1 font-medium transition-colors ${
+            className={`flex-1 shrink-0 py-2.5 px-2 font-medium transition-colors whitespace-nowrap ${
               i === etapa ? "text-blue-700 border-b-2 border-blue-600 bg-white"
               : i < etapa ? "text-emerald-600" : "text-slate-400"
             }`}

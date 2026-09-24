@@ -260,6 +260,38 @@ function LancamentosContent() {
     showToast(`✅ ${json.corrigidos} lançamento${json.corrigidos !== 1 ? "s" : ""} atualizado${json.corrigidos !== 1 ? "s" : ""}.`);
   };
 
+  // Badge de categoria clicável / editor inline — usado na tabela e na lista do celular.
+  const categoriaCelula = (l: Lancamento) => (
+    <>
+      {editando === l.id ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex gap-1 items-center">
+            <CategoriaSelect value={categoriaEdit}
+              onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
+              placeholder="Sem categoria" className="text-xs py-0.5" autoFocus />
+            <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
+            <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+          </div>
+          {isEmprestimo(categoriaEdit) && (
+            <input className="text-xs py-0.5 w-full" placeholder="Nome da pessoa…"
+              value={pessoaEdit} onChange={(e) => setPessoaEdit(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && salvarCategoria(l.id)} />
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); setPessoaEdit(l.pessoa || ""); }}
+          className={`badge cursor-pointer hover:opacity-80 ${
+            isEmprestimo(l.categoria) ? "bg-purple-50 text-purple-700"
+            : l.categoria ? "bg-blue-50 text-blue-700"
+            : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
+          }`}>
+          {l.categoria || "Sem categoria"}
+        </button>
+      )}
+    </>
+  );
+
   const totalPages     = Math.ceil(total / limit);
   const filtrandoPessoa = !!filtros.pessoa;
   const numSelecionados = selecionados.size;
@@ -279,7 +311,7 @@ function LancamentosContent() {
       />
 
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-800">
             Lançamentos <span className="text-base font-normal text-slate-400">({total})</span>
@@ -304,7 +336,7 @@ function LancamentosContent() {
 
       {/* Filtros */}
       <div className="card space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-slate-400 shrink-0">Período:</span>
           {PRESETS.map((p) => {
             const { i, f } = p.fn();
@@ -321,7 +353,7 @@ function LancamentosContent() {
             Limpar datas
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <input placeholder="Buscar descrição…" value={filtros.busca} onChange={(e) => setFiltro("busca", e.target.value)} />
           <select value={filtros.conta} onChange={(e) => setFiltro("conta", e.target.value)}>
             <option value="">Todas as contas</option>
@@ -353,7 +385,41 @@ function LancamentosContent() {
           <div className="flex justify-center py-12"><div className="spinner" /></div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Celular: lista em cartões */}
+            <ul className="sm:hidden divide-y divide-slate-100">
+              {lancamentos.map((l) => {
+                const sel = selecionados.has(l.id);
+                return (
+                  <li key={l.id} className={`px-4 py-3 ${sel ? "bg-blue-50/60" : isEmprestimo(l.categoria) ? "bg-purple-50/40" : ""}`}>
+                    <div className="flex items-start gap-3">
+                      <input type="checkbox" checked={sel} onChange={() => toggleSelecionado(l.id)} className="mt-1 cursor-pointer" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-sm text-slate-800 line-clamp-2 break-words">{l.descricao}</div>
+                          <div className={`text-sm font-semibold whitespace-nowrap ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>{fmt(l.valor)}</div>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          {fmtData(l.data)} · {l.conta}{l.mesReferencia ? ` · ref. ${fmtMes(l.mesReferencia)}` : ""}
+                        </div>
+                        {l.pessoa && <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>}
+                        <div className="flex items-center justify-between gap-2 mt-2">
+                          <div className="min-w-0">{categoriaCelula(l)}</div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <button title="Salvar na Memória Local" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
+                              className="text-slate-400 text-base leading-none disabled:opacity-50">
+                              {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
+                            </button>
+                            <button title="Excluir" onClick={() => excluir(l.id)} className="text-slate-400 hover:text-red-500 text-xl leading-none">×</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="hidden sm:block overflow-x-auto">
               <table>
                 <thead>
                   <tr>
@@ -378,34 +444,7 @@ function LancamentosContent() {
                           <div className="truncate" title={l.descricao}>{l.descricao}</div>
                           {l.pessoa && <div className="text-xs text-purple-600 mt-0.5">🤝 {l.pessoa}</div>}
                         </td>
-                        <td>
-                          {editando === l.id ? (
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex gap-1 items-center">
-                                <CategoriaSelect value={categoriaEdit}
-                                  onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
-                                  placeholder="Sem categoria" className="text-xs py-0.5" autoFocus />
-                                <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
-                                <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
-                              </div>
-                              {isEmprestimo(categoriaEdit) && (
-                                <input className="text-xs py-0.5 w-full" placeholder="Nome da pessoa…"
-                                  value={pessoaEdit} onChange={(e) => setPessoaEdit(e.target.value)}
-                                  onKeyDown={(e) => e.key === "Enter" && salvarCategoria(l.id)} />
-                              )}
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setEditando(l.id); setCategoriaEdit(l.categoria || ""); setPessoaEdit(l.pessoa || ""); }}
-                              className={`badge cursor-pointer hover:opacity-80 ${
-                                isEmprestimo(l.categoria) ? "bg-purple-50 text-purple-700"
-                                : l.categoria ? "bg-blue-50 text-blue-700"
-                                : "bg-amber-50 text-amber-600 border border-dashed border-amber-300"
-                              }`}>
-                              {l.categoria || "Sem categoria"}
-                            </button>
-                          )}
-                        </td>
+                        <td>{categoriaCelula(l)}</td>
                         <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
                           {fmt(l.valor)}
                         </td>
@@ -427,7 +466,7 @@ function LancamentosContent() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+            <div className="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-t border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-500">{total} registros</span>
                 <select
@@ -444,7 +483,7 @@ function LancamentosContent() {
               </div>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Página {page} de {totalPages}</span>
+                  <span className="text-xs text-slate-400 hidden sm:inline">Página {page} de {totalPages}</span>
                   <button className="btn btn-secondary text-xs" disabled={page <= 1}          onClick={() => mudarPagina(page - 1)}>← Anterior</button>
                   <button className="btn btn-secondary text-xs" disabled={page >= totalPages} onClick={() => mudarPagina(page + 1)}>Próxima →</button>
                 </div>
@@ -456,15 +495,15 @@ function LancamentosContent() {
 
       {/* Barra flutuante de ação em massa */}
       {numSelecionados > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl">
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center flex-wrap sm:flex-nowrap gap-3 bg-slate-900 text-white px-4 sm:px-5 py-3 rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-auto">
           <span className="text-sm font-medium whitespace-nowrap">
             {numSelecionados} selecionado{numSelecionados !== 1 ? "s" : ""}
           </span>
-          <div className="w-px h-5 bg-slate-600" />
+          <div className="hidden sm:block w-px h-5 bg-slate-600" />
           <select
             value={categoriaMassa}
             onChange={(e) => setCategoriaMassa(e.target.value)}
-            className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 w-52 focus:outline-none focus:border-blue-400"
+            className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 flex-1 min-w-0 sm:flex-none sm:w-52 focus:outline-none focus:border-blue-400"
           >
             <option value="">Nova categoria…</option>
             <optgroup label="── Saídas ──">

@@ -69,7 +69,7 @@ export default function EmprestimosPage() {
 
       {/* KPIs */}
       {!loading && resumos.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="card">
             <div className="text-sm text-slate-500 mb-1">Total emprestado</div>
             <div className="text-xl font-bold text-slate-800">{fmt(totalEmprestado)}</div>
@@ -111,7 +111,7 @@ export default function EmprestimosPage() {
               <div key={r.pessoa} className="card p-0 overflow-hidden">
                 {/* Cabeçalho do card */}
                 <button
-                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center gap-3 sm:gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
                   onClick={() => setExpandido(aberto ? null : r.pessoa)}
                 >
                   {/* Avatar */}
@@ -120,9 +120,13 @@ export default function EmprestimosPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-x-2 gap-y-1 mb-1 flex-wrap">
                       <span className="font-semibold text-slate-800">{r.pessoa}</span>
                       <span className={`badge ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+                    </div>
+                    {/* Celular: saldo abaixo do nome (a coluna da direita some) */}
+                    <div className={`sm:hidden text-base font-bold mb-1 ${r.status === "quitado" ? "valor-positivo" : "valor-negativo"}`}>
+                      {r.status === "quitado" ? "Quitado" : `${fmt(r.saldo)} em aberto`}
                     </div>
                     {/* Barra de progresso */}
                     <div className="h-1.5 bg-slate-100 rounded-full w-full">
@@ -131,13 +135,13 @@ export default function EmprestimosPage() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-slate-400 mt-0.5">
+                    <div className="flex justify-between gap-2 text-xs text-slate-400 mt-0.5">
                       <span>Pago {fmt(r.totalRecebido)} de {fmt(r.totalEmprestado)}</span>
                       <span>{pct.toFixed(0)}%</span>
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="hidden sm:block text-right shrink-0">
                     <div className={`text-lg font-bold ${r.status === "quitado" ? "valor-positivo" : "valor-negativo"}`}>
                       {r.status === "quitado" ? "Quitado" : fmt(r.saldo)}
                     </div>
