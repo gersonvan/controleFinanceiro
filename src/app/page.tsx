@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   // null = ainda não sabemos; false = fotografia pendente; true = concluída
   const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
-  const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number } } | null>(null);
+  const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number }; totalLancamentos: number } | null>(null);
 
   useEffect(() => {
     if (fotografiaFeita !== true) return;
@@ -102,16 +102,23 @@ export default function Dashboard() {
 
       {comparacao && (() => {
         const dif = comparacao.saidas.planejado - comparacao.saidas.realizado;
+        const semLancamentos = comparacao.totalLancamentos === 0;
         return (
           <Link href="/planejamento?aba=comparacao" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors">
             <div>
               <div className="text-sm text-slate-500">📸 Este mês vs. sua fotografia</div>
               <div className="text-slate-800 mt-0.5">
-                Saídas: <span className="font-semibold">{fmt(comparacao.saidas.realizado)}</span> de{" "}
-                <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> planejados ·{" "}
-                <span className={dif >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-                  {dif >= 0 ? `${fmt(dif)} dentro do plano` : `${fmt(-dif)} acima do plano`}
-                </span>
+                {semLancamentos ? (
+                  <>Planejado <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> de saídas · nenhum lançamento registrado neste mês ainda</>
+                ) : (
+                  <>
+                    Saídas: <span className="font-semibold">{fmt(comparacao.saidas.realizado)}</span> de{" "}
+                    <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> planejados ·{" "}
+                    <span className={dif >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                      {dif >= 0 ? `${fmt(dif)} dentro do plano` : `${fmt(-dif)} acima do plano`}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <span className="text-sm text-blue-600">Ver comparação →</span>

@@ -249,7 +249,7 @@ function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onR
                         : "bg-white border-slate-300 text-slate-600 hover:border-slate-400"
                 }`}
               >
-                {ativo ? "✓ " : "+ "}{s.nome}
+                <span className="inline-block w-3 text-center">{ativo ? "✓" : "+"}</span> {s.nome}
               </button>
             );
           })}
@@ -300,7 +300,7 @@ function Linha({ item, onAtualizar, onRemover }: {
           value={item.descricao}
           onChange={(e) => onAtualizar({ descricao: e.target.value })}
           placeholder={item.grupo === "parcela" ? "Ex.: Geladeira" : "Nome"}
-          className="flex-1 min-w-36"
+          className={`flex-1 ${item.grupo === "parcela" ? "min-w-28" : "min-w-36"}`}
           autoFocus={item.livre && !item.descricao}
         />
         <div className="flex items-center gap-1">
@@ -328,14 +328,14 @@ function Linha({ item, onAtualizar, onRemover }: {
           )}
         </div>
         {item.grupo === "parcela" && (
-          <div className="flex items-center gap-1 text-sm text-slate-600">
+          <div className="flex items-center gap-1 text-sm text-slate-600 whitespace-nowrap">
             parcela
-            <input type="number" min={1} value={item.parcelaAtual} onChange={(e) => onAtualizar({ parcelaAtual: e.target.value })} className="w-14 text-center" placeholder="1" />
+            <input type="number" min={1} value={item.parcelaAtual} onChange={(e) => onAtualizar({ parcelaAtual: e.target.value })} className="w-12 text-center" placeholder="1" />
             de
-            <input type="number" min={1} value={item.parcelaTotal} onChange={(e) => onAtualizar({ parcelaTotal: e.target.value })} className="w-14 text-center" placeholder="12" />
+            <input type="number" min={1} value={item.parcelaTotal} onChange={(e) => onAtualizar({ parcelaTotal: e.target.value })} className="w-12 text-center" placeholder="12" />
           </div>
         )}
-        <button onClick={onRemover} className="text-slate-400 hover:text-red-500 px-1" title="Remover">×</button>
+        <button onClick={onRemover} className="text-slate-400 hover:text-red-500 px-1 ml-auto" title="Remover">×</button>
       </div>
       {item.livre && (
         <div className="flex items-center gap-2 text-xs text-slate-500">

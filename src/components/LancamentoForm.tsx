@@ -70,6 +70,7 @@ export default function LancamentoForm({ aberto, onFechar, onSalvo }: Props) {
     setValor("");
     setCategoria("");
     onSalvo();
+    onFechar(); // a lista atualiza atrás do modal; fechar deixa o toast visível
   };
 
   return (

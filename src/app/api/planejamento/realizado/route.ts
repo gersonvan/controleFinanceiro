@@ -44,8 +44,9 @@ export async function GET(req: NextRequest) {
 
   const hoje = new Date();
   const mesesAFrente = (ano - hoje.getFullYear()) * 12 + (mes - (hoje.getMonth() + 1));
-  const inicio = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 0, 23, 59, 59);
+  // Em UTC, como o dashboard: mesReferencia fica à meia-noite UTC do dia 1.
+  const inicio = new Date(Date.UTC(ano, mes - 1, 1));
+  const fim = new Date(Date.UTC(ano, mes, 0, 23, 59, 59, 999));
 
   const [perfil, itens, lancamentos] = await Promise.all([
     prisma.userProfile.findUnique({ where: escopoDoUsuario(userId) }),

@@ -20,12 +20,15 @@ export async function GET(req: NextRequest) {
   if (!v.ok) return v.resposta;
   const { ano, mes } = v.dados;
 
+  // Limites em UTC: mesReferencia é gravado à meia-noite UTC do dia 1; com o
+  // servidor em outro fuso (dev local, UTC-3) `new Date(ano, mes-1, 1)` começaria
+  // às 03:00Z e deixaria o mês inteiro de fora.
   const dataInicio = mes
-    ? new Date(ano, mes - 1, 1)
-    : new Date(ano, 0, 1);
+    ? new Date(Date.UTC(ano, mes - 1, 1))
+    : new Date(Date.UTC(ano, 0, 1));
   const dataFim = mes
-    ? new Date(ano, mes, 0, 23, 59, 59)
-    : new Date(ano, 11, 31, 23, 59, 59);
+    ? new Date(Date.UTC(ano, mes, 0, 23, 59, 59, 999))
+    : new Date(Date.UTC(ano, 11, 31, 23, 59, 59, 999));
 
   // Filtra por mesReferencia quando preenchido, senão por data
   const dateFilter = { gte: dataInicio, lte: dataFim };
@@ -65,7 +68,7 @@ export async function GET(req: NextRequest) {
   const porMes: Record<string, { entradas: number; saidas: number }> = {};
   if (!mes) {
     for (const l of reais) {
-      const key = `${l.data.getFullYear()}-${String(l.data.getMonth() + 1).padStart(2, "0")}`;
+      const key = `${l.data.getUTCFullYear()}-${String(l.data.getUTCMonth() + 1).padStart(2, "0")}`;
       if (!porMes[key]) porMes[key] = { entradas: 0, saidas: 0 };
       if (l.tipo === "Entrada") porMes[key].entradas += l.valor;
       else porMes[key].saidas += Math.abs(l.valor);
