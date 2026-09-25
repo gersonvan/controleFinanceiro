@@ -34,12 +34,14 @@ const recategorizacaoSchema = z
   .object({
     ids: z.array(idSchema).max(1000).optional(),
     descricaoContem: textoCurto.optional(),
+    descricaoExata: textoLongo.optional(),
     categoriaErrada: z.string().trim().min(1).max(100).optional(),
+    somenteSemCategoria: z.boolean().optional(),
     categoriaCorreta: categoriaSchema,
   })
   // Sem nenhum critério o updateMany atingiria todos os lançamentos do usuário.
-  .refine((v) => v.ids?.length || v.descricaoContem || v.categoriaErrada, {
-    message: "Informe ids, descricaoContem ou categoriaErrada",
+  .refine((v) => v.ids?.length || v.descricaoContem || v.descricaoExata || v.categoriaErrada, {
+    message: "Informe ids, descricaoContem, descricaoExata ou categoriaErrada",
   });
 
 export async function GET(req: NextRequest) {
@@ -110,12 +112,14 @@ export async function PUT(req: NextRequest) {
 
   const v = validar(recategorizacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
-  const { ids, descricaoContem, categoriaErrada, categoriaCorreta } = v.dados;
+  const { ids, descricaoContem, descricaoExata, categoriaErrada, somenteSemCategoria, categoriaCorreta } = v.dados;
 
   const where = escopoDoUsuario(userId);
   if (ids?.length)     where.id       = { in: ids };
   if (descricaoContem) where.descricao = { contains: descricaoContem, mode: "insensitive" };
+  if (descricaoExata)  where.descricao = descricaoExata;
   if (categoriaErrada) where.categoria = categoriaErrada;
+  if (somenteSemCategoria) where.categoria = null;
 
   const result = await prisma.lancamento.updateMany({
     where,

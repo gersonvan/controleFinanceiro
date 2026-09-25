@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
+import { CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
 import type { ResumoFiltro } from "@/app/api/resumo/route";
+import Link from "next/link";
 import LancamentoForm from "@/components/LancamentoForm";
+import OpcoesCategorias from "@/components/OpcoesCategorias";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -35,9 +37,6 @@ interface Lancamento {
 }
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
-const TODAS_CATEGORIAS = [...CATEGORIAS_SAIDA, ...CATEGORIAS_ENTRADA].sort((a, b) =>
-  a.localeCompare(b, "pt-BR")
-);
 
 function isEmprestimo(cat: string | null) {
   return CATEGORIAS_EMPRESTIMO.includes(cat as never);
@@ -325,6 +324,7 @@ function LancamentosContent() {
         </div>
         <div className="flex gap-2">
           <button className="btn btn-primary" onClick={() => setNovoAberto(true)}>+ Novo</button>
+          <Link href="/lancamentos/revisar" className="btn btn-secondary" title="Categorizar em grupo os sem categoria e os Pix genéricos">🔎 Revisar</Link>
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
             {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>
@@ -362,7 +362,7 @@ function LancamentosContent() {
           <select value={filtros.categoria} onChange={(e) => setFiltro("categoria", e.target.value)}>
             <option value="">Todas as categorias</option>
             <option value="__sem__">⚠️ Sem categoria</option>
-            {TODAS_CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+            <OpcoesCategorias />
           </select>
           <select value={filtros.tipo} onChange={(e) => setFiltro("tipo", e.target.value)}>
             <option value="">Entrada e Saída</option>
@@ -506,12 +506,7 @@ function LancamentosContent() {
             className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 flex-1 min-w-0 sm:flex-none sm:w-52 focus:outline-none focus:border-blue-400"
           >
             <option value="">Nova categoria…</option>
-            <optgroup label="── Saídas ──">
-              {CATEGORIAS_SAIDA.map((c) => <option key={c} value={c}>{c}</option>)}
-            </optgroup>
-            <optgroup label="── Entradas ──">
-              {CATEGORIAS_ENTRADA.map((c) => <option key={c} value={c}>{c}</option>)}
-            </optgroup>
+            <OpcoesCategorias />
           </select>
           <button onClick={aplicarEmMassa} disabled={aplicandoMassa || !categoriaMassa}
             className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">

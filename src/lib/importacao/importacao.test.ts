@@ -166,3 +166,20 @@ describe("sanidade das linhas importadas", () => {
     expect(parseDataFlexivel("2026/01/16", "DD/MM/AAAA")).toBeNull();
   });
 });
+
+describe("catálogo de categorias", () => {
+  it("cada categoria está em exatamente um grupo do seletor", async () => {
+    const { CATEGORIAS, GRUPOS_CATEGORIAS } = await import("../categorias");
+    const nosGrupos = GRUPOS_CATEGORIAS.flatMap((g) => g.categorias);
+    expect(new Set(nosGrupos).size).toBe(nosGrupos.length);
+    expect([...nosGrupos].sort()).toEqual([...CATEGORIAS].sort());
+  });
+
+  it("gastos da empresa vão para Empresa (PJ) e ficam fora dos totais pessoais", async () => {
+    const { mapearCategoria, CATEGORIAS_NEUTRAS } = await import("../categorias");
+    for (const d of ["contador", "Contador Jun_26", "endereço fiscal", "SIMPLES NACIONAL", "MP *COWORKINGALDE"]) {
+      expect(mapearCategoria(d, "", "Saída"), d).toBe("Empresa (PJ)");
+    }
+    expect(CATEGORIAS_NEUTRAS.has("Empresa (PJ)")).toBe(true);
+  });
+});

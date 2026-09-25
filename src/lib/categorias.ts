@@ -41,15 +41,33 @@ export const CATEGORIAS = [
   // Financeiro e Transferências
   "Pagamento de Cartão de Crédito",
   "Investimentos (Aportes)",
-  "Pagamento de Empréstimo",
   "Taxas e Anuidades",
   "Impostos e Tributos",
   "Seguros",
   "Transferência para Terceiros",
   "Transferência entre Contas",
+  // Empresa
+  "Empresa (PJ)",
 ] as const;
 
 export type Categoria = (typeof CATEGORIAS)[number];
+
+/**
+ * Categorias agrupadas por tema, na ordem em que aparecem nos seletores.
+ * Toda categoria de CATEGORIAS está em exatamente um grupo (há teste).
+ */
+export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
+  { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno"] },
+  { grupo: "Moradia", categorias: ["Aluguel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
+  { grupo: "Alimentação", categorias: ["Supermercado e Mercearia", "Restaurantes e Lanches", "Delivery e iFood"] },
+  { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Viagem"] },
+  { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
+  { grupo: "Educação", categorias: ["Mensalidades e Cursos"] },
+  { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Pets"] },
+  { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Empréstimo"] },
+  { grupo: "Transferências", categorias: ["Transferência para Terceiros", "Transferência entre Contas", "Pagamento de Cartão de Crédito", "Gastos de Terceiros"] },
+  { grupo: "Empresa", categorias: ["Empresa (PJ)"] },
+];
 
 export const CATEGORIAS_RECEITA = [
   "Salário",
@@ -84,6 +102,7 @@ export const CATEGORIAS_SAIDA = [
   "Contas de Consumo",
   "Cuidados Pessoais",
   "Delivery e iFood",
+  "Empresa (PJ)",
   "Empréstimo",
   "Farmácia",
   "Gastos de Terceiros",
@@ -92,7 +111,6 @@ export const CATEGORIAS_SAIDA = [
   "Lazer e Entretenimento",
   "Mensalidades e Cursos",
   "Pagamento de Cartão de Crédito",
-  "Pagamento de Empréstimo",
   "Pets",
   "Plano de Saúde",
   "Presentes",
@@ -123,14 +141,16 @@ export const CATEGORIAS_FIXAS = [
 ];
 
 /**
- * Movimentações internas: não são receita nem despesa real (pagamento da
- * fatura, transferência entre contas próprias). Excluídas dos totais do
- * dashboard, do resumo e do Planejado × Realizado.
+ * Fora das finanças pessoais: movimentações internas (pagamento da fatura,
+ * transferência entre contas próprias), gastos de terceiros e despesas da
+ * empresa. Excluídas dos totais do dashboard, do resumo e do Planejado ×
+ * Realizado; continuam visíveis em Lançamentos e na Matriz.
  */
 export const CATEGORIAS_NEUTRAS = new Set<string>([
   "Pagamento de Cartão de Crédito",
   "Transferência entre Contas",
   "Gastos de Terceiros",
+  "Empresa (PJ)",
 ]);
 
 const NOMES_PROPRIOS = ["gerson neto", "gerson albuquerque"];
@@ -248,6 +268,21 @@ export function mapearCategoria(
   if (d.includes("temu") || d.includes("vestuário")) return "Compras";
   if (d.includes("entretenimento")) return "Lazer e Entretenimento";
 
+  // Empresa (antes de Impostos: "simples nacional" não é tributo pessoal)
+  if (
+    d.includes("contador") ||
+    d.includes("contabil") ||
+    d.includes("contábil") ||
+    d.includes("endereço fiscal") ||
+    d.includes("endereco fiscal") ||
+    d.includes("simples nacional") ||
+    d.includes("coworking") ||
+    d.includes("certificado digital") ||
+    d.includes("junta comercial") ||
+    d.includes("pgdas")
+  )
+    return "Empresa (PJ)";
+
   // Impostos
   if (d.includes("ipva") || d.includes("iptu") || d.includes("darf") || d.includes("sefaz"))
     return "Impostos e Tributos";
@@ -263,7 +298,6 @@ export function mapearCategoria(
   )
     return "Pagamento de Cartão de Crédito";
   if (d.includes("compra de ações")) return "Investimentos (Aportes)";
-  if (d.includes("credito refinanciamento")) return "Pagamento de Empréstimo";
   if (
     d.includes("anuidade diferenciada") ||
     d.includes("iof") ||

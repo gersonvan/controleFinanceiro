@@ -1,5 +1,5 @@
 "use client";
-import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA } from "@/lib/categorias";
+import OpcoesCategorias from "@/components/OpcoesCategorias";
 
 interface Props {
   value: string;
@@ -24,16 +24,7 @@ export default function CategoriaSelect({
       autoFocus={autoFocus}
     >
       <option value="">{placeholder}</option>
-      <optgroup label="── Saídas ──────────────">
-        {CATEGORIAS_SAIDA.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </optgroup>
-      <optgroup label="── Entradas ────────────">
-        {CATEGORIAS_ENTRADA.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </optgroup>
+      <OpcoesCategorias />
     </select>
   );
 }

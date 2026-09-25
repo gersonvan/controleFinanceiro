@@ -168,3 +168,22 @@ describe("API de lançamentos: validação de entrada", () => {
     expect(mocks.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe("recategorização por descrição exata (Revisar categorias)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSessionUserId.mockResolvedValue("ana@example.com");
+    mocks.updateMany.mockResolvedValue({ count: 3 });
+  });
+
+  it("atinge só o grupo sem categoria daquela descrição", async () => {
+    const res = await PUT(json("PUT", {
+      descricaoExata: "Pix enviado para RESERVE IMOBILIARIA", somenteSemCategoria: true, categoriaCorreta: "Aluguel",
+    }));
+    expect(res.status).toBe(200);
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { userId: "ana@example.com", descricao: "Pix enviado para RESERVE IMOBILIARIA", categoria: null },
+      data: { categoria: "Aluguel" },
+    });
+  });
+});
