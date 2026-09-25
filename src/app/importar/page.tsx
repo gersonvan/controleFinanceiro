@@ -1,6 +1,8 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
+import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
+import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 
 interface Perfil {
@@ -31,7 +33,8 @@ type Fase =
   | "selecionar_csv"  // CSV → escolher perfil existente ou criar novo
   | "mapeamento_csv"  // CSV → mapear colunas
   | "importando"
-  | "resultado";
+  | "resultado"
+  | "lote";           // vários arquivos: fila analisada, importação em conjunto
 
 const DELIMITADORES = [
   { v: ",",  label: "Vírgula ( , )" },
@@ -94,6 +97,12 @@ export default function ImportarPage() {
   // resultado
   const [resultado, setResultado]     = useState<Resultado | null>(null);
   const [erroImport, setErroImport]   = useState("");
+
+  // lote (vários arquivos)
+  const [lote, setLote]               = useState<ItemLote[]>([]);
+  const [loteAtual, setLoteAtual]     = useState<number | null>(null); // item em configuração manual
+  const [importandoLote, setImportandoLote] = useState(false);
+  const proximoIdLote = useRef(1);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -300,6 +309,101 @@ export default function ImportarPage() {
     await importar(json.id, usaMesRef ? mesRef : undefined);
   };
 
+  // ─── Lote ────────────────────────────────────────────────────────────────
+
+  const atualizarItem = (id: number, mudanca: Partial<ItemLote>) =>
+    setLote((prev) => prev.map((i) => (i.id === id ? { ...i, ...mudanca } : i)));
+
+  const analisarItem = async (item: ItemLote) => {
+    const form = new FormData();
+    form.append("file", item.file);
+    try {
+      const res = await fetch("/api/importar/analisar", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) {
+        atualizarItem(item.id, { status: "erro", erro: json.error ?? "Não foi possível analisar o arquivo." });
+        return;
+      }
+      const analise = json as AnaliseArquivo;
+      atualizarItem(item.id, {
+        analise,
+        status: analise.reconhecido ? "pronto" : "configurar",
+        mesRef: analise.mesReferenciaSugerido ?? "",
+      });
+    } catch {
+      atualizarItem(item.id, { status: "erro", erro: "Falha de conexão ao analisar o arquivo." });
+    }
+  };
+
+  const adicionarAoLote = async (files: File[]) => {
+    const novos: ItemLote[] = files.map((file) => ({
+      id: proximoIdLote.current++, file, status: "analisando", mesRef: "",
+    }));
+    setLote((prev) => [...prev, ...novos]);
+    setFase("lote");
+    // Até 3 análises simultâneas: cada uma lê o arquivo inteiro no servidor.
+    const fila = [...novos];
+    const trabalhador = async () => {
+      for (let item = fila.shift(); item; item = fila.shift()) await analisarItem(item);
+    };
+    await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
+  };
+
+  // Um arquivo só (e nenhum lote em andamento) segue o fluxo guiado de sempre.
+  const receberArquivos = (files: File[]) => {
+    if (files.length === 0) return;
+    if (files.length === 1 && lote.length === 0) void processarArquivo(files[0]);
+    else void adicionarAoLote(files);
+  };
+
+  // Em sequência: cada importação consulta o que já existe, então arquivos que
+  // se sobrepõem não geram duplicatas entre si.
+  const importarLote = async () => {
+    const fila = lote.filter((i) => i.status === "pronto" && i.analise?.perfil);
+    setImportandoLote(true);
+    for (const item of fila) {
+      atualizarItem(item.id, { status: "importando" });
+      const form = new FormData();
+      form.append("file", item.file);
+      form.append("perfilId", String(item.analise!.perfil!.id));
+      if (item.analise!.perfil!.usaMesReferencia && item.mesRef) form.append("mesReferencia", item.mesRef);
+      try {
+        const res = await fetch("/api/importar", { method: "POST", body: form });
+        const json = await res.json();
+        if (res.ok) atualizarItem(item.id, { status: "importado", resultado: json });
+        else atualizarItem(item.id, { status: "erro", erro: json.error ?? "Erro ao importar" });
+      } catch {
+        atualizarItem(item.id, { status: "erro", erro: "Falha de conexão ao importar." });
+      }
+    }
+    setImportandoLote(false);
+  };
+
+  const configurarDoLote = (id: number) => {
+    const item = lote.find((i) => i.id === id);
+    if (!item) return;
+    setLoteAtual(id);
+    void processarArquivo(item.file);
+  };
+
+  // Volta do fluxo de um arquivo para a fila, levando o resultado se houve importação.
+  const voltarParaLote = () => {
+    if (loteAtual !== null && fase === "resultado" && resultado) {
+      atualizarItem(loteAtual, erroImport
+        ? { status: "erro", erro: erroImport }
+        : { status: "importado", resultado });
+    }
+    setLoteAtual(null);
+    resetar();
+    setFase("lote");
+  };
+
+  const recomecar = () => {
+    setLote([]);
+    setLoteAtual(null);
+    resetar();
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -309,9 +413,30 @@ export default function ImportarPage() {
       {/* UPLOAD */}
       {fase === "upload" && (
         <>
-          <DropZone onFile={processarArquivo} inputRef={inputRef} />
+          <DropZone onFiles={receberArquivos} inputRef={inputRef} />
           <ComoBaixarExtrato />
         </>
+      )}
+
+      {/* LOTE */}
+      {fase === "lote" && (
+        <ImportacaoLote
+          itens={lote}
+          importando={importandoLote}
+          onMesRef={(id, mesRef) => atualizarItem(id, { mesRef })}
+          onRemover={(id) => setLote((prev) => prev.filter((i) => i.id !== id))}
+          onConfigurar={configurarDoLote}
+          onAdicionar={(files) => void adicionarAoLote(files)}
+          onImportarTodos={() => void importarLote()}
+          onRecomecar={recomecar}
+        />
+      )}
+
+      {/* Configurando um arquivo do lote */}
+      {loteAtual !== null && fase !== "lote" && fase !== "importando" && fase !== "resultado" && (
+        <button onClick={voltarParaLote} className="text-sm text-blue-600 hover:underline">
+          ← Voltar para a lista sem importar {lote.find((i) => i.id === loteAtual)?.file.name ?? "este arquivo"}
+        </button>
       )}
 
       {/* DETECTANDO */}
@@ -754,9 +879,15 @@ export default function ImportarPage() {
               <div className="text-slate-500">{resultado.processados} processadas no total</div>
             </div>
           )}
-          <button className="btn btn-primary w-full justify-center" onClick={resetar}>
-            📂 Importar outro arquivo
-          </button>
+          {loteAtual !== null ? (
+            <button className="btn btn-primary w-full justify-center" onClick={voltarParaLote}>
+              ← Voltar para a lista
+            </button>
+          ) : (
+            <button className="btn btn-primary w-full justify-center" onClick={resetar}>
+              📂 Importar outro arquivo
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -765,14 +896,13 @@ export default function ImportarPage() {
 
 // ─── Drop Zone ───────────────────────────────────────────────────────────────
 
-function DropZone({ onFile, inputRef }: { onFile: (f: File) => void; inputRef: React.RefObject<HTMLInputElement | null> }) {
+function DropZone({ onFiles, inputRef }: { onFiles: (f: File[]) => void; inputRef: React.RefObject<HTMLInputElement | null> }) {
   const [drag, setDrag] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDrag(false);
-    const file = e.dataTransfer.files[0];
-    if (file) onFile(file);
+    onFiles(Array.from(e.dataTransfer.files));
   };
 
   return (
@@ -786,14 +916,15 @@ function DropZone({ onFile, inputRef }: { onFile: (f: File) => void; inputRef: R
       }`}
     >
       <div className="text-4xl mb-3">📂</div>
-      <div className="font-semibold text-slate-700 mb-1">Arraste o arquivo aqui ou clique para selecionar</div>
-      <div className="text-sm text-slate-400">Formatos aceitos: PDF, CSV e OFX</div>
+      <div className="font-semibold text-slate-700 mb-1">Arraste os arquivos aqui ou clique para selecionar</div>
+      <div className="text-sm text-slate-400">PDF, CSV e OFX — pode escolher vários de uma vez (extratos e faturas de bancos diferentes)</div>
       <input
         ref={inputRef}
         type="file"
         accept=".csv,.ofx,.txt,.pdf"
+        multiple
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+        onChange={(e) => { onFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
+import { chaveLancamento, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
@@ -40,18 +41,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Informe o mês de referência para faturas" }, { status: 400 });
     }
     const [ano, mes] = mesRefStr.split("-").map(Number);
-    mesReferenciaManual = new Date(ano, mes - 1, 1);
+    mesReferenciaManual = new Date(Date.UTC(ano, mes - 1, 1)); // meia-noite UTC, como o resto do sistema
   }
 
   let texto: string;
   if (perfil.formato === "pdf") {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (!ehPDF(buffer)) return erro400("O arquivo enviado não é um PDF");
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse");
-      const buffer = Buffer.from(await file.arrayBuffer());
-      if (!ehPDF(buffer)) return erro400("O arquivo enviado não é um PDF");
-      const pdfData = await pdfParse(buffer);
-      texto = pdfData.text;
+      texto = await extrairTextoPDF(buffer);
     } catch (e) {
       console.error("Erro ao ler PDF na importação", e);
       return erro400("Não foi possível ler o PDF. Verifique se é um PDF digital (não escaneado).");
@@ -79,16 +77,8 @@ export async function POST(req: NextRequest) {
     where: escopoDoUsuario(userId),
     select: { data: true, descricao: true, valor: true },
   });
-  const existingKeys = new Set(
-    existing.map(
-      (l) => `${l.data.toISOString().slice(0, 10)}|${l.descricao}|${l.valor.toFixed(2)}`
-    )
-  );
-
-  const novos = lancamentos.filter((l) => {
-    const key = `${l.data.toISOString().slice(0, 10)}|${l.descricao}|${l.valor.toFixed(2)}`;
-    return !existingKeys.has(key);
-  });
+  const existingKeys = new Set(existing.map(chaveLancamento));
+  const novos = lancamentos.filter((l) => !existingKeys.has(chaveLancamento(l)));
 
   if (novos.length > 0) {
     await prisma.lancamento.createMany({
@@ -111,8 +101,4 @@ export async function POST(req: NextRequest) {
     novos: novos.length,
     duplicados: lancamentos.length - novos.length,
   });
-}
-
-function ehPDF(buffer: Buffer): boolean {
-  return buffer.subarray(0, 5).toString("latin1") === "%PDF-";
 }

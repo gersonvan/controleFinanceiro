@@ -93,13 +93,14 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 | `/api/memoria-ia` | GET, POST (upsert), DELETE | Regras da memória |
 | `/api/categorizar` | POST | Categorização 3 fases |
 | `/api/perfis` | GET (`?todos=true` inclui inativos), POST, PATCH (ativo), DELETE | Perfis de importação |
+| `/api/importar/analisar` | POST (arquivo) | Análise sem gravar: formato, banco, perfil nativo do usuário, total/novos/duplicados, período e mês de referência sugerido (faturas). Base da importação em lote |
 | `/api/onboarding` | PATCH | Marca onboarding completo + salva nome |
 | `/api/planejamento` | GET, PUT | Fotografia do mês: itens + margem + totais; PUT substitui o conjunto inteiro numa transação (`concluir: true` grava `fotografiaConcluidaEm`) |
 | `/api/planejamento/realizado` | GET (ano, mes) | Planejado (mensalizado para o mês) × realizado por categoria, entradas, saídas, margem e gastos não planejados |
 
 ## 8. Páginas (frontend)
 
-`/` dashboard (lembrete/card da fotografia, estado vazio com CTAs) · `/planejamento` (abas Fotografia do mês e Planejado × Realizado; `?aba=comparacao`) · `/lancamentos` (botão **+ Novo** = lançamento manual via `LancamentoForm`; `?novo=1` abre direto) · `/matriz` · `/importar` (com `ComoBaixarExtrato`) · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (gerencia perfis) · `/onboarding` (wizard 4 etapas: nome → fotografia do mês (opcional, "Fazer depois") → bancos → checklist de próximos passos) · `/login`.
+`/` dashboard (lembrete/card da fotografia, estado vazio com CTAs) · `/planejamento` (abas Fotografia do mês e Planejado × Realizado; `?aba=comparacao`) · `/lancamentos` (botão **+ Novo** = lançamento manual via `LancamentoForm`; `?novo=1` abre direto) · `/matriz` · `/importar` (com `ComoBaixarExtrato`; aceita vários arquivos de uma vez → fila `ImportacaoLote` com análise por arquivo, mês da fatura sugerido e editável, importação sequencial, "Configurar" para os não reconhecidos e "Categorizar agora" ao final; um arquivo só segue o fluxo guiado de antes) · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (gerencia perfis) · `/onboarding` (wizard 4 etapas: nome → fotografia do mês (opcional, "Fazer depois") → bancos → checklist de próximos passos) · `/login`.
 
 Layout raiz (`src/app/layout.tsx`, Server Component): sem sessão ou onboarding incompleto → body sem Nav; caso contrário SessionProvider + Nav (9 links). Dados carregados client-side via fetch às APIs; sem Server Actions; sem estado global.
 
@@ -129,6 +130,8 @@ Migrações: `npx prisma migrate dev` (dev) / `npx prisma migrate deploy` (prod)
 - ✅ Documentação PADTec L2 completa em `docs/` (16 arquivos: 01–11, auth, banco-de-dados, integracoes-externas, multi-tenancy, 13-glossario) — gerada em 2026-07-23
 - ✅ Framework PADTec copiado para `padtec/` no projeto (templates L1/L2/L3, prompts, checklist)
 - ✅ Edição de perfis de importação personalizados e coluna de parcela no CSV (`colParcela`) — commits `681e084`, `1b9b92e` (06/08)
+- ✅ Importação de vários extratos de uma vez (25/09): análise por arquivo no servidor, fila com status, mês de referência sugerido (vencimento do PDF ou compra mais recente + 10 dias — acerta as 12 últimas faturas C6), deduplicação entre arquivos por importação sequencial
+- ✅ Layout para celular (24/09): menu superior no celular, grids empilhados, lançamentos em cartões
 - ✅ Fotografia do mês + nova jornada de entrada (20/09): wizard no onboarding e em `/planejamento`, Planejado × Realizado, Previsão com base na fotografia, lançamento manual, estados vazios e ajuda de download de extrato — pensado para a irmã do Gerson como primeira usuária externa
 - ✅ Revisão de segurança (20/09): upgrade Next 16.3.5 / next-auth beta.32 / Prisma 7.10 (CVEs críticos), validação zod em todas as APIs, cabeçalhos de segurança + CSP, sessão de 7 dias com allowlist por requisição, migração `middleware.ts` → `src/proxy.ts`, chave Gemini no header e teto de 50 chamadas/requisição, unique em perfis nativos
 

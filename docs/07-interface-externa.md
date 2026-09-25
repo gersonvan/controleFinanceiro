@@ -24,6 +24,7 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `POST` | `/api/perfis` | Cria um perfil de importação personalizado | `src/app/api/perfis/route.ts:739` |
 | `PATCH` | `/api/perfis` | Alterna o campo `ativo` de um perfil por `id` | `src/app/api/perfis/route.ts:767` |
 | `DELETE` | `/api/perfis` | Remove um perfil personalizado (`builtin: null`) por `id` | `src/app/api/perfis/route.ts:781` |
+| `POST` | `/api/importar/analisar` | Analisa um arquivo sem gravar (formato, banco, perfil, total/novos/duplicados, período, mês de referência sugerido) | `src/app/api/importar/analisar/route.ts:30` |
 | `PATCH` | `/api/onboarding` | Marca o onboarding como completo e salva o nome do usuário | `src/app/api/onboarding/route.ts:634` |
 | `GET` | `/api/planejamento` | Fotografia do mês do usuário: itens, `margemPercentual`, `fotografiaConcluidaEm` e totais mensalizados | `src/app/api/planejamento/route.ts:63` |
 | `PUT` | `/api/planejamento` | Substitui a fotografia inteira (`itens[]`, `margemPercentual`, `concluir`) numa transação; validação zod por grupo/periodicidade/parcelas | `src/app/api/planejamento/route.ts:71` |
