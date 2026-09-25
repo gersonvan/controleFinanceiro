@@ -184,6 +184,13 @@ function Linha({ item, importando, onMesRef, onRemover, onConfigurar }: {
             </div>
           )}
 
+          {!!a?.suspeitos && item.status === "pronto" && a.suspeitos >= Math.max(3, (a.novos ?? 0) * 0.2) && (
+            <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+              ⚠️ {a.suspeitos} lançamento{a.suspeitos !== 1 ? "s" : ""} têm a mesma data e valor de outros já gravados, com outra descrição.
+              Pode ser o mesmo extrato em outro formato (OFX × CSV) — se for, tire este arquivo da lista.
+            </div>
+          )}
+
           {a?.reconhecido && a.perfil?.usaMesReferencia && item.status === "pronto" && (
             <label className="flex items-center gap-2 text-xs text-slate-600">
               Fatura de

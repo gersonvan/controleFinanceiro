@@ -77,7 +77,12 @@ export function parseDataFlexivel(str: string, formato: string): Date | null {
 
   let dia: number, mes: number, ano: number;
 
-  if (formato === "AAAA-MM-DD") {
+  // "2026-01-16" é inequívoco: vale mesmo que o perfil diga DD/MM/AAAA
+  // (um perfil com formato errado gerava datas de 2008 a 2016).
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) {
+    [ano, mes, dia] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else if (formato === "AAAA-MM-DD") {
     const p = s.split(/[-/]/).map(Number);
     [ano, mes, dia] = p;
   } else if (formato === "MM/DD/AAAA") {
@@ -94,8 +99,11 @@ export function parseDataFlexivel(str: string, formato: string): Date | null {
 
   if (!dia || !mes || !ano || isNaN(dia) || isNaN(mes) || isNaN(ano)) return null;
   if (ano < 100) ano += 2000; // anos com 2 dígitos
+  // Sem "rolagem": 31/02 ou dia 2026 não viram outra data, são inválidos.
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
   const d = new Date(ano, mes - 1, dia);
-  return isNaN(d.getTime()) ? null : d;
+  if (isNaN(d.getTime()) || d.getMonth() !== mes - 1) return null;
+  return d;
 }
 
 // Converte string monetária ("1.234,56" ou "1234.56" ou "-50,00") em número.

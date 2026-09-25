@@ -18,7 +18,38 @@ export interface PerfilCompleto extends PerfilConfig {
   builtin: string | null;
 }
 
+// Linhas que os bancos colocam no meio do extrato mas não são lançamentos.
+// Só frases de saldo/total (com qualificador), para não descartar compras em
+// lojas como "TOTAL EXPRESS" ou "SALDO CERTO".
+const LINHAS_DE_SALDO = /^(saldo|saldo (do dia|anterior|final|em conta|dispon[ií]vel|bloqueado)\b.*|sdo cta\b.*|s a l d o\b.*|total (da fatura|de lan[cç]amentos|geral|a pagar)\b.*)$/i;
+
+const DATA_MINIMA = new Date(2000, 0, 1);
+
+/**
+ * Descarta o que não é lançamento de verdade, qualquer que seja o parser:
+ * valor zero ou inválido, linhas de saldo/total, datas impossíveis (anteriores
+ * a 2000 ou mais de um ano à frente — sintoma de formato de data errado).
+ */
+export function lancamentoValido(l: LancamentoImportado, hoje = new Date()): boolean {
+  if (!Number.isFinite(l.valor) || Math.abs(l.valor) < 0.005) return false;
+  if (!(l.data instanceof Date) || isNaN(l.data.getTime())) return false;
+  const limite = new Date(hoje.getFullYear() + 1, hoje.getMonth(), hoje.getDate());
+  if (l.data < DATA_MINIMA || l.data > limite) return false;
+  if (!l.descricao.trim() || LINHAS_DE_SALDO.test(l.descricao.trim())) return false;
+  return true;
+}
+
 export function importar(
+  texto: string,
+  fileName: string,
+  perfil: PerfilCompleto,
+  memoriaIA: Map<string, string>,
+  mesReferenciaManual: Date | null
+): LancamentoImportado[] {
+  return importarBruto(texto, fileName, perfil, memoriaIA, mesReferenciaManual).filter((l) => lancamentoValido(l));
+}
+
+function importarBruto(
   texto: string,
   fileName: string,
   perfil: PerfilCompleto,

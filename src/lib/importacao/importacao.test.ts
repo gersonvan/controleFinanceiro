@@ -134,3 +134,35 @@ describe("motor de importação", () => {
     expect(itens[0]).toMatchObject({ descricao: "Teste", valor: -10, fonte: "Importado Conta de teste" });
   });
 });
+
+describe("sanidade das linhas importadas", () => {
+  const base = { descricao: "MERCADO", valor: -10, tipo: "Saída" as const, categoria: "", conta: "X", mesReferencia: new Date(2026, 8, 1), fonte: "t" };
+  const hoje = new Date(2026, 8, 25);
+
+  it("descarta saldo, valor zero e datas impossíveis", async () => {
+    const { lancamentoValido } = await import("./engine");
+    expect(lancamentoValido({ ...base, data: new Date(2026, 8, 20) }, hoje)).toBe(true);
+    expect(lancamentoValido({ ...base, data: new Date(2026, 8, 20), valor: 0 }, hoje)).toBe(false);
+    expect(lancamentoValido({ ...base, data: new Date(1902, 10, 30) }, hoje)).toBe(false);
+    expect(lancamentoValido({ ...base, data: new Date(2028, 0, 1) }, hoje)).toBe(false);
+    for (const descricao of ["Saldo do dia", "SALDO ANTERIOR", "Saldo", "Total da fatura", "SDO CTA/APL AUTOMATICAS"]) {
+      expect(lancamentoValido({ ...base, descricao, data: new Date(2026, 8, 20) }, hoje), descricao).toBe(false);
+    }
+    // Lojas com nomes parecidos continuam valendo
+    for (const descricao of ["TOTAL EXPRESS", "TOTALPASS", "SALDO CERTO LTDA"]) {
+      expect(lancamentoValido({ ...base, descricao, data: new Date(2026, 8, 20) }, hoje), descricao).toBe(true);
+    }
+  });
+
+  it("OFX com linha de saldo zerada não gera lançamento", () => {
+    const ofx = "<ORG>BB\n<FID>0001\n<STMTTRN><DTPOSTED>19021130<TRNAMT>0.00<NAME>Saldo do dia\n<STMTTRN><DTPOSTED>20260901<TRNAMT>-12.00<NAME>PADARIA";
+    const perfil: PerfilCompleto = { ...perfilCsv, formato: "ofx", builtin: null };
+    expect(importar(ofx, "bb.ofx", perfil, new Map(), null).map((l) => l.descricao)).toEqual(["PADARIA"]);
+  });
+
+  it("data ISO vale mesmo com perfil DD/MM/AAAA, e datas que rolam são rejeitadas", () => {
+    expect(parseDataFlexivel("2026-01-16", "DD/MM/AAAA")).toEqual(new Date(2026, 0, 16));
+    expect(parseDataFlexivel("31/02/2026", "DD/MM/AAAA")).toBeNull();
+    expect(parseDataFlexivel("2026/01/16", "DD/MM/AAAA")).toBeNull();
+  });
+});

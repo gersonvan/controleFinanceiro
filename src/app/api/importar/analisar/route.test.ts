@@ -81,3 +81,21 @@ describe("análise de arquivo para importação em lote", () => {
     expect(json).toMatchObject({ formato: "ofx", reconhecido: false, banco: "Banco Itaú" });
   });
 });
+
+describe("análise: extrato repetido em outro formato", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSessionUserId.mockResolvedValue("ana@example.com");
+    mocks.perfilFindFirst.mockResolvedValue(perfilItau);
+  });
+
+  it("conta como suspeito o que bate em data e valor com outra descrição", async () => {
+    mocks.lancamentoFindMany.mockResolvedValue([
+      { data: new Date(2026, 7, 5), descricao: "Pix enviado para PADARIA DO ZE", valor: -45.9 },
+      // mesma descrição com espaço e caixa diferentes = duplicado, não suspeito
+      { data: new Date(2026, 7, 6), descricao: "pix recebido ", valor: 100 },
+    ]);
+    const json = await (await enviar(ofx, "extrato.ofx")).json();
+    expect(json).toMatchObject({ total: 2, duplicados: 1, novos: 1, suspeitos: 1 });
+  });
+});

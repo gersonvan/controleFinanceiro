@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { lerArquivo } from "@/lib/validacao";
-import { chaveLancamento, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
+import { chaveDataValor, chaveLancamento, ehParcela, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { detectarBancoOFX, detectarFormato, detectarPerfilCSV } from "@/lib/importacao/detectar";
 import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
@@ -18,6 +18,9 @@ export interface AnaliseArquivo {
   total?: number;
   novos?: number;
   duplicados?: number;
+  // Novos que batem em data e valor com lançamentos já gravados com outra
+  // descrição: provável mesmo extrato em outro formato (ex.: OFX depois do CSV).
+  suspeitos?: number;
   periodo?: { inicio: string; fim: string };
   mesReferenciaSugerido?: string | null;
 }
@@ -113,6 +116,10 @@ export async function POST(req: NextRequest) {
   });
   const chaves = new Set(existentes.map(chaveLancamento));
   const duplicados = lancamentos.filter((l) => chaves.has(chaveLancamento(l))).length;
+  const dataValor = new Set(existentes.map(chaveDataValor));
+  const suspeitos = lancamentos.filter(
+    (l) => !chaves.has(chaveLancamento(l)) && !ehParcela(l.descricao) && dataValor.has(chaveDataValor(l))
+  ).length;
 
   return NextResponse.json({
     formato,
@@ -122,6 +129,7 @@ export async function POST(req: NextRequest) {
     total: lancamentos.length,
     novos: lancamentos.length - duplicados,
     duplicados,
+    suspeitos,
     periodo: { inicio: diaISO(inicio), fim: diaISO(fim) },
     mesReferenciaSugerido: perfil.usaMesReferencia
       ? sugerirMesReferencia(datas, formato === "pdf" ? texto : undefined)
