@@ -183,3 +183,76 @@ describe("catálogo de categorias", () => {
     expect(CATEGORIAS_NEUTRAS.has("Empresa (PJ)")).toBe(true);
   });
 });
+
+describe("extrato CSV da conta C6", () => {
+  const extrato = [
+    "EXTRATO DE CONTA CORRENTE C6 BANK",
+    "Agência: 1;Conta: 123456",
+    "Período: 07/08/2026 a 25/09/2026",
+    "",
+    "Data Lançamento,Data Contábil,Título,Descrição,Entrada(R$),Saída(R$),Saldo do Dia(R$)",
+    "08/08/2026,08/08/2026,\"DEBITO DE CARTAO \",ATILA LIMA FORTALEZA BRA,0.00,14.00,1000.00  ",
+    "09/08/2026,09/08/2026,Pix enviado para RESERVE IMOBILIARIA,Aluguel agosto,0.00,454.16,545.84  ",
+    "10/08/2026,10/08/2026,Pix recebido de WELLNESS SERVICES,Pix recebido de WELLNESS SERVICES,345.00,0.00,890.84  ",
+    "11/08/2026,11/08/2026,Pix enviado para J R ESTACIONAMENTO LTDA,TRANSF ENVIADA PIX OB,0.00,17.50,873.34  ",
+    "12/08/2026,12/08/2026,UNIMED FORTALEZA SOCIEDADE COOP,Boleto,0.00,1909.92,-1036.58  ",
+  ].join("\n");
+
+  it("é reconhecido, usa o detalhe nas compras no débito e anexa a mensagem do Pix", () => {
+    expect(detectarPerfilCSV(extrato)).toEqual({ builtinKey: "c6-debito", nome: "C6 Bank — Extrato Débito" });
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", builtin: "c6-debito" };
+    expect(importar(extrato, "extrato.csv", perfil, new Map(), null).map(({ descricao, valor }) => ({ descricao, valor }))).toEqual([
+      { descricao: "ATILA LIMA FORTALEZA BRA", valor: -14 },
+      { descricao: "Pix enviado para RESERVE IMOBILIARIA · Aluguel agosto", valor: -454.16 },
+      { descricao: "Pix recebido de WELLNESS SERVICES", valor: 345 },
+      { descricao: "Pix enviado para J R ESTACIONAMENTO LTDA", valor: -17.5 },
+      { descricao: "UNIMED FORTALEZA SOCIEDADE COOP", valor: -1909.92 },
+    ]);
+  });
+
+  it("não confunde com a fatura do cartão C6", () => {
+    const fatura = "Data;Cartão;Final do Cartão;Categoria;Descrição;Parcela;Valor (em US$);Cotação (em R$);Valor (em R$)";
+    expect(detectarPerfilCSV(fatura).builtinKey).toBe("c6-cartao-csv");
+  });
+});
+
+describe("fatura de cartão em OFX (Nubank)", () => {
+  // Estrutura real do arquivo "Nubank_AAAA-MM-DD.ofx", com dados fictícios
+  const fatura = [
+    "OFXHEADER:100", "DATA:OFXSGML", "<OFX>",
+    "<SIGNONMSGSRSV1><SONRS><FI><ORG>NU PAGAMENTOS S.A.</ORG><FID>260</FID></FI></SONRS></SIGNONMSGSRSV1>",
+    "<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS><BANKTRANLIST>",
+    "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260902000000[-3:BRT]<TRNAMT>-22.45<MEMO>STREAMING XYZ</STMTTRN>",
+    "<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20260828000000[-3:BRT]<TRNAMT>208.26<MEMO>Pagamento recebido</STMTTRN>",
+    "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260810000000[-3:BRT]<TRNAMT>-313.08<MEMO>Valor pendente do mês anterior</STMTTRN>",
+    "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260803000000[-3:BRT]<TRNAMT>-195.05<MEMO>Loja X - NuPay - Parcela 3/4</STMTTRN>",
+    "</BANKTRANLIST></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>",
+  ].join("\n");
+  const conta = fatura.replace("<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>", "<BANKMSGSRSV1><STMTTRNRS><STMTRS>")
+    .replace("</CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1>", "</STMTRS></STMTTRNRS></BANKMSGSRSV1>");
+
+  it("é identificada como fatura, não como conta corrente", () => {
+    expect(detectarBancoOFX(fatura).builtinKey).toBe("nubank-cartao-ofx");
+    expect(detectarBancoOFX(conta).builtinKey).toBe("nubank-corrente-ofx");
+  });
+
+  it("descarta o saldo carregado e marca o pagamento como pagamento do cartão", () => {
+    const perfil: PerfilCompleto = { ...perfilCsv, formato: "ofx", conta: "Nubank Crédito", usaMesReferencia: true, builtin: "nubank-cartao-ofx" };
+    const itens = importar(fatura, "Nubank_2026-09-10.ofx", perfil, new Map(), new Date(2026, 8, 1));
+    expect(itens.map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
+      { descricao: "STREAMING XYZ", valor: -22.45, categoria: "" },
+      { descricao: "Pagamento recebido", valor: 208.26, categoria: "Pagamento de Cartão de Crédito" },
+      { descricao: "Loja X - NuPay - Parcela 3/4", valor: -195.05, categoria: expect.any(String) },
+    ]);
+    expect(itens.every((l) => l.mesReferencia.getMonth() === 8)).toBe(true);
+  });
+});
+
+describe("Pix para as próprias contas", () => {
+  it("reconhece as grafias do nome como transferência entre contas", async () => {
+    const { mapearCategoria } = await import("../categorias");
+    for (const d of ["Pix recebido de GERSON V ALBUQUERQUE NT", "Pix recebido de Gerson Vieira Albuquerque Neto", "Pix enviado para GERSON NETO · transferência entre contas"]) {
+      expect(mapearCategoria(d, "", "Entrada"), d).toBe("Transferência entre Contas");
+    }
+  });
+});

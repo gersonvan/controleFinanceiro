@@ -153,7 +153,13 @@ export const CATEGORIAS_NEUTRAS = new Set<string>([
   "Empresa (PJ)",
 ]);
 
-const NOMES_PROPRIOS = ["gerson neto", "gerson albuquerque"];
+// Pix entre contas do próprio Gerson (os bancos grafam o nome de vários jeitos).
+const NOMES_PROPRIOS = [
+  "gerson neto",
+  "gerson albuquerque",
+  "gerson vieira albuquerque",
+  "gerson v albuquerque",
+];
 
 export function mapearCategoria(
   descricao: string,
@@ -173,6 +179,7 @@ export function mapearCategoria(
   // Prioridade 2: pagamento de fatura do cartão (aparece como Entrada no extrato
   // do cartão, mas NÃO é receita — é liquidação da fatura)
   if (
+    d === "pagamento recebido" || // fatura Nubank: é o pagamento do próprio cartão
     d.includes("pag fatura boleto") ||
     d.includes("pagamento de fatura boleto") ||
     d.includes("pgto fat cartao") ||

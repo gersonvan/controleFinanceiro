@@ -4,10 +4,11 @@ import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { lerArquivo } from "@/lib/validacao";
 import { chaveDataValor, chaveLancamento, ehParcela, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
-import { detectarBancoOFX, detectarFormato, detectarPerfilCSV } from "@/lib/importacao/detectar";
+import { detectarBancoOFX, detectarFormato, detectarPerfilCSV, ehOFXCartao } from "@/lib/importacao/detectar";
 import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
 import { detectarBancoPDF } from "@/lib/importacao/pdf";
+import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 
 export interface AnaliseArquivo {
   formato: "ofx" | "pdf" | "csv";
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
     banco = r.nome;
   }
 
+  if (builtinKey) await ensureBuiltinPerfis(userId); // perfis nativos novos (ex.: fatura em OFX)
   const perfil = builtinKey
     ? await prisma.perfilImportacao.findFirst({ where: escopoDoUsuario(userId, { builtin: builtinKey }) })
     : null;
@@ -83,6 +85,8 @@ export async function POST(req: NextRequest) {
       formato, reconhecido: false, banco,
       motivo: formato === "csv"
         ? "Planilha sem layout conhecido: indique quais colunas são data, descrição e valor."
+        : formato === "ofx" && ehOFXCartao(texto)
+        ? "Fatura de cartão em OFX deste banco ainda não tem perfil — use o PDF ou o CSV da fatura."
         : "Banco não identificado automaticamente.",
     } satisfies AnaliseArquivo);
   }
@@ -132,7 +136,7 @@ export async function POST(req: NextRequest) {
     suspeitos,
     periodo: { inicio: diaISO(inicio), fim: diaISO(fim) },
     mesReferenciaSugerido: perfil.usaMesReferencia
-      ? sugerirMesReferencia(datas, formato === "pdf" ? texto : undefined)
+      ? sugerirMesReferencia(datas, formato === "pdf" ? texto : undefined, file.name)
       : null,
   } satisfies AnaliseArquivo);
 }

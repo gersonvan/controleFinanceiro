@@ -3,12 +3,22 @@
 
 export type Papel = "" | "data" | "descricao" | "parcela" | "valor" | "entrada" | "saida";
 
+const normalizar = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export function detectarPerfilCSV(texto: string): { builtinKey: string | null; nome: string } {
-  const cabecalho = texto.split(/\r?\n/).find((linha) => linha.trim()) ?? "";
-  const normalizado = cabecalho
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+  const linhas = texto.split(/\r?\n/).filter((linha) => linha.trim());
+  const normalizado = normalizar(linhas[0] ?? "");
+
+  // Extrato da conta corrente C6: algumas linhas de cabeçalho da conta e depois
+  // "Data Lançamento, Data Contábil, Título, Descrição, Entrada(R$), Saída(R$), Saldo".
+  // Vai para o parser legado, que usa o detalhe nas compras no débito
+  // (o título delas é só "DEBITO DE CARTAO").
+  const extratoC6 = linhas.slice(0, 15).map(normalizar).some(
+    (l) => l.includes("titulo") && l.includes("entrada") && l.includes("saida")
+  );
+  if (extratoC6) {
+    return { builtinKey: "c6-debito", nome: "C6 Bank — Extrato Débito" };
+  }
 
   if (
     normalizado.includes("final do cartao") &&
@@ -64,9 +74,28 @@ export function detectarFormato(texto: string, nomeArquivo: string): "ofx" | "cs
   return "csv";
 }
 
+// Faturas de cartão em OFX: só alguns bancos têm perfil próprio.
+const OFX_CARTAO_MAP: [string, string][] = [
+  ["nu pagamentos", "nubank-cartao-ofx"],
+  ["nubank",        "nubank-cartao-ofx"],
+];
+
+/** OFX de cartão de crédito usa CREDITCARDMSGSRSV1/CCSTMTRS em vez de BANKMSGSRSV1/STMTRS. */
+export function ehOFXCartao(texto: string): boolean {
+  const t = texto.toUpperCase();
+  return t.includes("<CREDITCARDMSGSRSV1>") || t.includes("<CCSTMTRS>");
+}
+
 export function detectarBancoOFX(texto: string): { builtinKey: string | null; orgName: string } {
   const fid = tagValue(texto, "FID");
   const org = tagValue(texto, "ORG");
+
+  // Mesmo banco, arquivo de fatura: nunca tratar como conta corrente.
+  if (ehOFXCartao(texto)) {
+    const l = org.toLowerCase();
+    const achado = OFX_CARTAO_MAP.find(([padrao]) => l.includes(padrao));
+    return { builtinKey: achado?.[1] ?? null, orgName: `${org || "Banco não identificado"} — fatura de cartão` };
+  }
 
   if (fid && OFX_FID_MAP[fid]) return { builtinKey: OFX_FID_MAP[fid], orgName: org || fid };
 

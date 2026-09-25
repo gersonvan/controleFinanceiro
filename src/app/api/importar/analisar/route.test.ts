@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
+vi.mock("@/lib/importacao/perfis-nativos", () => ({ ensureBuiltinPerfis: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     perfilImportacao: { findFirst: mocks.perfilFindFirst },

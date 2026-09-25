@@ -20,8 +20,9 @@ export interface PerfilCompleto extends PerfilConfig {
 
 // Linhas que os bancos colocam no meio do extrato mas não são lançamentos.
 // Só frases de saldo/total (com qualificador), para não descartar compras em
-// lojas como "TOTAL EXPRESS" ou "SALDO CERTO".
-const LINHAS_DE_SALDO = /^(saldo|saldo (do dia|anterior|final|em conta|dispon[ií]vel|bloqueado)\b.*|sdo cta\b.*|s a l d o\b.*|total (da fatura|de lan[cç]amentos|geral|a pagar)\b.*)$/i;
+// lojas como "TOTAL EXPRESS" ou "SALDO CERTO". Inclui o saldo carregado da
+// fatura anterior ("Valor pendente do mês anterior"), que não é gasto novo.
+const LINHAS_DE_SALDO = /^(saldo|saldo (do dia|anterior|final|em conta|dispon[ií]vel|bloqueado)\b.*|sdo cta\b.*|s a l d o\b.*|total (da fatura|de lan[cç]amentos|geral|a pagar)\b.*|valor pendente do m[eê]s anterior\b.*|saldo em atraso\b.*)$/i;
 
 const DATA_MINIMA = new Date(2000, 0, 1);
 
@@ -61,7 +62,9 @@ function importarBruto(
     const delim = perfil.builtin === "c6-credito" ? ";" : ",";
     const rows = parseCSV(texto, delim);
     const linhasHeader: Record<string, number> = {
-      "c6-credito": 1, "c6-debito": 9, "nubank-credito": 1, "nubank-debito": 1,
+      // c6-debito: 0 — o cabeçalho do extrato varia de tamanho; o parser já
+      // ignora linhas sem data e valores válidos.
+      "c6-credito": 1, "c6-debito": 0, "nubank-credito": 1, "nubank-debito": 1,
     };
     const dataRows = rows.slice(linhasHeader[perfil.builtin] ?? 1);
 

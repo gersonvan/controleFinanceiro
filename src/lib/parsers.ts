@@ -74,6 +74,23 @@ export function parseFaturaC6(
   return lancamentos;
 }
 
+// Mensagens que o C6 põe na coluna "Descrição" quando não há texto do usuário.
+const DETALHE_GENERICO_C6 = /^(transf enviada pix( ob)?|transf pix cartoes|boleto|pix recorrente|cheque especial)$/i;
+
+/**
+ * Descrição de uma linha do extrato C6 (colunas Título e Descrição):
+ * - compra no débito: o título é só "DEBITO DE CARTAO", a loja vem no detalhe;
+ * - Pix com mensagem ("Contador Jun_26", "psiquiatra"): título + mensagem;
+ * - demais: só o título (detalhe vazio, igual ao título ou genérico).
+ */
+export function descricaoExtratoC6(titulo: string, detalhe: string): string {
+  if (titulo.toLowerCase().includes("debito de cartao")) return detalhe || titulo;
+  const informativo = detalhe
+    && detalhe.toLowerCase() !== titulo.toLowerCase()
+    && !DETALHE_GENERICO_C6.test(detalhe);
+  return informativo ? `${titulo} · ${detalhe}` : titulo;
+}
+
 export function parseExtratoC6(
   rows: string[][],
   memoriaIA: Map<string, string>
@@ -101,10 +118,9 @@ export function parseExtratoC6(
     const data = parseDateBR(dataStr);
     if (!data) continue;
 
-    const titulo = row[2] || "";
-    const detalhe = row[3] || "";
-    let descricao = titulo;
-    if (titulo.toLowerCase().includes("debito de cartao")) descricao = detalhe;
+    const titulo = (row[2] || "").trim();
+    const detalhe = (row[3] || "").trim();
+    const descricao = descricaoExtratoC6(titulo, detalhe);
 
     const tipo: "Entrada" | "Saída" = valor > 0 ? "Entrada" : "Saída";
     const categoria = mapearCategoria(descricao, "", tipo, memoriaIA);

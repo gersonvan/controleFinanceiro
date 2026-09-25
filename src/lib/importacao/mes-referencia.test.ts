@@ -26,3 +26,13 @@ describe("sugerirMesReferencia", () => {
     expect(sugerirMesReferencia([], "sem nada aqui")).toBeNull();
   });
 });
+
+describe("vencimento no nome do arquivo", () => {
+  it("usa a data do nome antes da heurística", async () => {
+    const { vencimentoNoNome } = await import("./mes-referencia");
+    expect(vencimentoNoNome("Nubank_2026-09-10.ofx")).toBe("2026-09");
+    expect(vencimentoNoNome("c6 Fatura_2026-08-10 2.csv")).toBe("2026-08");
+    expect(vencimentoNoNome("NU_47643011_01SET2026_24SET2026.ofx")).toBeNull();
+    expect(sugerirMesReferencia([dia("2026-09-22")], undefined, "Nubank_2026-09-10.ofx")).toBe("2026-09");
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
+import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
@@ -179,6 +180,7 @@ export default function ImportarPage() {
         const perfil = perfisAtivos.find((p) => p.builtin === builtinKey);
         if (perfil) {
           setPerfilOFX(perfil);
+          if (perfil.usaMesReferencia) setMesRef(vencimentoNoNome(file.name) ?? "");
           setFase("confirmar_ofx");
           return;
         }
@@ -202,7 +204,7 @@ export default function ImportarPage() {
       }
     }
 
-    const csvPerfis = perfisAtivos.filter((p) => p.formato === "csv" && !p.builtin);
+    const csvPerfis = perfisAtivos.filter((p) => p.formato === "csv");
     if (csvPerfis.length > 0) {
       // Carrega preview em paralelo enquanto aguarda escolha
       const form = new FormData();
@@ -689,7 +691,7 @@ export default function ImportarPage() {
           <div>
             <div className="text-sm font-medium text-slate-700 mb-2">Qual perfil usar?</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {perfisAtivos.filter((p) => p.formato === "csv" && !p.builtin).map((p) => (
+              {perfisAtivos.filter((p) => p.formato === "csv").map((p) => (
                 <button
                   key={p.id}
                   onClick={() => {
