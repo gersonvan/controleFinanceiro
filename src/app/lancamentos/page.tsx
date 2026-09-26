@@ -622,6 +622,16 @@ function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
         </div>
       )}
 
+      {resumo.guardado !== 0 && (
+        <div className="flex items-center justify-between px-4 py-2.5 text-sm" title="Aplicações e resgates ficam fora das saídas: o dinheiro continua seu">
+          <span className="text-slate-600">
+            {resumo.guardado > 0 ? "💰 Guardado" : "💰 Resgatado da reserva"}
+            <span className="text-xs text-slate-400 ml-1.5">fora das saídas</span>
+          </span>
+          <span className={resumo.guardado > 0 ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>{fmt(Math.abs(resumo.guardado))}</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between px-4 py-3 bg-slate-50">
         <span className="font-bold text-slate-700">Saldo</span>
         <span className={`font-bold text-lg ${resumo.saldo >= 0 ? "valor-positivo" : "valor-negativo"}`}>
