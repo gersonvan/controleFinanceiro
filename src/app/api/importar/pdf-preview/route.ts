@@ -4,6 +4,8 @@ import { detectarBancoPDF, parsePDF } from "@/lib/importacao/pdf";
 import { prisma } from "@/lib/db";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { erro400, lerArquivo } from "@/lib/validacao";
+import { ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
+import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -14,17 +16,12 @@ export async function POST(req: NextRequest) {
   if (!arquivo.ok) return arquivo.resposta;
   const file = arquivo.dados;
 
-  // Extrai texto do PDF via pdf-parse (importação dinâmica evita problemas de bundling)
+  // Mesma leitura da importação (pdf-parse v2) — uma cópia antiga aqui chamava a API da v1 e sempre falhava
   let texto: string;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse");
     const buffer = Buffer.from(await file.arrayBuffer());
-    if (buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
-      return erro400("O arquivo enviado não é um PDF");
-    }
-    const data = await pdfParse(buffer);
-    texto = data.text;
+    if (!ehPDF(buffer)) return erro400("O arquivo enviado não é um PDF");
+    texto = await extrairTextoPDF(buffer);
   } catch (e) {
     console.error("Erro ao ler PDF na prévia", e);
     return erro400("Não foi possível ler o PDF. Verifique se é um PDF digital (não escaneado).");
@@ -32,12 +29,13 @@ export async function POST(req: NextRequest) {
 
   const { builtinKey, bancoNome } = detectarBancoPDF(texto);
 
-  // Busca o perfil correspondente (pode ainda não existir se nunca visitou /api/perfis)
-  let perfilId: number | null = null;
+  // Perfil nativo do banco (cria os que faltam — ex.: Sofisa, que é novo)
+  let perfil = null;
   if (builtinKey) {
-    const p = await prisma.perfilImportacao.findFirst({ where: escopoDoUsuario(userId, { builtin: builtinKey }) });
-    perfilId = p?.id ?? null;
+    await ensureBuiltinPerfis(userId);
+    perfil = await prisma.perfilImportacao.findFirst({ where: escopoDoUsuario(userId, { builtin: builtinKey }) });
   }
+  const perfilId = perfil?.id ?? null;
 
   // Pré-visualização: parseia as primeiras 10 transações com perfil genérico
   const perfilTemp = {
@@ -70,6 +68,7 @@ export async function POST(req: NextRequest) {
     builtinKey,
     bancoNome,
     perfilId,
+    perfil,
     preview,
     total: preview.length,
   });

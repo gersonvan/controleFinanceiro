@@ -157,13 +157,21 @@ export default function ImportarPage() {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/importar/pdf-preview", { method: "POST", body: form });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // mostra o erro real em vez de "banco não reconhecido"
+        setErroImport(json.error ?? "Não foi possível ler o PDF.");
+        setResultado({ processados: 0, novos: 0, duplicados: 0 });
+        setFase("resultado");
+        return;
+      }
       setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
       setPreviewPDF(json.preview ?? []);
 
       if (json.perfilId) {
-        const perfil = perfisAtivos.find((p) => p.id === json.perfilId);
-        setPerfilPDF(perfil ?? null);
+        // o perfil pode ter acabado de ser criado (banco novo): usa o que a API devolveu
+        const perfil = perfisAtivos.find((p) => p.id === json.perfilId) ?? json.perfil ?? null;
+        setPerfilPDF(perfil);
         setFase("confirmar_pdf");
       } else {
         setFase("novo_pdf");
