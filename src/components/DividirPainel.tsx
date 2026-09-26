@@ -15,6 +15,11 @@ interface Gasto {
   parte?: number; // quanto deste Pix já está neste gasto (vínculo existente)
 }
 
+interface Parecido {
+  pix: { id: number; data: string; descricao: string; valor: number };
+  gasto: { id: number; data: string; descricao: string; valor: number };
+}
+
 interface Props {
   pix: PixParaDividir | null;
   onFechar: () => void;
@@ -35,20 +40,27 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
   const [parteAtual, setParteAtual] = useState<Map<number, number>>(new Map());
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [sugeridoId, setSugeridoId] = useState<number | null>(null);
+  // depois de salvar: Pix parecidos do mesmo pagador que o padrão sabe ligar
+  const [parecidos, setParecidos] = useState<{ mensagem: string; lista: Parecido[] } | null>(null);
   const candidatos = resultado?.lista ?? [];
   const carregando = resultado?.termo !== termo;
 
-  // vínculos atuais do Pix (reabrir para editar)
+  // vínculos atuais do Pix (reabrir para editar); sem vínculo, o gasto que o
+  // padrão aprendido sugere já vem marcado
   useEffect(() => {
     let ativo = true;
-    fetch(`/api/reembolsos?entradaId=${pix.id}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((vinculos: Gasto[]) => {
-        if (!ativo) return;
-        setSelecionados(new Map(vinculos.map((g) => [g.id, g])));
-        setParteAtual(new Map(vinculos.map((g) => [g.id, g.parte ?? 0])));
-        setJaVinculado(vinculos.length > 0);
-      });
+    Promise.all([
+      fetch(`/api/reembolsos?entradaId=${pix.id}`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/reembolsos/candidatos?entradaId=${pix.id}`).then((r) => (r.ok ? r.json() : { sugerido: null })),
+    ]).then(([vinculos, { sugerido }]: [Gasto[], { sugerido: Gasto | null }]) => {
+      if (!ativo) return;
+      const iniciais = vinculos.length ? vinculos : sugerido ? [sugerido] : [];
+      setSelecionados(new Map(iniciais.map((g) => [g.id, g])));
+      setParteAtual(new Map(vinculos.map((g) => [g.id, g.parte ?? 0])));
+      setJaVinculado(vinculos.length > 0);
+      if (!vinculos.length && sugerido) setSugeridoId(sugerido.id);
+    });
     return () => { ativo = false; };
   }, [pix]);
 
@@ -63,8 +75,8 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
     const q = new URLSearchParams({ entradaId: String(pix.id) });
     if (termo) q.set("busca", termo);
     fetch(`/api/reembolsos/candidatos?${q}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((lista: Gasto[]) => { if (ativo) setResultado({ termo, lista }); });
+      .then((r) => (r.ok ? r.json() : { gastos: [] }))
+      .then((j: { gastos: Gasto[] }) => { if (ativo) setResultado({ termo, lista: j.gastos }); });
     return () => { ativo = false; };
   }, [pix, termo]);
 
@@ -96,9 +108,25 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
       setErro(j.error ?? "Não foi possível salvar.");
       return;
     }
-    onSalvo(saidaIds.length
-      ? `✅ ${fmt(pix.valor)} abatido de ${saidaIds.length} gasto${saidaIds.length > 1 ? "s" : ""}.`
-      : "Divisão desfeita.");
+    if (!saidaIds.length) { onSalvo("Divisão desfeita."); return; }
+    const mensagem = `✅ ${fmt(pix.valor)} abatido de ${saidaIds.length} gasto${saidaIds.length > 1 ? "s" : ""}.`;
+    const lista: Parecido[] = await fetch(`/api/reembolsos/parecidos?entradaId=${pix.id}`)
+      .then((x) => (x.ok ? x.json() : [])).catch(() => []);
+    if (lista.length) setParecidos({ mensagem, lista });
+    else onSalvo(mensagem);
+  };
+
+  const vincularParecidos = async () => {
+    if (!parecidos) return;
+    setSalvando(true);
+    const r = await fetch("/api/reembolsos/aplicar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entradaIds: parecidos.lista.map((p) => p.pix.id) }),
+    });
+    setSalvando(false);
+    const { vinculados = 0 } = r.ok ? await r.json() : {};
+    onSalvo(`${parecidos.mensagem} ${vinculados} Pix parecido${vinculados === 1 ? "" : "s"} também dividido${vinculados === 1 ? "" : "s"}.`);
   };
 
   const parteDe = (id: number) => previa?.partes.find((p) => p.saidaId === id)?.valor ?? 0;
@@ -121,11 +149,46 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
           </p>
         </div>
 
+        {parecidos ? (
+          <>
+            <div className="px-5 py-4 space-y-1 border-b border-slate-100">
+              <p className="text-sm font-medium text-emerald-700">{parecidos.mensagem}</p>
+              <p className="text-sm text-slate-700">
+                Encontrei <strong>{parecidos.lista.length} Pix parecido{parecidos.lista.length > 1 ? "s" : ""}</strong> deste
+                pagador ainda sem divisão. Dividir cada um com o gasto do mesmo período?
+              </p>
+            </div>
+            <ul className="flex-1 overflow-y-auto px-5 py-2 divide-y divide-slate-100">
+              {parecidos.lista.map(({ pix: p, gasto: g }) => (
+                <li key={p.id} className="py-2 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">{fmtData(p.data)}</span>
+                    <span className="font-medium text-emerald-700">{fmt(p.valor)}</span>
+                  </div>
+                  <div className="flex justify-between gap-2 text-xs text-slate-500">
+                    <span className="truncate" title={g.descricao}>→ {g.descricao} · {fmtData(g.data)}</span>
+                    <span className="valor-negativo whitespace-nowrap">{fmt(g.valor)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="p-4 border-t border-slate-100 flex gap-2">
+              <button onClick={() => onSalvo(parecidos.mensagem)} disabled={salvando} className="btn btn-secondary ml-auto">Agora não</button>
+              <button onClick={vincularParecidos} disabled={salvando} className="btn btn-primary">
+                {salvando ? "Dividindo…" : `Dividir os ${parecidos.lista.length}`}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
         {selecionados.size > 0 && (
           <div className="px-5 py-3 border-b border-slate-100 space-y-1.5">
             {[...selecionados.values()].map((g) => (
               <div key={g.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate text-slate-700" title={g.descricao}>{g.descricao}</span>
+                <span className="truncate text-slate-700" title={g.descricao}>
+                  {g.descricao} <span className="text-xs text-slate-400">· {fmtData(g.data)}</span>
+                  {g.id === sugeridoId && <span className="ml-1 text-xs text-blue-600">(sugerido pelo seu padrão)</span>}
+                </span>
                 <span className="flex items-center gap-2 shrink-0">
                   <span className="text-emerald-700 font-medium">−{fmt(parteDe(g.id))}</span>
                   <button onClick={() => alternar(g)} className="text-slate-400 hover:text-red-500" aria-label={`Tirar ${g.descricao}`}>×</button>
@@ -191,6 +254,8 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
             </button>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 import { carregarMemoriaCategorizacao } from "@/lib/memoria";
+import { aplicarPadroes } from "@/lib/reembolso-dados";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
@@ -78,8 +79,9 @@ export async function POST(req: NextRequest) {
   const existingKeys = new Set(existing.map(chaveLancamento));
   const novos = lancamentos.filter((l) => !existingKeys.has(chaveLancamento(l)));
 
+  let reembolsosVinculados = 0;
   if (novos.length > 0) {
-    await prisma.lancamento.createMany({
+    const criados = await prisma.lancamento.createManyAndReturn({
       data: novos.map((l) => dadosDoUsuario(userId, {
         data: l.data,
         descricao: l.descricao,
@@ -91,12 +93,16 @@ export async function POST(req: NextRequest) {
         fonte: l.fonte,
         mesReferencia: l.mesReferencia,
       })),
+      select: { id: true, valor: true },
     });
+    // Pix que seguem um padrão de reembolso aprendido ("Margaret → TIM") já entram divididos
+    reembolsosVinculados = await aplicarPadroes(userId, criados.filter((c) => c.valor > 0).map((c) => c.id));
   }
 
   return NextResponse.json({
     processados: lancamentos.length,
     novos: novos.length,
     duplicados: lancamentos.length - novos.length,
+    reembolsosVinculados,
   });
 }

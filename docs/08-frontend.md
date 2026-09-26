@@ -35,7 +35,7 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | `PlanejadoRealizado` | `src/components/planejamento/PlanejadoRealizado.tsx` | Tabela e cartões do Planejado × Realizado de um mês (`GET /api/planejamento/realizado`) |
 | `LancamentoForm` | `src/components/LancamentoForm.tsx` | Modal de lançamento manual (`POST /api/lancamentos`); contas sugeridas a partir dos perfis |
 | `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |
-| `DividirPainel` | `src/components/DividirPainel.tsx` | Painel lateral "Dividir" de Lançamentos: busca de gastos com filtro ao digitar, seleção múltipla, prévia da parte de cada gasto e "Desfazer divisão" |
+| `DividirPainel` | `src/components/DividirPainel.tsx` | Painel lateral "Dividir" de Lançamentos: busca de gastos com filtro ao digitar, seleção múltipla, prévia da parte de cada gasto e "Desfazer divisão"; pré-marca o gasto sugerido pelo padrão e, depois de salvar, oferece dividir os Pix parecidos do mesmo pagador |
 | `PaineisFinancas` | `src/components/financas/PaineisFinancas.tsx` | Os três cartões mensais do dashboard (`/api/financas/*`) |
 | `NavegadorMes` | `src/components/financas/NavegadorMes.tsx` | Cabeçalho das páginas `/financas/*`: voltar e trocar de mês pela URL (`?ano&mes`) |
 | `ContasTipo` | `src/components/ContasTipo.tsx` | Seção Contas de Configurações: alterna corrente/cartão (`/api/contas`) |

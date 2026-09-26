@@ -36,7 +36,9 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `GET` | `/api/financas/divida` | Juros, IOF e multas nos 12 meses até o mês; maiores lançamentos, total por origem e a principal | `src/app/api/financas/divida/route.ts` |
 | `GET` | `/api/reembolsos` | Gastos vinculados a um Pix de reembolso (`entradaId`) com a parte de cada um | `src/app/api/reembolsos/route.ts` |
 | `PUT` | `/api/reembolsos` | Define os gastos que um Pix reembolsa (`{entradaId, saidaIds}`; vazio desfaz); distribui o valor, marca "Reembolso" e recalcula `valorReembolsado` | `src/app/api/reembolsos/route.ts` |
-| `GET` | `/api/reembolsos/candidatos` | Gastos para vincular: sem `busca`, de 45 dias antes a 15 depois do Pix; com `busca`, pela descrição | `src/app/api/reembolsos/candidatos/route.ts` |
+| `GET` | `/api/reembolsos/candidatos` | `{gastos, sugerido}`: sem `busca`, de 45 dias antes a 15 depois do Pix; com `busca`, pela descrição; `sugerido` = gasto do padrão aprendido | `src/app/api/reembolsos/candidatos/route.ts` |
+| `GET` | `/api/reembolsos/parecidos` | Pix do mesmo pagador ainda sem divisão com o gasto que o padrão sugere para cada um | `src/app/api/reembolsos/parecidos/route.ts` |
+| `POST` | `/api/reembolsos/aplicar` | Divide pelos padrões os Pix informados (`entradaIds`); devolve `vinculados` | `src/app/api/reembolsos/aplicar/route.ts` |
 | `GET` | `/api/planejamento/historico` | Resumo do histórico por categoria (12 meses fechados; médias sobre os 6 últimos) para sugerir valores na Fotografia do mês | `src/app/api/planejamento/historico/route.ts` |
 | `GET` | `/api/planejamento/realizado` | Planejado × realizado por categoria para `ano`/`mes` (padrão: mês atual); exclui `CATEGORIAS_NEUTRAS`; lista gastos não planejados | `src/app/api/planejamento/realizado/route.ts:37` |
 

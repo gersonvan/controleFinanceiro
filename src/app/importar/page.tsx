@@ -21,6 +21,7 @@ interface Resultado {
   processados: number;
   novos: number;
   duplicados: number;
+  reembolsosVinculados?: number;
   erro?: string;
 }
 
@@ -890,6 +891,11 @@ export default function ImportarPage() {
               <div className="font-semibold text-green-800 text-base mb-1">
                 ✅ {resultado.novos} nova{resultado.novos !== 1 ? "s" : ""} transaç{resultado.novos !== 1 ? "ões" : "ão"} importada{resultado.novos !== 1 ? "s" : ""}
               </div>
+              {!!resultado.reembolsosVinculados && (
+                <div className="text-emerald-700">
+                  {resultado.reembolsosVinculados} Pix de reembolso dividido{resultado.reembolsosVinculados !== 1 ? "s" : ""} pelo seu padrão
+                </div>
+              )}
               {resultado.duplicados > 0 && (
                 <div className="text-slate-500">{resultado.duplicados} duplicadas ignoradas</div>
               )}

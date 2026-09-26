@@ -15,7 +15,7 @@ export interface ItemLote {
   status: StatusItem;
   analise?: AnaliseArquivo;
   mesRef: string; // "AAAA-MM" — só faturas
-  resultado?: { novos: number; duplicados: number; processados: number };
+  resultado?: { novos: number; duplicados: number; processados: number; reembolsosVinculados?: number };
   erro?: string;
 }
 
@@ -216,6 +216,7 @@ function Linha({ item, importando, onMesRef, onRemover, onConfigurar }: {
             <div className="text-xs text-green-700">
               {item.resultado.novos} nova{item.resultado.novos !== 1 ? "s" : ""}
               {item.resultado.duplicados > 0 && ` · ${item.resultado.duplicados} duplicada${item.resultado.duplicados !== 1 ? "s" : ""} ignorada${item.resultado.duplicados !== 1 ? "s" : ""}`}
+              {!!item.resultado.reembolsosVinculados && ` · ${item.resultado.reembolsosVinculados} reembolso${item.resultado.reembolsosVinculados !== 1 ? "s" : ""} dividido${item.resultado.reembolsosVinculados !== 1 ? "s" : ""} pelo padrão`}
             </div>
           )}
 
