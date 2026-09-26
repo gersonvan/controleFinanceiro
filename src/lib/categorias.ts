@@ -7,6 +7,7 @@ export const CATEGORIAS = [
   "Recebimento de Empréstimo",
   "Outras Entradas",
   "Estorno",
+  "Reembolso", // Pix que devolve parte de um gasto ("Dividir"): abate o gasto, não é renda
   // Moradia
   "Contas de Consumo",
   "Aluguel",
@@ -57,7 +58,7 @@ export type Categoria = (typeof CATEGORIAS)[number];
  * Toda categoria de CATEGORIAS está em exatamente um grupo (há teste).
  */
 export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
-  { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno"] },
+  { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno", "Reembolso"] },
   { grupo: "Moradia", categorias: ["Aluguel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
   { grupo: "Alimentação", categorias: ["Supermercado e Mercearia", "Restaurantes e Lanches", "Delivery e iFood"] },
   { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Viagem"] },
@@ -84,6 +85,7 @@ export const CATEGORIAS_ENTRADA = [
   "Outras Entradas",
   "Receita de Aluguel",
   "Recebimento de Empréstimo",
+  "Reembolso",
   "Rendimento Investimentos",
   "Salário",
   "Transferência Recebida",
@@ -147,6 +149,7 @@ export const CATEGORIAS_FIXAS = [
  * Realizado; continuam visíveis em Lançamentos e na Matriz.
  */
 export const CATEGORIAS_NEUTRAS = new Set<string>([
+  "Reembolso", // o valor já abate os gastos vinculados (valorReembolsado)
   "Pagamento de Cartão de Crédito",
   "Transferência entre Contas",
   "Gastos de Terceiros",
@@ -325,6 +328,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
 
   // Moradia
   if (d.includes("enel") || d.includes("brisanet")) return "Contas de Consumo";
+  // operadoras: "Pix enviado para TIM S A", "TIM SA", "CLARO S.A.", "TELEFONICA BRASIL" (Vivo)
+  if (/\b(tim s\.? ?a|claro s\.? ?a|telefonica|vivo (fibra|s\.? ?a)|oi s\.? ?a)\b/.test(d)) return "Contas de Consumo";
   if (d.includes("his emp imobiliarios ltda")) return "Aluguel";
   if (d.includes("edificio livorno")) return "Condomínio";
   if (d.includes("normatel")) return "Casa: Manutenção e Móveis";

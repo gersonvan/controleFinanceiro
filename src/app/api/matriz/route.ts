@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { filtroPeriodo, filtrosLancamentoSchema } from "@/lib/filtros";
@@ -82,8 +83,8 @@ export async function GET(req: NextRequest) {
 
   const lancamentos = await prisma.lancamento.findMany({
     where,
-    select: { categoria: true, descricao: true, valor: true, data: true, mesReferencia: true },
-  });
+    select: { categoria: true, descricao: true, valor: true, data: true, mesReferencia: true, valorReembolsado: true },
+  }).then((ls) => ls.map(comValorLiquido));
 
   // categoria → descricao → mes → soma
   const estrutura: Record<string, Record<string, Record<string, number>>> = {};

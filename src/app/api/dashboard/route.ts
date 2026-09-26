@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
 import { escopoDoUsuario } from "@/lib/tenant";
@@ -39,8 +40,8 @@ export async function GET(req: NextRequest) {
         { mesReferencia: null, data: dateFilter },
       ],
     }),
-    select: { data: true, valor: true, tipo: true, categoria: true, conta: true },
-  });
+    select: { data: true, valor: true, tipo: true, categoria: true, conta: true, valorReembolsado: true },
+  }).then((ls) => ls.map(comValorLiquido)); // gastos já descontados dos reembolsos
 
   // Filtra movimentações internas (não representam receita/despesa real)
   const reais = lancamentos.filter((l) => !CATEGORIAS_NEUTRAS.has(l.categoria ?? ""));

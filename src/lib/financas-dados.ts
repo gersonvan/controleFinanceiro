@@ -1,6 +1,7 @@
 // Carregamento dos lançamentos para os painéis de /api/financas.
 import { z } from "zod";
 import { prisma } from "./db";
+import { comValorLiquido } from "./reembolso";
 import { escopoDoUsuario } from "./tenant";
 import { filtroPeriodo } from "./filtros";
 import { opcional } from "./validacao";
@@ -20,8 +21,8 @@ export async function carregarLancamentos(userId: string, primeiroMes: string, u
   const fim = new Date(Date.UTC(a1, m1, 0, 23, 59, 59, 999));
   return prisma.lancamento.findMany({
     where: escopoDoUsuario(userId, { OR: filtroPeriodo(inicio, fim) }),
-    select: { data: true, mesReferencia: true, valor: true, categoria: true, descricao: true, conta: true },
-  });
+    select: { data: true, mesReferencia: true, valor: true, categoria: true, descricao: true, conta: true, valorReembolsado: true },
+  }).then((ls) => ls.map(comValorLiquido)); // gastos já descontados dos reembolsos
 }
 
 /** Dia de hoje se ano/mes é o mês corrente; null para meses fechados. */

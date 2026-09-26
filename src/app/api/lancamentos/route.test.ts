@@ -8,18 +8,24 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   deleteMany: vi.fn(),
   updateMany: vi.fn(),
+  reembolsoFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
-vi.mock("@/lib/db", () => ({
-  prisma: { lancamento: {
-    count: mocks.count,
-    findMany: mocks.findMany,
-    create: mocks.create,
-    deleteMany: mocks.deleteMany,
-    updateMany: mocks.updateMany,
-  } },
-}));
+vi.mock("@/lib/db", () => {
+  const prisma = {
+    lancamento: {
+      count: mocks.count,
+      findMany: mocks.findMany,
+      create: mocks.create,
+      deleteMany: mocks.deleteMany,
+      updateMany: mocks.updateMany,
+    },
+    reembolso: { findMany: mocks.reembolsoFindMany, groupBy: vi.fn().mockResolvedValue([]) },
+    $transaction: (fn: (tx: unknown) => unknown) => fn(prisma),
+  };
+  return { prisma };
+});
 
 import { DELETE, GET, PATCH, POST, PUT } from "./route";
 
@@ -57,6 +63,7 @@ describe("API de lançamentos: isolamento de tenant", () => {
     mocks.count.mockResolvedValue(1);
     mocks.findMany.mockResolvedValue([]);
     mocks.deleteMany.mockResolvedValue({ count: 1 });
+    mocks.reembolsoFindMany.mockResolvedValue([]);
 
     await GET(new NextRequest("http://localhost/api/lancamentos?categoria=Moradia"));
     await DELETE(new NextRequest("http://localhost/api/lancamentos?id=42", { method: "DELETE" }));
@@ -70,6 +77,9 @@ describe("API de lançamentos: isolamento de tenant", () => {
     expect(mocks.deleteMany).toHaveBeenCalledWith({
       where: { userId: "ana@example.com", id: 42 },
     });
+    expect(mocks.reembolsoFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "ana@example.com", entradaId: 42 },
+    }));
   });
 
   it("atribui a criação ao usuário autenticado", async () => {

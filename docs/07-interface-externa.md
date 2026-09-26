@@ -34,6 +34,9 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `GET` | `/api/financas/meios` | Gasto por meio de pagamento no mês (`ano`/`mes`, padrão mês atual) e nos 5 anteriores, com a média deles e o investido | `src/app/api/financas/meios/route.ts` |
 | `GET` | `/api/financas/ritmo` | Gasto acumulado dia a dia das contas correntes × média dos 5 meses anteriores; projeção quando o mês está em andamento | `src/app/api/financas/ritmo/route.ts` |
 | `GET` | `/api/financas/divida` | Juros, IOF e multas nos 12 meses até o mês; maiores lançamentos, total por origem e a principal | `src/app/api/financas/divida/route.ts` |
+| `GET` | `/api/reembolsos` | Gastos vinculados a um Pix de reembolso (`entradaId`) com a parte de cada um | `src/app/api/reembolsos/route.ts` |
+| `PUT` | `/api/reembolsos` | Define os gastos que um Pix reembolsa (`{entradaId, saidaIds}`; vazio desfaz); distribui o valor, marca "Reembolso" e recalcula `valorReembolsado` | `src/app/api/reembolsos/route.ts` |
+| `GET` | `/api/reembolsos/candidatos` | Gastos para vincular: sem `busca`, de 45 dias antes a 15 depois do Pix; com `busca`, pela descrição | `src/app/api/reembolsos/candidatos/route.ts` |
 | `GET` | `/api/planejamento/historico` | Resumo do histórico por categoria (12 meses fechados; médias sobre os 6 últimos) para sugerir valores na Fotografia do mês | `src/app/api/planejamento/historico/route.ts` |
 | `GET` | `/api/planejamento/realizado` | Planejado × realizado por categoria para `ano`/`mes` (padrão: mês atual); exclui `CATEGORIAS_NEUTRAS`; lista gastos não planejados | `src/app/api/planejamento/realizado/route.ts:37` |
 

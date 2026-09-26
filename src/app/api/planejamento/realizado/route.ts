@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
@@ -53,8 +54,8 @@ export async function GET(req: NextRequest) {
     prisma.planejamentoItem.findMany({ where: escopoDoUsuario(userId) }),
     prisma.lancamento.findMany({
       where: escopoDoUsuario(userId, { OR: filtroPeriodo(inicio, fim) }),
-      select: { categoria: true, valor: true, tipo: true },
-    }),
+      select: { categoria: true, valor: true, tipo: true, valorReembolsado: true },
+    }).then((ls) => ls.map(comValorLiquido)),
   ]);
 
   // Planejado por categoria (saídas) e grupos em que cada categoria aparece

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { gastosDoPix, recalcularReembolsados } from "@/lib/reembolso-dados";
 import { getSessionUserId } from "@/lib/session";
 import { dadosAtualizaveisDoUsuario, dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { filtrosLancamentoSchema, montarWhereLancamentos } from "@/lib/filtros";
@@ -87,7 +88,12 @@ export async function DELETE(req: NextRequest) {
   const v = validar(idSchema, lerQuery(req).id);
   if (!v.ok) return v.resposta;
 
-  await prisma.lancamento.deleteMany({ where: escopoDoUsuario(userId, { id: v.dados }) });
+  // Pix de reembolso excluído: os gastos que ele abatia voltam ao valor cheio
+  await prisma.$transaction(async (tx) => {
+    const gastos = await gastosDoPix(tx, userId, v.dados);
+    await tx.lancamento.deleteMany({ where: escopoDoUsuario(userId, { id: v.dados }) });
+    await recalcularReembolsados(tx, userId, gastos);
+  });
   return NextResponse.json({ ok: true });
 }
 

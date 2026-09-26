@@ -20,6 +20,10 @@ model Lancamento {
   pessoa        String?
   userId        String    @default("")
   createdAt     DateTime  @default(now())
+  /// Soma dos reembolsos vinculados a este gasto (positivo). Mantido por src/lib/reembolso-dados.ts
+  valorReembolsado Float  @default(0)
+  reembolsosRecebidos Reembolso[] @relation("GastoReembolsado")
+  reembolsosFeitos    Reembolso[] @relation("PixDeReembolso")
 
   @@index([userId])
   @@index([data])
@@ -127,4 +131,19 @@ model Conta {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, nome])
+}
+
+/// "Dividir": um Pix recebido (entrada, categoria Reembolso) abate um ou mais gastos.
+model Reembolso {
+  id        Int        @id @default(autoincrement())
+  userId    String
+  entradaId Int
+  saidaId   Int
+  valor     Float      // parte do Pix atribuída a este gasto (positivo)
+  createdAt DateTime   @default(now())
+  entrada   Lancamento @relation("PixDeReembolso", fields: [entradaId], references: [id], onDelete: Cascade)
+  saida     Lancamento @relation("GastoReembolsado", fields: [saidaId], references: [id], onDelete: Cascade)
+
+  @@unique([entradaId, saidaId])
+  @@index([userId, saidaId])
 }

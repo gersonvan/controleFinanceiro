@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { comValorLiquido } from "@/lib/reembolso";
 import { CATEGORIAS_FIXAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
@@ -46,8 +47,9 @@ export async function GET() {
         tipo: true,
         data: true,
         mesReferencia: true,
+        valorReembolsado: true,
       },
-    }),
+    }).then((ls) => ls.map(comValorLiquido)),
     prisma.planejamentoItem.findMany({ where: escopoDoUsuario(userId) }) as Promise<ItemPlanejado[]>,
   ]);
 

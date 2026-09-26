@@ -7,6 +7,8 @@ import type { ResumoFiltro } from "@/app/api/resumo/route";
 import Link from "next/link";
 import LancamentoForm from "@/components/LancamentoForm";
 import OpcoesCategorias from "@/components/OpcoesCategorias";
+import DividirPainel from "@/components/DividirPainel";
+import { CATEGORIA_REEMBOLSO } from "@/lib/reembolso";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,6 +36,7 @@ interface Lancamento {
   id: number; data: string; descricao: string; categoria: string | null;
   valor: number; tipo: string; conta: string; status: string;
   mesReferencia: string | null; pessoa: string | null;
+  valorReembolsado: number;
 }
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
@@ -67,6 +70,7 @@ function LancamentosContent() {
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg]               = useState("");
   const [limit, setLimit]                     = useState(50);
+  const [dividindo, setDividindo]             = useState<Lancamento | null>(null);
 
   // Seleção em massa
   const [selecionados, setSelecionados]   = useState<Set<number>>(new Set());
@@ -267,7 +271,11 @@ function LancamentosContent() {
         <div className="flex flex-col gap-1.5">
           <div className="flex gap-1 items-center">
             <CategoriaSelect value={categoriaEdit}
-              onChange={(v) => { setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit(""); }}
+              onChange={(v) => {
+                // Reembolso precisa dizer qual gasto devolve: abre o Dividir
+                if (v === CATEGORIA_REEMBOLSO && l.valor > 0) { setEditando(null); setDividindo(l); return; }
+                setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit("");
+              }}
               placeholder="Sem categoria" className="text-xs py-0.5" autoFocus />
             <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
             <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
@@ -303,6 +311,12 @@ function LancamentosContent() {
           {toastMsg}
         </div>
       )}
+
+      <DividirPainel
+        pix={dividindo}
+        onFechar={() => setDividindo(null)}
+        onSalvo={(msg) => { setDividindo(null); carregar(); showToast(msg); }}
+      />
 
       <LancamentoForm
         aberto={novoAberto}
@@ -397,7 +411,10 @@ function LancamentosContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="text-sm text-slate-800 line-clamp-2 break-words">{l.descricao}</div>
-                          <div className={`text-sm font-semibold whitespace-nowrap ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>{fmt(l.valor)}</div>
+                          <div className="text-right">
+                            <div className={`text-sm font-semibold whitespace-nowrap ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>{fmt(l.valor)}</div>
+                            {l.valorReembolsado > 0 && <div className="text-xs text-emerald-600 whitespace-nowrap">−{fmt(l.valorReembolsado)} reembolsado</div>}
+                          </div>
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5">
                           {fmtData(l.data)} · {l.conta}{l.mesReferencia ? ` · ref. ${fmtMes(l.mesReferencia)}` : ""}
@@ -406,6 +423,11 @@ function LancamentosContent() {
                         <div className="flex items-center justify-between gap-2 mt-2">
                           <div className="min-w-0">{categoriaCelula(l)}</div>
                           <div className="flex items-center gap-3 shrink-0">
+                            {l.valor > 0 && (
+                              <button onClick={() => setDividindo(l)} className="text-xs text-blue-600" title="Dizer que gasto este valor devolve">
+                                {l.categoria === CATEGORIA_REEMBOLSO ? "Divisão" : "Dividir"}
+                              </button>
+                            )}
                             <button title="Salvar na Memória Local" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
                               className="text-slate-400 text-base leading-none disabled:opacity-50">
                               {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}
@@ -448,11 +470,22 @@ function LancamentosContent() {
                         <td>{categoriaCelula(l)}</td>
                         <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
                           {fmt(l.valor)}
+                          {l.valorReembolsado > 0 && (
+                            <div className="text-xs font-normal text-emerald-600 whitespace-nowrap" title="Parte devolvida por Pix (Dividir)">
+                              −{fmt(l.valorReembolsado)} reembolsado
+                            </div>
+                          )}
                         </td>
                         <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
                         <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>
                         <td>
                           <div className="flex items-center gap-1">
+                            {l.valor > 0 && (
+                              <button onClick={() => setDividindo(l)} title="Dizer que gasto este valor devolve"
+                                className="text-xs text-blue-600 hover:underline mr-1 whitespace-nowrap">
+                                {l.categoria === CATEGORIA_REEMBOLSO ? "Divisão" : "Dividir"}
+                              </button>
+                            )}
                             <button title="Salvar na Memória Local" onClick={() => salvarNaMemoria(l)} disabled={salvandoMemoria === l.id}
                               className="text-slate-300 hover:text-purple-500 text-base leading-none transition-colors disabled:opacity-50">
                               {salvandoMemoria === l.id ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "🧠"}

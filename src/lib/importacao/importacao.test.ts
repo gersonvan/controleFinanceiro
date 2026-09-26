@@ -414,6 +414,10 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
       ["Br1*Preffortaleza", "Impostos e Tributos"],
       ["Recorrência Pix enviada para FULANO DE TAL", "Transferência para Terceiros"],
       ["Pix enviado para FULANO DE TAL · Emprestimo", "Empréstimo"],
+      ["Pix enviado para TIM S A", "Contas de Consumo"],
+      ["TIM SA", "Contas de Consumo"],
+      ["CLARO S.A.", "Contas de Consumo"],
+      ["TELEFONICA BRASIL S A", "Contas de Consumo"],
     ];
     for (const [d, esperado] of casos) expect(mapearCategoria(d, "", "Saída"), d).toBe(esperado);
     expect(mapearCategoria("Pix enviado para IFOOD.COM AGENCIA DE RESTAURANTES ONLINE S.A.", "", "Saída")).toBe("Delivery e iFood");

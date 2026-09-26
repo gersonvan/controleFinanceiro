@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
 import { filtrosLancamentoSchema, montarWhereLancamentos } from "@/lib/filtros";
@@ -28,8 +29,8 @@ export async function GET(req: NextRequest) {
 
   const lancamentos = await prisma.lancamento.findMany({
     where,
-    select: { valor: true, tipo: true, categoria: true },
-  });
+    select: { valor: true, tipo: true, categoria: true, valorReembolsado: true },
+  }).then((ls) => ls.map(comValorLiquido));
 
   let totalEntradas = 0;
   let totalSaidas   = 0;
