@@ -36,7 +36,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   // null = ainda não sabemos; false = fotografia pendente; true = concluída
   const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
-  const [reserva, setReserva] = useState<{ disponivel: number; bloqueado: number; total: number } | null>(null);
+  const [reserva, setReserva] = useState<{ emConta: number; disponivel: number; bloqueado: number; total: number; geral: number } | null>(null);
   const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number }; totalLancamentos: number } | null>(null);
 
   useEffect(() => {
@@ -145,9 +145,9 @@ export default function Dashboard() {
           <div>
             <div className="text-sm text-slate-500">💰 Reserva</div>
             <div className="text-slate-800 mt-0.5">
-              <span className="font-semibold text-emerald-700">{fmt(reserva.disponivel)}</span> disponível
+              Em conta <span className={`font-semibold ${reserva.emConta >= 0 ? "text-slate-800" : "text-red-700"}`}>{fmt(reserva.emConta)}</span>
+              {" · "}aplicado <span className="font-semibold text-emerald-700">{fmt(reserva.disponivel)}</span>
               {reserva.bloqueado > 0 && <> · <span className="font-semibold text-slate-600">{fmt(reserva.bloqueado)}</span> bloqueado</>}
-              {" · "}total {fmt(reserva.total)}
             </div>
           </div>
           <span className="text-sm text-blue-600">Ver reserva →</span>

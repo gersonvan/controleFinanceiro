@@ -32,8 +32,20 @@ describe("reserva", () => {
     expect(saldoEstimado({ saldoInformado: 100554.17, dataSaldo: d("2026-08-31"), conta: null, filtroDescricao: null }, [l("2026-09-10", 10)]).saldo).toBe(100554.17);
   });
 
-  it("totais separam disponível e bloqueado", () => {
-    expect(totaisReserva([{ saldo: 68000, bloqueada: false }, { saldo: 37206.79, bloqueada: false }, { saldo: 100554.17, bloqueada: true }]))
-      .toEqual({ disponivel: 105206.79, bloqueado: 100554.17, total: 205760.96 });
+  it("conta corrente: todos os lançamentos da conta depois do saldo, entradas e saídas", () => {
+    const c6 = { tipo: "conta", saldoInformado: -301.91, dataSaldo: d("2026-09-25"), conta: "C6 Débito", filtroDescricao: null };
+    const r = saldoEstimado(c6, [
+      l("2026-09-25", -28.37, "C6 Débito", "PADARIA", "Supermercado e Mercearia"), // já no saldo do dia
+      l("2026-09-26", 12000, "C6 Débito", "Pix recebido", "Transferência Recebida"),
+      l("2026-09-27", -3553.12, "C6 Débito", "HIS EMP IMOBILIARIOS", "Aluguel"),
+      l("2026-09-27", -100, "Nubank Débito", "Outra conta", "Compras"),
+    ]);
+    expect(r).toEqual({ saldo: 8144.97, aplicado: 12000, resgatado: 3553.12 });
+  });
+
+  it("totais separam conta, disponível e bloqueado", () => {
+    expect(totaisReserva([{ saldo: 68000, bloqueada: false }, { saldo: 37206.79, bloqueada: false }, { saldo: 100554.17, bloqueada: true },
+      { saldo: -301.91, bloqueada: false, tipo: "conta" }, { saldo: 1845.25, bloqueada: false, tipo: "conta" }]))
+      .toEqual({ emConta: 1543.34, disponivel: 105206.79, bloqueado: 100554.17, total: 205760.96, geral: 207304.3 });
   });
 });

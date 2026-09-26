@@ -4,6 +4,8 @@ import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 import { carregarMemoriaCategorizacao } from "@/lib/memoria";
 import { aplicarPadroes } from "@/lib/reembolso-dados";
+import { extrairSaldoFinal } from "@/lib/importacao/saldo";
+import { atualizarSaldoConta } from "@/lib/reserva-dados";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
@@ -99,10 +101,19 @@ export async function POST(req: NextRequest) {
     reembolsosVinculados = await aplicarPadroes(userId, criados.filter((c) => c.valor > 0).map((c) => c.id));
   }
 
+  // Extrato de conta com saldo (C6, Bradesco, BB): atualiza a conta na Reserva
+  let saldoConta: { conta: string; saldo: number; data: Date; atualizado: boolean } | null = null;
+  const saldoFinal = perfil.formato !== "pdf" ? extrairSaldoFinal(texto) : null;
+  const contaDoExtrato = lancamentos[0]?.conta ?? perfil.conta;
+  if (saldoFinal && contaDoExtrato) {
+    saldoConta = await atualizarSaldoConta(userId, contaDoExtrato, saldoFinal.saldo, saldoFinal.data);
+  }
+
   return NextResponse.json({
     processados: lancamentos.length,
     novos: novos.length,
     duplicados: lancamentos.length - novos.length,
     reembolsosVinculados,
+    saldoConta,
   });
 }

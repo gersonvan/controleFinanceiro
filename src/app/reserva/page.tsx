@@ -20,7 +20,7 @@ interface Reserva {
   saldo: number; aplicado: number; resgatado: number;
   movimentos: { data: string; descricao: string; valor: number }[];
 }
-interface Dados { reservas: Reserva[]; totais: { disponivel: number; bloqueado: number; total: number } }
+interface Dados { reservas: Reserva[]; totais: { emConta: number; disponivel: number; bloqueado: number; total: number; geral: number } }
 
 type Form = { nome: string; tipo: string; bloqueada: boolean; saldo: string; data: string; conta: string; filtro: string; observacao: string };
 const formVazio = (): Form => ({ nome: "", tipo: "investimento", bloqueada: false, saldo: "", data: hojeISO(), conta: "", filtro: "", observacao: "" });
@@ -102,10 +102,13 @@ export default function ReservaPage() {
         {!novo && <button className="btn btn-primary" onClick={() => { setNovo(formVazio()); setEditando(null); }}>+ Nova reserva</button>}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card"><div className="text-sm text-slate-500">Disponível</div><div className="text-2xl font-bold text-emerald-700">{fmt(totais.disponivel)}</div></div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card"><div className="text-sm text-slate-500">Em conta</div>
+          <div className={`text-2xl font-bold ${totais.emConta >= 0 ? "text-slate-800" : "text-red-700"}`}>{fmt(totais.emConta)}</div>
+          <div className="text-xs text-slate-400">soma das contas correntes</div></div>
+        <div className="card"><div className="text-sm text-slate-500">Aplicado disponível</div><div className="text-2xl font-bold text-emerald-700">{fmt(totais.disponivel)}</div></div>
         <div className="card"><div className="text-sm text-slate-500">Bloqueado</div><div className="text-2xl font-bold text-slate-600">{fmt(totais.bloqueado)}</div><div className="text-xs text-slate-400">previdência e similares</div></div>
-        <div className="card"><div className="text-sm text-slate-500">Total guardado</div><div className="text-2xl font-bold text-slate-800">{fmt(totais.total)}</div></div>
+        <div className="card"><div className="text-sm text-slate-500">Total</div><div className="text-2xl font-bold text-slate-800">{fmt(totais.geral)}</div><div className="text-xs text-slate-400">conta + aplicado + bloqueado</div></div>
       </div>
 
       {erro && <p className="text-sm text-red-600">{erro}</p>}
@@ -128,60 +131,73 @@ export default function ReservaPage() {
           <p className="text-sm text-slate-400">Cadastre onde está seu dinheiro guardado: CDB, RDB, poupança, previdência…</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {reservas.map((r) => (
+        <div className="space-y-6">
+          {[
+            { titulo: "Em conta", ajuda: "Saldo das contas correntes: lido do extrato ao importar (C6, Bradesco, BB) ou informado; depois, os lançamentos da conta atualizam.", lista: reservas.filter((r) => r.tipo === "conta") },
+            { titulo: "Aplicações e previdência", ajuda: "", lista: reservas.filter((r) => r.tipo !== "conta") },
+          ].filter((g) => g.lista.length > 0).map((g) => (
+            <section key={g.titulo} className="space-y-3">
+              <div>
+                <h2 className="font-semibold text-slate-700">{g.titulo}</h2>
+                {g.ajuda && <p className="text-xs text-slate-400">{g.ajuda}</p>}
+              </div>
+              {g.lista.map((r) => (
             <div key={r.id} className="card space-y-3">
-              {editando === r.id ? (
-                <>
-                  <Formulario f={form} contas={contas} onChange={setForm} />
-                  <p className="text-xs text-slate-400">Ao atualizar o saldo, informe o valor que o banco mostra e a data dele — os movimentos anteriores a essa data deixam de somar.</p>
-                  <div className="flex gap-2 justify-end">
-                    <button className="btn btn-secondary" onClick={() => setEditando(null)}>Cancelar</button>
-                    <button className="btn btn-primary" onClick={() => salvar(form, r.id)}>Salvar</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-800">{r.nome}</span>
-                        <span className="badge bg-slate-100 text-slate-600">{TIPOS.find((t) => t.valor === r.tipo)?.rotulo ?? r.tipo}</span>
-                        {r.bloqueada && <span className="badge bg-amber-50 text-amber-700">bloqueada</span>}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-1">
-                        Informado: {fmt(r.saldoInformado)} em {fmtData(r.dataSaldo)}
-                        {r.conta && <> · movimentos da conta {r.conta}{r.filtroDescricao ? ` com "${r.filtroDescricao}"` : ""}</>}
-                      </div>
-                      {r.observacao && <div className="text-xs text-slate-500 mt-1">{r.observacao}</div>}
+                {editando === r.id ? (
+                  <>
+                    <Formulario f={form} contas={contas} onChange={setForm} />
+                    <p className="text-xs text-slate-400">Ao atualizar o saldo, informe o valor que o banco mostra e a data dele — os movimentos anteriores a essa data deixam de somar.</p>
+                    <div className="flex gap-2 justify-end">
+                      <button className="btn btn-secondary" onClick={() => setEditando(null)}>Cancelar</button>
+                      <button className="btn btn-primary" onClick={() => salvar(form, r.id)}>Salvar</button>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className={`text-xl font-bold ${r.bloqueada ? "text-slate-600" : "text-emerald-700"}`}>{fmt(r.saldo)}</div>
-                      {(r.aplicado > 0 || r.resgatado > 0) && (
-                        <div className="text-xs text-slate-500">
-                          desde então: {r.aplicado > 0 && <span className="text-emerald-600">+{fmt(r.aplicado)} </span>}
-                          {r.resgatado > 0 && <span className="text-amber-700">−{fmt(r.resgatado)}</span>}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-800">{r.nome}</span>
+                          <span className="badge bg-slate-100 text-slate-600">{TIPOS.find((t) => t.valor === r.tipo)?.rotulo ?? r.tipo}</span>
+                          {r.bloqueada && <span className="badge bg-amber-50 text-amber-700">bloqueada</span>}
                         </div>
-                      )}
+                        <div className="text-xs text-slate-400 mt-1">
+                          Informado: {fmt(r.saldoInformado)} em {fmtData(r.dataSaldo)}
+                          {r.conta && (r.tipo === "conta"
+                          ? <> · depois disso, todos os lançamentos de {r.conta}</>
+                          : <> · movimentos da conta {r.conta}{r.filtroDescricao ? ` com "${r.filtroDescricao}"` : ""}</>)}
+                        </div>
+                        {r.observacao && <div className="text-xs text-slate-500 mt-1">{r.observacao}</div>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className={`text-xl font-bold ${r.saldo < 0 ? "text-red-700" : r.bloqueada ? "text-slate-600" : "text-emerald-700"}`}>{fmt(r.saldo)}</div>
+                        {(r.aplicado > 0 || r.resgatado > 0) && (
+                          <div className="text-xs text-slate-500">
+                            desde então: {r.aplicado > 0 && <span className="text-emerald-600">+{fmt(r.aplicado)} </span>}
+                            {r.resgatado > 0 && <span className="text-amber-700">−{fmt(r.resgatado)}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {r.movimentos.length > 0 && (
-                    <ul className="text-xs text-slate-500 border-t border-slate-100 pt-2 space-y-0.5">
-                      {r.movimentos.map((m, i) => (
-                        <li key={i} className="flex justify-between gap-3">
-                          <span className="truncate">{fmtData(m.data)} · {m.descricao}</span>
-                          <span className={m.valor < 0 ? "text-emerald-600" : "text-amber-700"}>{m.valor < 0 ? "+" : "−"}{fmt(Math.abs(m.valor))}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="flex gap-3 text-sm">
-                    <button className="text-blue-600 hover:underline" onClick={() => abrirEdicao(r)}>Atualizar saldo / editar</button>
-                    <button className="text-slate-400 hover:text-red-600" onClick={() => excluir(r)}>Excluir</button>
-                  </div>
-                </>
-              )}
-            </div>
+                    {r.movimentos.length > 0 && (
+                      <ul className="text-xs text-slate-500 border-t border-slate-100 pt-2 space-y-0.5">
+                        {r.movimentos.map((m, i) => (
+                          <li key={i} className="flex justify-between gap-3">
+                            <span className="truncate">{fmtData(m.data)} · {m.descricao}</span>
+                            <span className={m.valor < 0 ? "text-emerald-600" : "text-amber-700"}>{m.valor < 0 ? "+" : "−"}{fmt(Math.abs(m.valor))}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="flex gap-3 text-sm">
+                      <button className="text-blue-600 hover:underline" onClick={() => abrirEdicao(r)}>Atualizar saldo / editar</button>
+                      <button className="text-slate-400 hover:text-red-600" onClick={() => excluir(r)}>Excluir</button>
+                    </div>
+                  </>
+                )}
+              </div>
+              ))}
+            </section>
           ))}
         </div>
       )}

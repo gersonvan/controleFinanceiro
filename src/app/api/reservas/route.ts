@@ -32,9 +32,11 @@ export async function GET() {
 
   const reservas = await prisma.reserva.findMany({ where: escopoDoUsuario(userId), orderBy: [{ bloqueada: "asc" }, { nome: "asc" }] });
   const desde = reservas.length ? new Date(Math.min(...reservas.map((r) => r.dataSaldo.getTime()))) : new Date();
+  const contasCorrentes = reservas.filter((r) => r.tipo === "conta" && r.conta).map((r) => r.conta!);
   const lancamentos = reservas.some((r) => r.conta)
     ? await prisma.lancamento.findMany({
-        where: escopoDoUsuario(userId, { categoria: CATEGORIA_INVESTIMENTO, data: { gt: desde } }),
+        // investimentos de qualquer conta + todos os lançamentos das contas correntes da reserva
+        where: escopoDoUsuario(userId, { data: { gt: desde }, OR: [{ categoria: CATEGORIA_INVESTIMENTO }, { conta: { in: contasCorrentes } }] }),
         select: { data: true, descricao: true, valor: true, conta: true, categoria: true },
         orderBy: { data: "asc" },
       })
@@ -43,7 +45,9 @@ export async function GET() {
   const lista = reservas.map((r) => ({
     ...r,
     ...saldoEstimado(r, lancamentos),
-    movimentos: movimentosDaReserva(r, lancamentos).map((m) => ({ data: m.data, descricao: m.descricao, valor: m.valor })),
+    // os mais recentes primeiro; conta corrente mostra só os últimos
+    movimentos: movimentosDaReserva(r, lancamentos).reverse().slice(0, r.tipo === "conta" ? 8 : 50)
+      .map((m) => ({ data: m.data, descricao: m.descricao, valor: m.valor })),
   }));
   return NextResponse.json({ reservas: lista, totais: totaisReserva(lista) });
 }
