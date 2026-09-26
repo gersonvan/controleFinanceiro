@@ -374,6 +374,10 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     return "Restaurantes e Lanches";
 
   // Transporte
+  // empresas conhecidas pelo nome jurídico (aparecem assim em Pix)
+  if (/\bzamp\b/.test(d)) return "Restaurantes e Lanches";         // operadora do Burger King
+  if (d.includes("vibra energia")) return "Automóvel";               // postos (ex-BR Distribuidora)
+  if (d.includes("bolsaki")) return "Mensalidades e Cursos";
   // 99 na fatura do C6 vem sem o "99*": "POP 13AGO 17H41MIN"
   if (/^pop \d{1,2}[a-z]{3} \d{1,2}h\d{2}min/.test(d)) return "Transporte por App";
   if (d.includes("uber") || d.includes("99 ride") || d.startsWith("99* pop") || d.startsWith("99*pop") || d.includes("99app") || d.includes("99 tecnologia"))
