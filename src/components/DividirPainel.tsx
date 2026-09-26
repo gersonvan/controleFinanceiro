@@ -145,7 +145,7 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
             <div className="text-xs text-slate-500">{fmtData(pix.data)} · <span className="font-semibold text-emerald-700">{fmt(pix.valor)}</span></div>
           </div>
           <p className="text-xs text-slate-500">
-            Escolha o gasto (ou os gastos) que este valor devolve. Ele vira <strong>Reembolso</strong>: sai das entradas e abate esses gastos no mês de cada um.
+            Escolha o gasto (ou os gastos) que este valor devolve. Ele vira <strong>Reembolso</strong>: abate esses gastos no mês de cada um, e só o que sobrar conta como entrada.
           </p>
         </div>
 
@@ -197,7 +197,7 @@ function Painel({ pix, onFechar, onSalvo }: Props & { pix: PixParaDividir }) {
             ))}
             {previa && previa.sobra > 0 && (
               <p className="text-xs text-amber-700">
-                {fmt(previa.sobra)} passam do que falta reembolsar nesses gastos e não serão contados.
+                {fmt(previa.sobra)} passam do que falta reembolsar nesses gastos e vão contar como entrada (sobra).
               </p>
             )}
           </div>

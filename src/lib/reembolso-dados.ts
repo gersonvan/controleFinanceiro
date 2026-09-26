@@ -26,6 +26,30 @@ export async function recalcularReembolsados(tx: Tx, userId: string, saidaIds: n
   }
 }
 
+/** Recalcula, em cada Pix, quanto dele foi usado para abater gastos (o resto é sobra/entrada). */
+export async function recalcularPixes(tx: Tx, userId: string, entradaIds: number[]) {
+  const ids = [...new Set(entradaIds)];
+  if (ids.length === 0) return;
+  const somas = await tx.reembolso.groupBy({
+    by: ["entradaId"],
+    where: { userId, entradaId: { in: ids } },
+    _sum: { valor: true },
+  });
+  const porId = new Map(somas.map((s) => [s.entradaId, s._sum.valor ?? 0]));
+  for (const id of ids) {
+    await tx.lancamento.updateMany({
+      where: escopoDoUsuario(userId, { id }),
+      data: { valorReembolsado: Math.round((porId.get(id) ?? 0) * 100) / 100 },
+    });
+  }
+}
+
+/** Pix que reembolsavam um gasto — para recalcular a sobra deles ao excluir o gasto. */
+export async function pixesDoGasto(tx: Tx, userId: string, saidaId: number): Promise<number[]> {
+  const v = await tx.reembolso.findMany({ where: { userId, saidaId }, select: { entradaId: true } });
+  return v.map((x) => x.entradaId);
+}
+
 /** Gastos que um Pix reembolsava — para recalcular antes/depois de excluir o Pix. */
 export async function gastosDoPix(tx: Tx, userId: string, entradaId: number): Promise<number[]> {
   const v = await tx.reembolso.findMany({ where: { userId, entradaId }, select: { saidaId: true } });
@@ -68,10 +92,14 @@ export async function definirReembolso(userId: string, entradaId: number, saidaI
     if (partes.length) {
       await tx.reembolso.createMany({ data: partes.map((p) => ({ userId, entradaId, saidaId: p.saidaId, valor: p.valor })) });
     }
-    // com vínculo, o Pix é Reembolso; ao desfazer, volta a ficar sem categoria
+    // com vínculo, o Pix é Reembolso e guarda o quanto abateu (o resto é sobra);
+    // ao desfazer, volta a ficar sem categoria
     await tx.lancamento.updateMany({
       where: escopoDoUsuario(userId, { id: entradaId }),
-      data: { categoria: partes.length ? CATEGORIA_REEMBOLSO : entrada.categoria === CATEGORIA_REEMBOLSO ? null : entrada.categoria },
+      data: {
+        categoria: partes.length ? CATEGORIA_REEMBOLSO : entrada.categoria === CATEGORIA_REEMBOLSO ? null : entrada.categoria,
+        valorReembolsado: Math.round(partes.reduce((a, p) => a + p.valor, 0) * 100) / 100,
+      },
     });
     await recalcularReembolsados(tx, userId, [...anteriores.map((a) => a.saidaId), ...saidaIds]);
     return { ok: true as const, partes, sobra };

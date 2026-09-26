@@ -16,6 +16,7 @@ const IGNORAR = new Set([
   "Estorno",
   "Empréstimo",
   "Recebimento de Empréstimo",
+  "Reembolso",
 ]);
 const CATEGORIAS_ENTRADA = new Set(["Salário", "Outras Entradas", "Receita de Aluguel", "Rendimento Investimentos"]);
 

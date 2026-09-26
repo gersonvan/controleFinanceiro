@@ -80,6 +80,9 @@ describe("API de lançamentos: isolamento de tenant", () => {
     expect(mocks.reembolsoFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: "ana@example.com", entradaId: 42 },
     }));
+    expect(mocks.reembolsoFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "ana@example.com", saidaId: 42 },
+    }));
   });
 
   it("atribui a criação ao usuário autenticado", async () => {

@@ -49,7 +49,7 @@ describe("API de reembolsos (Dividir)", () => {
       data: [{ userId: "ana@example.com", entradaId: 10, saidaId: 20, valor: 76.25 }],
     });
     expect(mocks.tx.lancamento.updateMany).toHaveBeenCalledWith({
-      where: { userId: "ana@example.com", id: 10 }, data: { categoria: "Reembolso" },
+      where: { userId: "ana@example.com", id: 10 }, data: { categoria: "Reembolso", valorReembolsado: 76.25 },
     });
     expect(mocks.tx.lancamento.updateMany).toHaveBeenCalledWith({
       where: { userId: "ana@example.com", id: 20 }, data: { valorReembolsado: 76.25 },
@@ -73,7 +73,7 @@ describe("API de reembolsos (Dividir)", () => {
     const r = await dividir({ entradaId: 10, saidaIds: [] });
     expect(r.status).toBe(200);
     expect(mocks.tx.reembolso.deleteMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", entradaId: 10 } });
-    expect(mocks.tx.lancamento.updateMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", id: 10 }, data: { categoria: null } });
+    expect(mocks.tx.lancamento.updateMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", id: 10 }, data: { categoria: null, valorReembolsado: 0 } });
     expect(mocks.tx.lancamento.updateMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", id: 20 }, data: { valorReembolsado: 0 } });
   });
 });

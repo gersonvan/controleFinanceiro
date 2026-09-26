@@ -1,20 +1,25 @@
 // "Dividir": um Pix recebido reembolsa um ou mais gastos. O Pix vira categoria
-// Reembolso (não é renda) e o valor abate os gastos vinculados, no mês de cada
-// gasto. Funções puras; a gravação fica em reembolso-dados.ts.
+// Reembolso e o valor abate os gastos vinculados, no mês de cada gasto; o que
+// sobra (Pix maior que os gastos, ex.: diária) conta como entrada. Funções puras;
+// a gravação fica em reembolso-dados.ts.
 
 export const CATEGORIA_REEMBOLSO = "Reembolso";
 
+interface ComReembolso { valor: number; valorReembolsado?: number | null; categoria?: string | null }
+
 /**
- * Valor de um lançamento descontado o que foi reembolsado. Saída reembolsada
- * por inteiro vira 0 (nunca positiva); entradas não mudam.
+ * Valor que conta nos totais. Gasto: descontado o que foi reembolsado (nunca
+ * positivo). Pix de reembolso: só a sobra — valorReembolsado, nele, é o quanto
+ * foi usado para abater gastos. Demais entradas não mudam.
  */
-export function valorLiquido(l: { valor: number; valorReembolsado?: number | null }): number {
-  if (l.valor >= 0 || !l.valorReembolsado) return l.valor;
-  return Math.min(l.valor + l.valorReembolsado, 0);
+export function valorLiquido(l: ComReembolso): number {
+  if (l.valor < 0) return l.valorReembolsado ? Math.min(l.valor + l.valorReembolsado, 0) : l.valor;
+  if (l.categoria === CATEGORIA_REEMBOLSO) return Math.max(Math.round((l.valor - (l.valorReembolsado ?? 0)) * 100) / 100, 0);
+  return l.valor;
 }
 
 /** Troca `valor` pelo líquido — para aplicar logo depois de ler do banco. */
-export function comValorLiquido<T extends { valor: number; valorReembolsado?: number | null }>(l: T): T {
+export function comValorLiquido<T extends ComReembolso>(l: T): T {
   return { ...l, valor: valorLiquido(l) };
 }
 

@@ -41,6 +41,22 @@ interface Lancamento {
 
 const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
 
+/** Gasto: quanto foi devolvido por Pix. Pix de reembolso: quanto abateu e a sobra (que conta como entrada). */
+function NotaReembolso({ l }: { l: Lancamento }) {
+  if (l.valor < 0 && l.valorReembolsado > 0) {
+    return <div className="text-xs font-normal text-emerald-600 whitespace-nowrap" title="Parte devolvida por Pix (Dividir)">−{fmt(l.valorReembolsado)} reembolsado</div>;
+  }
+  if (l.valor > 0 && l.categoria === CATEGORIA_REEMBOLSO) {
+    const sobra = Math.round((l.valor - l.valorReembolsado) * 100) / 100;
+    return (
+      <div className="text-xs font-normal text-slate-500 whitespace-nowrap" title="O que abateu gastos não é renda; a sobra é">
+        {fmt(l.valorReembolsado)} abatido{sobra > 0 && <> · <span className="text-emerald-600">{fmt(sobra)} sobra</span></>}
+      </div>
+    );
+  }
+  return null;
+}
+
 function isEmprestimo(cat: string | null) {
   return CATEGORIAS_EMPRESTIMO.includes(cat as never);
 }
@@ -413,7 +429,7 @@ function LancamentosContent() {
                           <div className="text-sm text-slate-800 line-clamp-2 break-words">{l.descricao}</div>
                           <div className="text-right">
                             <div className={`text-sm font-semibold whitespace-nowrap ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>{fmt(l.valor)}</div>
-                            {l.valorReembolsado > 0 && <div className="text-xs text-emerald-600 whitespace-nowrap">−{fmt(l.valorReembolsado)} reembolsado</div>}
+                            <NotaReembolso l={l} />
                           </div>
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5">
@@ -470,11 +486,7 @@ function LancamentosContent() {
                         <td>{categoriaCelula(l)}</td>
                         <td className={`text-right font-medium ${l.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>
                           {fmt(l.valor)}
-                          {l.valorReembolsado > 0 && (
-                            <div className="text-xs font-normal text-emerald-600 whitespace-nowrap" title="Parte devolvida por Pix (Dividir)">
-                              −{fmt(l.valorReembolsado)} reembolsado
-                            </div>
-                          )}
+                          <NotaReembolso l={l} />
                         </td>
                         <td><span className="badge bg-slate-100 text-slate-600">{l.conta}</span></td>
                         <td className="text-slate-400 text-xs">{l.mesReferencia ? fmtMes(l.mesReferencia) : "-"}</td>

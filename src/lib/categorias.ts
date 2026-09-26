@@ -7,7 +7,7 @@ export const CATEGORIAS = [
   "Recebimento de Empréstimo",
   "Outras Entradas",
   "Estorno",
-  "Reembolso", // Pix que devolve parte de um gasto ("Dividir"): abate o gasto, não é renda
+  "Reembolso", // Pix que devolve parte de um gasto ("Dividir"): abate o gasto; só a sobra é entrada (valorLiquido)
   // Moradia
   "Contas de Consumo",
   "Aluguel",
@@ -149,7 +149,6 @@ export const CATEGORIAS_FIXAS = [
  * Realizado; continuam visíveis em Lançamentos e na Matriz.
  */
 export const CATEGORIAS_NEUTRAS = new Set<string>([
-  "Reembolso", // o valor já abate os gastos vinculados (valorReembolsado)
   "Pagamento de Cartão de Crédito",
   "Transferência entre Contas",
   "Gastos de Terceiros",

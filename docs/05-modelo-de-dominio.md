@@ -80,7 +80,7 @@ erDiagram
 | Meio de pagamento | Como um gasto saiu: cartão (conta do tipo cartão, pelo mês da fatura), Pix, débito, juros e encargos ou boletos e contas (demais saídas de conta corrente) | `Meio` / `classificarMeio` | `src/lib/financas.ts` |
 | Custo de dívida | Juros, IOF e multas pagos por usar crédito, menos devoluções do banco; agrupado por origem (cheque especial, atraso de fatura, rotativo) | `custoDivida` / `origemEncargo` | `src/lib/financas.ts` |
 | Guardado | Saídas para Investimentos (Aportes): mostradas à parte, fora do total de gastos | `CATEGORIA_INVESTIMENTO` | `src/lib/financas.ts` |
-| Reembolso | Entrada que devolve parte de um gasto (conta dividida, racha); não é renda e abate o gasto vinculado no mês dele | Categoria `Reembolso`, entidade `Reembolso`, `valorLiquido` | `src/lib/reembolso.ts` |
+| Reembolso | Entrada que devolve parte de um gasto (conta dividida, racha); abate o gasto vinculado no mês dele e só a sobra (o que não abateu gasto) conta como renda | Categoria `Reembolso`, entidade `Reembolso`, `valorLiquido` | `src/lib/reembolso.ts` |
 | Memória da IA | Conjunto de regras de correção de categoria baseadas em descrição exata, aprendidas por interação do usuário | Entidade `MemoriaIA` | `prisma/schema.prisma:MemoriaIA` |
 | Perfil de importação | Configuração de como interpretar um arquivo de extrato de um banco específico (mapeamento de colunas, formato de data, etc.) | Entidade `PerfilImportacao` | `prisma/schema.prisma:PerfilImportacao` |
 | Perfil nativo (builtin) | Perfil pré-configurado para um banco suportado pelo sistema, identificado por chave string em `builtin` | Campo `builtin` em `PerfilImportacao` | `src/app/api/perfis/route.ts:656` |

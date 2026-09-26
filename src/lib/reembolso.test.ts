@@ -10,6 +10,17 @@ describe("reembolso", () => {
     expect(valorLiquido({ valor: -50 })).toBe(-50);
   });
 
+  it("Pix de reembolso: só a sobra conta como entrada", () => {
+    // TED de R$ 980 que abateu R$ 565,19 de gastos de viagem
+    expect(valorLiquido({ valor: 980, valorReembolsado: 565.19, categoria: "Reembolso" })).toBe(414.81);
+    // Pix usado por inteiro: nada entra como renda
+    expect(valorLiquido({ valor: 76.25, valorReembolsado: 76.25, categoria: "Reembolso" })).toBe(0);
+    // marcado como Reembolso sem vínculo: nada foi abatido, tudo é entrada
+    expect(valorLiquido({ valor: 50, valorReembolsado: 0, categoria: "Reembolso" })).toBe(50);
+    // entrada comum não muda
+    expect(valorLiquido({ valor: 50, valorReembolsado: 0, categoria: "Salário" })).toBe(50);
+  });
+
   it("vários Pix para uma conta: cada um só usa o que falta", () => {
     const tim = { id: 1, valor: -334.99, jaReembolsado: 76.25 }; // a Margaret já pagou
     expect(distribuirReembolso(76.25, [tim])).toEqual({ partes: [{ saidaId: 1, valor: 76.25 }], sobra: 0 });
