@@ -34,6 +34,7 @@ export default function MatrizPage() {
   const { i, f } = ultimos12();
   const [data, setData]             = useState<MatrizData | null>(null);
   const [loading, setLoading]       = useState(true);
+  const [mostrarInternas, setMostrarInternas] = useState(false);
   const [tipo, setTipo]             = useState("Saída");
   const [dataInicio, setDataInicio] = useState(i);
   const [dataFim, setDataFim]       = useState(f);
@@ -89,7 +90,7 @@ export default function MatrizPage() {
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>
-      ) : !data || data.linhas.length === 0 ? (
+      ) : !data || (data.linhas.length === 0 && data.internas.length === 0) ? (
         <div className="card text-center text-slate-400 py-12">Nenhum dado encontrado para o período.</div>
       ) : (
         <div className="card p-0 overflow-hidden">
@@ -112,6 +113,27 @@ export default function MatrizPage() {
                     meses={data.meses}
                     aberta={aberta === linha.categoria}
                     onToggle={() => toggle(linha.categoria)}
+                  />
+                ))}
+                {data.internas.length > 0 && (
+                  <tr>
+                    <td colSpan={data.meses.length + 2} style={{ padding: 0, borderTop: "2px solid var(--color-border-secondary)" }}>
+                      <button onClick={() => setMostrarInternas((v) => !v)}
+                        className="w-full text-left px-4 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                        title="Pagamento de fatura, transferências entre suas contas, aplicações, compra e venda de bens: ficam fora das contas, como no dashboard">
+                        <span className={`inline-block mr-1.5 transition-transform ${mostrarInternas ? "rotate-90" : ""}`}>▶</span>
+                        Movimentações internas e aplicações — não são renda nem gasto ({data.internas.length})
+                      </button>
+                    </td>
+                  </tr>
+                )}
+                {mostrarInternas && data.internas.map((linha) => (
+                  <LinhaCategoria
+                    key={`interna|${linha.categoria}`}
+                    linha={linha}
+                    meses={data.meses}
+                    aberta={aberta === `interna|${linha.categoria}`}
+                    onToggle={() => toggle(`interna|${linha.categoria}`)}
                   />
                 ))}
               </tbody>

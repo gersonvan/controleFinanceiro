@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
+import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
@@ -23,7 +25,12 @@ export interface MatrizLinha {
 export interface MatrizData {
   meses: string[];
   linhas: MatrizLinha[];
+  /** Pagamento de fatura, transferências entre contas, aplicações…: não são renda nem gasto */
+  internas: MatrizLinha[];
 }
+
+/** Fica fora das linhas principais (mesma regra do dashboard): internas e aplicações. */
+const ehInterna = (categoria: string) => CATEGORIAS_NEUTRAS.has(categoria) || categoria === CATEGORIA_INVESTIMENTO;
 
 function toMesStr(d: Date): string {
   return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
@@ -125,5 +132,9 @@ export async function GET(req: NextRequest) {
 
   linhas.sort((a, b) => a.categoria.localeCompare(b.categoria, "pt-BR"));
 
-  return NextResponse.json({ meses, linhas } satisfies MatrizData);
+  return NextResponse.json({
+    meses,
+    linhas: linhas.filter((l) => !ehInterna(l.categoria)),
+    internas: linhas.filter((l) => ehInterna(l.categoria)),
+  } satisfies MatrizData);
 }
