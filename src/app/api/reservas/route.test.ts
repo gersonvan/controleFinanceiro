@@ -30,7 +30,22 @@ describe("API de reservas", () => {
     expect(mocks.reserva.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "ana@example.com" } }));
     expect(mocks.lancamentoFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: "ana@example.com" }) }));
     expect(j.reservas[0].saldo).toBe(800);
-    expect(j.totais).toEqual({ disponivel: 800, bloqueado: 0, total: 800 });
+    expect(j.totais).toEqual({ emConta: 0, disponivel: 800, bloqueado: 0, total: 800, geral: 800 });
+  });
+
+  it("conta corrente soma todos os lançamentos da conta depois do saldo", async () => {
+    mocks.reserva.findMany.mockResolvedValue([{ id: 2, nome: "C6 Débito", tipo: "conta", bloqueada: false, saldoInformado: -300, dataSaldo: new Date("2026-09-25T00:00:00Z"), conta: "C6 Débito", filtroDescricao: null }]);
+    mocks.lancamentoFindMany.mockResolvedValue([
+      { data: new Date("2026-09-26T00:00:00Z"), descricao: "Pix recebido", valor: 1000, conta: "C6 Débito", categoria: "Transferência Recebida" },
+      { data: new Date("2026-09-27T00:00:00Z"), descricao: "Padaria", valor: -50, conta: "C6 Débito", categoria: "Supermercado e Mercearia" },
+    ]);
+    const j = await (await GET()).json();
+    expect(j.reservas[0].saldo).toBe(650);
+    expect(j.totais.emConta).toBe(650);
+    // busca investimentos de qualquer conta e todos os lançamentos das contas correntes
+    expect(mocks.lancamentoFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ userId: "ana@example.com", OR: [{ categoria: "Investimentos (Aportes)" }, { conta: { in: ["C6 Débito"] } }] }),
+    }));
   });
 
   it("cria com o userId da sessão e valida os campos", async () => {
