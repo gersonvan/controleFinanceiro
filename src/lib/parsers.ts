@@ -1,4 +1,5 @@
 import { mapearCategoria } from "./categorias";
+import { parseValor } from "./importacao/tipos";
 
 export interface LancamentoImportado {
   data: Date;
@@ -161,7 +162,8 @@ export function parseFaturaNubank(
     const descricao = row[1] || "";
     if (descricao === "Pagamento recebido") continue;
 
-    const valorCsv = parseFloat(row[2]);
+    // Aceita o formato antigo ("22.45") e o atual ("22,45", "- 208,26").
+    const valorCsv = parseValor(row[2] ?? "");
     if (isNaN(valorCsv)) continue;
 
     let valor: number;
@@ -230,6 +232,47 @@ export function parseExtratoNubank(
       conta: "Nubank Débito",
       mesReferencia,
       fonte: `Importado NubankDébito`,
+    });
+  }
+  return lancamentos;
+}
+
+/**
+ * Extrato da conta Banco do Brasil em CSV:
+ * "Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento".
+ * O tipo ("Pix - Enviado") e o detalhe ("19/09 12:51 FULANO") vão juntos na
+ * descrição. Linhas de saldo (valor 0,00) são descartadas pelo motor.
+ */
+export function parseExtratoBB(
+  rows: string[][],
+  conta: string,
+  memoriaIA: Map<string, string>
+): LancamentoImportado[] {
+  const lancamentos: LancamentoImportado[] = [];
+
+  for (const row of rows) {
+    if (row.length < 5) continue;
+    const data = parseDateBR(row[0] ?? "");
+    if (!data) continue;
+    const valor = parseValor(row[4] ?? "");
+    if (isNaN(valor)) continue;
+
+    const lancamento = (row[1] ?? "").trim();
+    const detalhe = (row[2] ?? "").trim();
+    const descricao = detalhe && !lancamento.toLowerCase().includes(detalhe.toLowerCase())
+      ? `${lancamento} · ${detalhe}`
+      : lancamento;
+
+    const tipo: "Entrada" | "Saída" = valor >= 0 ? "Entrada" : "Saída";
+    lancamentos.push({
+      data,
+      descricao,
+      categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      valor,
+      tipo,
+      conta,
+      mesReferencia: new Date(data.getFullYear(), data.getMonth(), 1),
+      fonte: "Importado Banco do Brasil (CSV)",
     });
   }
   return lancamentos;

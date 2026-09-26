@@ -8,6 +8,7 @@ import {
   parseExtratoC6,
   parseFaturaNubank,
   parseExtratoNubank,
+  parseExtratoBB,
 } from "../parsers";
 import { LancamentoImportado, PerfilConfig, parseCSV } from "./tipos";
 import { parseCSVGenerico } from "./csv";
@@ -57,6 +58,11 @@ function importarBruto(
   memoriaIA: Map<string, string>,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
+  // Banco do Brasil em CSV: parser próprio (junta tipo e detalhe da linha)
+  if (perfil.builtin === "bb-corrente-csv") {
+    return parseExtratoBB(parseCSV(texto, ",").slice(1), perfil.conta, memoriaIA);
+  }
+
   // 1. Perfis legados do Gerson (compatibilidade total)
   if (perfil.builtin) {
     const delim = perfil.builtin === "c6-credito" ? ";" : ",";

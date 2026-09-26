@@ -1,5 +1,14 @@
 // Leitura de arquivos enviados à importação (somente servidor).
 
+/**
+ * Texto do arquivo: UTF-8 quando válido, senão Latin-1/Windows-1252 — o CSV
+ * do Banco do Brasil vem assim ("Lançamento" viraria "Lan�amento").
+ */
+export function decodificarTexto(buffer: Buffer): string {
+  const utf8 = buffer.toString("utf8");
+  return utf8.includes("\uFFFD") ? buffer.toString("latin1") : utf8;
+}
+
 export function ehPDF(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString("latin1") === "%PDF-";
 }

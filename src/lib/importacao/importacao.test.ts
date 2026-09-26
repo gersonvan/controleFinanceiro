@@ -285,3 +285,38 @@ describe("CSV do Nubank", () => {
     ]);
   });
 });
+
+describe("formatos atuais dos CSV (arquivos reais de 09/2026, dados fictícios)", () => {
+  it("fatura Nubank com vírgula decimal e sinal separado", () => {
+    const fatura = 'date,title,amount\n2026-09-02,Streaming XYZ,"22,45"\n2026-08-28,Pagamento recebido,"- 208,26"\n' +
+      '2026-08-14,Juros por fatura atrasada,"5,62"\n2026-08-10,Valor pendente do mês anterior,"313,08"\n2026-08-05,Estorno Loja,"- 10,00"';
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", usaMesReferencia: true, builtin: "nubank-credito" };
+    expect(importar(fatura, "Nubank_2026-09-10.csv", perfil, new Map(), new Date(2026, 8, 1))
+      .map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
+      { descricao: "Streaming XYZ", valor: -22.45, categoria: "" },
+      { descricao: "Juros por fatura atrasada", valor: -5.62, categoria: "Taxas e Anuidades" },
+      { descricao: "Estorno Loja", valor: 10, categoria: "Estorno" },
+    ]);
+  });
+
+  it("extrato BB em Latin-1: junta tipo e detalhe, descarta saldos", async () => {
+    const { decodificarTexto } = await import("./arquivo");
+    const csv = [
+      '"Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"',
+      '"28/08/2026","Saldo Anterior","","","0,00",""',
+      '"08/09/2026","Recebimento de Proventos","EMPRESA X","4505","176,55","Entrada"',
+      '"08/09/2026","BB Rende Fácil","Rende Facil","9903","-187,85","Saída"',
+      '"08/09/2026","Saldo do dia","","","0,00",""',
+      '"24/09/2026","TED","336 0001 123 GERSON VIEIRA ALB","92402","-1.800,00","Saída"',
+      '"28/09/2026","S A L D O","","","0,00",""',
+    ].join("\n");
+    const texto = decodificarTexto(Buffer.from(csv, "latin1"));
+    expect(detectarPerfilCSV(texto).builtinKey).toBe("bb-corrente-csv");
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", conta: "BB Corrente", builtin: "bb-corrente-csv" };
+    expect(importar(texto, "bb.csv", perfil, new Map(), null).map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
+      { descricao: "Recebimento de Proventos · EMPRESA X", valor: 176.55, categoria: "Outras Entradas" },
+      { descricao: "BB Rende Fácil · Rende Facil", valor: -187.85, categoria: "Transferência entre Contas" },
+      { descricao: "TED · 336 0001 123 GERSON VIEIRA ALB", valor: -1800, categoria: "Transferência entre Contas" },
+    ]);
+  });
+});

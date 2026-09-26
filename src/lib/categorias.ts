@@ -157,7 +157,7 @@ export const CATEGORIAS_NEUTRAS = new Set<string>([
 const NOMES_PROPRIOS = [
   "gerson neto",
   "gerson albuquerque",
-  "gerson vieira albuquerque",
+  "gerson vieira alb", // o BB corta o nome: "GERSON VIEIRA ALB"
   "gerson v albuquerque",
 ];
 
@@ -172,8 +172,9 @@ export function mapearCategoria(
   // Prioridade 0: Memória da IA
   if (memoriaIA?.has(d)) return memoriaIA.get(d)!;
 
-  // Prioridade 1: transferências entre contas próprias
-  if (NOMES_PROPRIOS.some((nome) => d.includes(nome)))
+  // Prioridade 1: transferências entre contas próprias (inclui a aplicação
+  // automática "BB Rende Fácil", que entra e sai da conta sozinha)
+  if (NOMES_PROPRIOS.some((nome) => d.includes(nome)) || d.includes("bb rende f"))
     return "Transferência entre Contas";
 
   // Prioridade 2: pagamento de fatura do cartão (aparece como Entrada no extrato
@@ -309,6 +310,7 @@ export function mapearCategoria(
     d.includes("anuidade diferenciada") ||
     d.includes("iof") ||
     d.includes("juros cheque esp") ||
+    d.includes("por fatura atrasada") ||
     d.includes("encargos") ||
     d.includes("multa contratual") ||
     d.includes("juros de mora")

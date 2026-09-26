@@ -5,7 +5,7 @@ import { importar, PerfilCompleto } from "@/lib/importacao/engine";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
-import { chaveLancamento, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
+import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       return erro400("Não foi possível ler o PDF. Verifique se é um PDF digital (não escaneado).");
     }
   } else {
-    texto = await file.text();
+    texto = decodificarTexto(Buffer.from(await file.arrayBuffer()));
   }
   const fileName = file.name;
 

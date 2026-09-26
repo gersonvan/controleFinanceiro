@@ -3,6 +3,7 @@ import { getSessionUserId } from "@/lib/session";
 import { parseCSV } from "@/lib/importacao/tipos";
 import { z } from "zod";
 import { lerArquivo, validar } from "@/lib/validacao";
+import { decodificarTexto } from "@/lib/importacao/arquivo";
 
 const delimitadorSchema = z.string().min(1).max(2).nullable().default(",");
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!v.ok) return v.resposta;
   const delimitador = v.dados || ",";
 
-  const texto = await file.text();
+  const texto = decodificarTexto(Buffer.from(await file.arrayBuffer()));
   const linhas = parseCSV(texto, delimitador);
   const maxCols = Math.max(0, ...linhas.slice(0, 15).map((l) => l.length));
 

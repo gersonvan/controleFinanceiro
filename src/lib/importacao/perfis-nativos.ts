@@ -54,6 +54,23 @@ const PDF_DEFAULTS = {
 
 const BUILTIN_CSV_PERFIS = [
   {
+    builtin: "bb-corrente-csv",
+    nome: "Banco do Brasil — Corrente (CSV)",
+    conta: "BB Corrente",
+    delimitador: ",",
+    linhasPular: 1,
+    formatoData: "DD/MM/AAAA",
+    modoValor: "unica" as const,
+    colData: 0,
+    colDescricao: 1,
+    colParcela: null,
+    colValor: 4,
+    colEntrada: null,
+    colSaida: null,
+    inverterSinal: false,
+    usaMesReferencia: false,
+  },
+  {
     builtin: "c6-cartao-csv",
     nome: "C6 — Fatura Cartão (CSV)",
     conta: "C6 Crédito",

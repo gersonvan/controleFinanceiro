@@ -20,8 +20,14 @@ export function detectarPerfilCSV(texto: string): { builtinKey: string | null; n
     return { builtinKey: "c6-debito", nome: "C6 Bank — Extrato Débito" };
   }
 
-  // Nubank: fatura do cartão "date,title,amount"; conta "Data,Valor,Identificador,Descrição".
   const campos = normalizado.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+  // Banco do Brasil: "Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"
+  if (campos[0] === "data" && campos.includes("detalhes") && campos.includes("valor")
+      && campos.some((c) => c.startsWith("tipo lan"))) {
+    return { builtinKey: "bb-corrente-csv", nome: "Banco do Brasil — Corrente (CSV)" };
+  }
+
+  // Nubank: fatura do cartão "date,title,amount"; conta "Data,Valor,Identificador,Descrição".
   if (campos.join(",") === "date,title,amount") {
     return { builtinKey: "nubank-credito", nome: "Nubank — Fatura Crédito" };
   }

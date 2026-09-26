@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { lerArquivo } from "@/lib/validacao";
-import { chaveDataValor, chaveLancamento, ehParcela, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
+import { chaveDataValor, chaveLancamento, decodificarTexto, ehParcela, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { detectarBancoOFX, detectarFormato, detectarPerfilCSV, ehOFXCartao } from "@/lib/importacao/detectar";
 import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       } satisfies AnaliseArquivo);
     }
   } else {
-    texto = buffer.toString("utf8");
+    texto = decodificarTexto(buffer);
   }
 
   const formato = pdf ? "pdf" : detectarFormato(texto, file.name);
