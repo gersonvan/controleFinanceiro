@@ -90,7 +90,7 @@ Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + hist
 4. **Regras**: cascata de padrões em `regras()` (nomes próprios, fornecedores locais, e genéricos: pizza/restaurante/churrascaria, drogaria/Drogasil, atacadões, Mercado Livre/Amazon, prefeitura, estacionamentos conhecidos, "POP 13AGO 17H41MIN" = 99 na fatura C6, Pix com mensagem "Emprestimo").
 5. **Gemini** (só se `usarGemini: true`): REST p/ `gemini-2.0-flash-lite`, JSON schema com `categoria_sugerida`, temperature 0, sleep 1100ms entre chamadas (rate limit), erros ignorados silenciosamente. Sem `GEMINI_API_KEY`, a fase é pulada.
 
-**Prestação de Imóvel** (26/09): categoria de Moradia e fixa, para o financiamento do apartamento do Passaré (pago por Pix para a conta da Janaina na Caixa — regra na Memória — e pelo débito `GCI CAIXA - HABITACAO`, coberto por regra). Na Fotografia, a sugestão "Aluguel / financiamento" virou "Aluguel" e "Prestação do imóvel".
+**Prestação de Imóvel** (26/09): categoria de Moradia e fixa, para o financiamento do apartamento do Passaré (pago por Pix para a conta da Janaina na Caixa — regra na Memória — e pelo débito `GCI CAIXA - HABITACAO`, coberto por regra). Na Fotografia, a sugestão "Aluguel / financiamento" virou "Aluguel" e "Prestação do imóvel". **Compra de Imóvel** (26/09): custos da compra do imóvel novo (vistoria da Caixa, ITBI, cartório/registro), em Moradia; regras para ITBI, "registro de imóveis" e "CAIXA ECONOMICA FEDERAL - ENGENHARIA".
 
 ## 7. Catálogo de APIs (todas exigem sessão; 401 caso contrário)
 
