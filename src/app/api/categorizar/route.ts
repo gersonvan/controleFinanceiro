@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { mapearCategoria, chaveMemoria, CATEGORIAS } from "@/lib/categorias";
+import { categorizarComOrigem, CATEGORIAS } from "@/lib/categorias";
+import { carregarMemoriaCategorizacao } from "@/lib/memoria";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
@@ -23,11 +24,8 @@ export async function POST(req: NextRequest) {
   if (!v.ok) return v.resposta;
   const { ids, usarGemini } = v.dados;
 
-  // Carrega Memória da IA do usuário
-  const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
-  const memoriaMap = new Map<string, string>(
-    memoria.map((m): [string, string] => [chaveMemoria(m.descricao), m.categoriaCorreta])
-  );
+  // Memória Local + histórico do que o usuário já categorizou
+  const fonte = await carregarMemoriaCategorizacao(userId);
 
   // Só processa lançamentos sem categoria do usuário
   const where = escopoDoUsuario(userId, ids?.length
@@ -37,38 +35,25 @@ export async function POST(req: NextRequest) {
   const lancamentos = await prisma.lancamento.findMany({ where });
 
   const porMemoria: { id: number; categoria: string }[] = [];
+  const porHistorico: { id: number; categoria: string }[] = [];
   const porRegras:  { id: number; categoria: string }[] = [];
   const semCategoria: number[] = [];
-
-  // --- Fase 1: Memória da IA (match exato) ---
-  const restantes: typeof lancamentos = [];
-
-  for (const l of lancamentos) {
-    const chave = chaveMemoria(l.descricao);
-    if (memoriaMap.has(chave)) {
-      porMemoria.push({ id: l.id, categoria: memoriaMap.get(chave)! });
-    } else {
-      restantes.push(l);
-    }
-  }
-
-  // --- Fase 2: Regras manuais (padrões de texto) ---
   const aindaSemCategoria: typeof lancamentos = [];
 
-  for (const l of restantes) {
-    // passa memoriaMap vazio para garantir que só usa as regras, memória já foi processada
-    const cat = mapearCategoria(l.descricao, "", l.tipo, new Map());
-    if (cat) {
-      porRegras.push({ id: l.id, categoria: cat });
-    } else {
-      aindaSemCategoria.push(l);
-    }
+  // --- Fases 1 e 2: Memória → delivery → histórico → regras ---
+  for (const l of lancamentos) {
+    const { categoria, origem } = categorizarComOrigem(l.descricao, "", l.tipo, fonte);
+    if (origem === "memoria") porMemoria.push({ id: l.id, categoria });
+    else if (origem === "historico") porHistorico.push({ id: l.id, categoria });
+    else if (origem === "regra") porRegras.push({ id: l.id, categoria });
+    else aindaSemCategoria.push(l);
   }
 
-  // --- Batch update: Memória da IA ---
-  if (porMemoria.length > 0) {
+  // --- Batch update: Memória da IA e histórico ---
+  const porAprendizado = [...porMemoria, ...porHistorico];
+  if (porAprendizado.length > 0) {
     await prisma.$transaction(
-      porMemoria.map((item) =>
+      porAprendizado.map((item) =>
         prisma.lancamento.updateMany({
           where: escopoDoUsuario(userId, { id: item.id }),
           data: { categoria: item.categoria },
@@ -122,6 +107,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     total: lancamentos.length,
     porMemoria: porMemoria.length,
+    porHistorico: porHistorico.length,
     porRegras: porRegras.length,
     porGemini: categorizadosGemini,
     semCategoria: semCategoria.length - categorizadosGemini,

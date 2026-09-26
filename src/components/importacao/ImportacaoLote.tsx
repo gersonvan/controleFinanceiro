@@ -61,7 +61,7 @@ export default function ImportacaoLote({
     const json = await r.json().catch(() => null);
     setCategorizando(false);
     if (!r.ok || !json) { setCategorizacao("Não foi possível categorizar agora."); return; }
-    const feitos = json.porMemoria + json.porRegras;
+    const feitos = json.porMemoria + (json.porHistorico ?? 0) + json.porRegras;
     setCategorizacao(
       `${feitos} lançamento${feitos !== 1 ? "s" : ""} categorizado${feitos !== 1 ? "s" : ""}` +
       (json.semCategoria > 0 ? ` · ${json.semCategoria} ainda sem categoria` : "")

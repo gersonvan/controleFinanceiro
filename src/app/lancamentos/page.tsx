@@ -208,6 +208,7 @@ function LancamentosContent() {
     carregar();
     const partes: string[] = [];
     if (json.porMemoria > 0)   partes.push(`🧠 ${json.porMemoria} pela Memória`);
+    if (json.porHistorico > 0) partes.push(`🔁 ${json.porHistorico} pelo seu histórico`);
     if (json.porRegras > 0)    partes.push(`📏 ${json.porRegras} pelas regras`);
     if (json.porGemini > 0)    partes.push(`🤖 ${json.porGemini} pelo Gemini`);
     if (json.semCategoria > 0) partes.push(`⚠️ ${json.semCategoria} sem categoria`);

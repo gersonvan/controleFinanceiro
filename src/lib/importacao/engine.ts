@@ -10,6 +10,7 @@ import {
   parseExtratoNubank,
   parseExtratoBB,
 } from "../parsers";
+import type { FonteMemoria } from "../categorias";
 import { LancamentoImportado, PerfilConfig, parseCSV } from "./tipos";
 import { parseCSVGenerico } from "./csv";
 import { parseOFX } from "./ofx";
@@ -45,7 +46,7 @@ export function importar(
   texto: string,
   fileName: string,
   perfil: PerfilCompleto,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   return importarBruto(texto, fileName, perfil, memoriaIA, mesReferenciaManual).filter((l) => lancamentoValido(l));
@@ -55,7 +56,7 @@ function importarBruto(
   texto: string,
   fileName: string,
   perfil: PerfilCompleto,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   // Banco do Brasil em CSV: parser próprio (junta tipo e detalhe da linha)

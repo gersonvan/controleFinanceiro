@@ -98,7 +98,7 @@ sequenceDiagram
 
 ### Descrição
 
-O usuário solicita a categorização de lançamentos sem categoria. O sistema aplica três fases em sequência: correspondência exata com a Memória da IA, regras de texto manuais e, opcionalmente, classificação por Gemini AI.
+O usuário solicita a categorização de lançamentos sem categoria. O sistema aplica, em sequência: Memória Local (pela chave normalizada), regra de delivery, histórico do próprio usuário (categoria usada em ≥ 75% das vezes para o mesmo estabelecimento), regras de texto e, opcionalmente, Gemini AI. A mesma ordem vale na importação (`categorizarComOrigem`, `src/lib/categorias.ts`; carga em `src/lib/memoria.ts`).
 
 ### Pré-condições
 
@@ -114,7 +114,7 @@ O usuário solicita a categorização de lançamentos sem categoria. O sistema a
 6. Lançamentos categorizados pelas regras recebem atualização — `src/app/api/categorizar/route.ts:69`.
 7. **Fase 3 — Gemini AI** (somente se `usarGemini: true` na requisição): para cada lançamento ainda sem categoria, chama `chamarGemini()` via REST — `src/app/api/categorizar/route.ts:83`.
 8. Gemini retorna JSON com `categoria_sugerida`; se válida, o lançamento é atualizado — `src/app/api/categorizar/route.ts:90`.
-9. A API retorna contadores: `{ total, porMemoria, porRegras, porGemini, semCategoria }` — `src/app/api/categorizar/route.ts:110`.
+9. A API retorna contadores: `{ total, porMemoria, porHistorico, porRegras, porGemini, semCategoria }` — `src/app/api/categorizar/route.ts:110`.
 
 ### Caminho de erro principal
 

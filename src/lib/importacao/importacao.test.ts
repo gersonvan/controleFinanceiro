@@ -336,7 +336,7 @@ describe("extrato da conta Nubank (formato real)", () => {
 describe("Memória Local ignora data, hora e parcela", () => {
   it("uma regra aprendida vale para todas as variações", async () => {
     const { chaveMemoria, mapearCategoria } = await import("../categorias");
-    expect(chaveMemoria("99* POP 25Set 13h37min SP            BRA")).toBe(chaveMemoria("99* POP 01Out 08h05min SP BRA"));
+    expect(chaveMemoria("99* POP 25Set 13h37min SP            BRA")).toBe(chaveMemoria("99* POP 01Out 08h05min SP            BRA"));
     expect(chaveMemoria("Pix - Enviado · 19/09 12:51 FULANO DE TAL")).toBe("pix - enviado · fulano de tal");
     expect(chaveMemoria("Amazon BR VI - NuPay - Parcela 3/4")).toBe(chaveMemoria("Amazon BR VI - NuPay - Parcela 4/4"));
     expect(chaveMemoria("LOJA X (2/10)")).toBe("loja x");
@@ -345,5 +345,79 @@ describe("Memória Local ignora data, hora e parcela", () => {
     const memoria = new Map([[chaveMemoria("Pix - Enviado · 19/09 12:51 FULANO DE TAL"), "Serviços Domésticos"]]);
     expect(mapearCategoria("Pix - Enviado · 03/10 09:12 FULANO DE TAL", "", "Saída", memoria)).toBe("Serviços Domésticos");
     expect(mapearCategoria("99* POP 22Set 13h53min SP BRA", "", "Saída")).toBe("Transporte por App");
+  });
+});
+
+describe("categorização: chave do estabelecimento, histórico e regras", () => {
+  it("o mesmo estabelecimento cai na mesma chave em qualquer banco e formato", async () => {
+    const { chaveMemoria } = await import("../categorias");
+    expect(chaveMemoria("MK ALDEOTA             FORTALEZA     BRA")).toBe("mk aldeota");
+    expect(chaveMemoria("99* POP 25Set 13h37min SP            BRA")).toBe("99* pop");
+    expect(chaveMemoria("Pix no Crédito - CATA ALENTO EDUCACAO")).toBe("cata alento educacao");
+    expect(chaveMemoria("Compra no débito - ATILA LIMA")).toBe("atila lima");
+    expect(chaveMemoria("Amazon BR VI - NuPay - Parcela 1/4")).toBe("amazon br vi");
+    expect(chaveMemoria("GRAN EDUCACAO (6/12)")).toBe(chaveMemoria("GRAN EDUCACAO (1/12)"));
+    // nome com número continua inteiro; linha fora da largura fixa do C6 não é cortada
+    expect(chaveMemoria("Pix enviado para PADARIA 2000")).toBe("pix enviado para padaria 2000");
+    expect(chaveMemoria("LOJA BRA")).toBe("loja bra");
+  });
+
+  it("histórico só vale com 75% das vezes na mesma categoria e nunca sugere o coringa", async () => {
+    const { montarHistorico, chaveHistorico } = await import("../categorias");
+    const h = montarHistorico([
+      { descricao: "PADARIA X", tipo: "Saída", categoria: "Supermercado e Mercearia", n: 3 },
+      { descricao: "PADARIA X", tipo: "Saída", categoria: "Restaurantes e Lanches", n: 1 },
+      { descricao: "LOJA Y (1/2)", tipo: "Saída", categoria: "Compras", n: 1 },
+      { descricao: "LOJA Y (2/2)", tipo: "Saída", categoria: "Presentes", n: 1 },
+      { descricao: "Pix enviado para FULANO", tipo: "Saída", categoria: "Transferência para Terceiros", n: 5 },
+      { descricao: "Pix recebido de FULANO", tipo: "Entrada", categoria: "Transferência Recebida", n: 1 },
+    ]);
+    expect(h.get(chaveHistorico("Saída", "PADARIA X"))).toBe("Supermercado e Mercearia");
+    expect(h.has(chaveHistorico("Saída", "LOJA Y"))).toBe(false);
+    expect(h.has(chaveHistorico("Saída", "Pix enviado para FULANO"))).toBe(false);
+    expect(h.has(chaveHistorico("Saída", "Pix recebido de FULANO"))).toBe(false); // entrada e saída separadas
+  });
+
+  it("ordem: Memória → delivery → histórico → regras", async () => {
+    const { categorizarComOrigem, chaveMemoria, chaveHistorico } = await import("../categorias");
+    const fonte = {
+      memoria: new Map([[chaveMemoria("LOJA Z"), "Presentes"]]),
+      historico: new Map([
+        [chaveHistorico("Saída", "LOJA Z"), "Compras"],
+        [chaveHistorico("Saída", "CHOPP TO GO DELIVERY D"), "Restaurantes e Lanches"],
+        [chaveHistorico("Saída", "DROGASIL 2460"), "Compras"],
+      ]),
+    };
+    expect(categorizarComOrigem("LOJA Z", "", "Saída", fonte)).toEqual({ categoria: "Presentes", origem: "memoria" });
+    expect(categorizarComOrigem("CHOPP TO GO DELIVERY D (2/2)", "", "Saída", fonte)).toEqual({ categoria: "Delivery e iFood", origem: "regra" });
+    expect(categorizarComOrigem("DROGASIL 2460 (2/2)", "", "Saída", fonte)).toEqual({ categoria: "Compras", origem: "historico" });
+    expect(categorizarComOrigem("Drogasil", "", "Saída", fonte)).toEqual({ categoria: "Farmácia", origem: "regra" });
+    expect(categorizarComOrigem("IFOOD CLUB", "", "Saída", fonte).categoria).toBe("Assinaturas Digitais");
+  });
+
+  it("regras para os formatos que escapavam", async () => {
+    const { mapearCategoria } = await import("../categorias");
+    const casos: [string, string][] = [
+      ["POP 13AGO 17H41MIN", "Transporte por App"],
+      ["PARKFOR IMPRENSA       FORTALEZA     BRA", "Automóvel"],
+      ["MP *NONREPARK          FORTALEZA     BRA", "Automóvel"],
+      ["ANCAR NORDESTE ESTACIO FORTALEZA     BRA", "Automóvel"],
+      ["Zé Delivery - NuPay", "Delivery e iFood"],
+      ["Rezza Pizzaria", "Restaurantes e Lanches"],
+      ["Churrascaria Chimarra", "Restaurantes e Lanches"],
+      ["RESTAURANTES DEL PRIMO FORTALEZA     BRA", "Restaurantes e Lanches"],
+      ["DROGASIL 2460          FORTALEZA     BRA", "Farmácia"],
+      ["Sams Club Fortalez", "Supermercado e Mercearia"],
+      ["MERCADOLIVRE*MERCADOL (2/3)", "Compras"],
+      ["Amazon BR VI - NuPay - Parcela 1/4", "Compras"],
+      ["Amazon Prime Canais", "Assinaturas Digitais"],
+      ["Br1*Preffortaleza", "Impostos e Tributos"],
+      ["Recorrência Pix enviada para FULANO DE TAL", "Transferência para Terceiros"],
+      ["Pix enviado para FULANO DE TAL · Emprestimo", "Empréstimo"],
+    ];
+    for (const [d, esperado] of casos) expect(mapearCategoria(d, "", "Saída"), d).toBe(esperado);
+    expect(mapearCategoria("Pix enviado para IFOOD.COM AGENCIA DE RESTAURANTES ONLINE S.A.", "", "Saída")).toBe("Delivery e iFood");
+    for (const d of ["PARKSHOPPING", "Pix enviado para PARK ALIMENTACOES", "ALPEN PARK"])
+      expect(mapearCategoria(d, "", "Saída"), d).not.toBe("Automóvel");
   });
 });

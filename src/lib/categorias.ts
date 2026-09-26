@@ -167,32 +167,110 @@ const MESES_ABREV = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez";
  * Chave da Memória Local: a descrição sem as partes que mudam a cada compra —
  * data e hora ("99* POP 25Set 13h37min", "19/09 12:51"), número de parcela
  * ("Parcela 3/4", "(2/10)"), espaços e maiúsculas. Assim uma regra aprendida
- * para uma corrida do 99 vale para todas.
+ * para uma corrida do 99 vale para todas. Também tira o que muda só por causa
+ * do banco ou do formato, para o mesmo estabelecimento cair na mesma chave:
+ * cidade e país do extrato C6 ("LOJA   FORTALEZA     BRA", largura fixa
+ * 22 + 13) e os "Pix no Crédito - ", "Compra no débito - " e " - NuPay" do Nubank.
  */
 export function chaveMemoria(descricao: string): string {
   return descricao
+    .replace(/^(.{22}) .{13} BRA\s*$/, "$1")                              // C6: estabelecimento + cidade + BRA
     .toLowerCase()
+    .replace(/^(pix no cr[eé]dito|compra no d[eé]bito)\s+-\s+/, "")       // Nubank
+    .replace(/\s+-\s+nupay\b/, " ")
     .replace(new RegExp(`\\b\\d{1,2}(${MESES_ABREV})\\b`, "g"), " ")   // 25set
     .replace(/\b\d{1,2}h\d{2}(min)?\b/g, " ")                              // 13h37min
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, " ")                   // 19/09, 19/09/2026, parcela 3/4
     .replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, " ")                          // 12:51
     .replace(/\(\s*\)|\bparcela\b/g, " ")                                   // "( )" e "parcela" que sobraram
     .replace(/\s+/g, " ")
+    .replace(/[\s·-]+$/, "")                                               // "amazon br vi -" → "amazon br vi"
     .trim();
+}
+
+/** Memória explícita (regras salvas) e histórico do que o usuário já categorizou. */
+export interface MemoriaCategorizacao {
+  memoria: Map<string, string>;
+  /** chave = `${tipo}|${chaveMemoria(descricao)}` — ver montarHistorico */
+  historico?: Map<string, string>;
+}
+/** Só a Memória (Map) ou Memória + histórico. */
+export type FonteMemoria = Map<string, string> | MemoriaCategorizacao;
+export type OrigemCategoria = "memoria" | "historico" | "regra";
+
+// O coringa das regras ("Pix enviado para …") não é uma escolha do usuário:
+// conta no total do histórico, mas nunca é sugerido por ele.
+const FORA_DO_HISTORICO = new Set(["Transferência para Terceiros"]);
+const PARTICIPACAO_MINIMA_HISTORICO = 0.75;
+
+export const chaveHistorico = (tipo: string, descricao: string) => `${tipo}|${chaveMemoria(descricao)}`;
+
+/**
+ * Histórico → categoria por estabelecimento: vale quando a mesma chave recebeu
+ * a mesma categoria em pelo menos 75% das vezes (entrada e saída separadas).
+ */
+export function montarHistorico(
+  linhas: { descricao: string; tipo: string; categoria: string | null; n?: number }[],
+): Map<string, string> {
+  const porChave = new Map<string, Map<string, number>>();
+  for (const l of linhas) {
+    if (!l.categoria) continue;
+    const chave = chaveHistorico(l.tipo, l.descricao);
+    if (chave.length - l.tipo.length - 1 < 4) continue; // chave curta demais para dizer algo
+    const cats = porChave.get(chave) ?? new Map<string, number>();
+    cats.set(l.categoria, (cats.get(l.categoria) ?? 0) + (l.n ?? 1));
+    porChave.set(chave, cats);
+  }
+  const historico = new Map<string, string>();
+  for (const [chave, cats] of porChave) {
+    const total = [...cats.values()].reduce((a, b) => a + b, 0);
+    const [categoria, n] = [...cats.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!FORA_DO_HISTORICO.has(categoria) && n / total >= PARTICIPACAO_MINIMA_HISTORICO) historico.set(chave, categoria);
+  }
+  return historico;
+}
+
+/** Delivery vence o histórico: é separado de Restaurantes por escolha do usuário. */
+function ehDelivery(d: string): boolean {
+  if (d.includes("ifood club")) return false; // assinatura
+  return d.includes("delivery") || d.includes("ifd*") || d.includes("rappi") || d.includes("ifood");
+}
+
+/**
+ * Ordem: Memória Local → delivery → histórico → regras. Devolve também de onde
+ * veio a categoria, para a tela de categorização contar cada fonte.
+ */
+export function categorizarComOrigem(
+  descricao: string,
+  categoriaOriginal: string,
+  tipo: string,
+  fonte?: FonteMemoria,
+): { categoria: string; origem: OrigemCategoria | null } {
+  const { memoria, historico } = fonte instanceof Map ? { memoria: fonte, historico: undefined } : fonte ?? {};
+  const chave = chaveMemoria(descricao);
+  if (memoria?.has(chave)) return { categoria: memoria.get(chave)!, origem: "memoria" };
+
+  const d = descricao.toLowerCase();
+  if (tipo !== "Entrada" && ehDelivery(d)) return { categoria: "Delivery e iFood", origem: "regra" };
+
+  const h = historico?.get(chaveHistorico(tipo, descricao));
+  if (h) return { categoria: h, origem: "historico" };
+
+  const categoria = regras(d, categoriaOriginal, tipo);
+  return { categoria, origem: categoria ? "regra" : null };
 }
 
 export function mapearCategoria(
   descricao: string,
   categoriaOriginal: string,
   tipo: string,
-  memoriaIA?: Map<string, string>
+  memoriaIA?: FonteMemoria
 ): string {
-  const d = descricao.toLowerCase();
+  return categorizarComOrigem(descricao, categoriaOriginal, tipo, memoriaIA).categoria;
+}
 
-  // Prioridade 0: Memória da IA
-  const chave = chaveMemoria(descricao);
-  if (memoriaIA?.has(chave)) return memoriaIA.get(chave)!;
-
+/** Regras fixas por padrão de texto (d = descrição em minúsculas). */
+function regras(d: string, categoriaOriginal: string, tipo: string): string {
   // Prioridade 1: transferências entre contas próprias (inclui a aplicação
   // automática "BB Rende Fácil", que entra e sai da conta sozinha)
   if (NOMES_PROPRIOS.some((nome) => d.includes(nome)) || d.includes("bb rende f"))
@@ -237,6 +315,9 @@ export function mapearCategoria(
     d.includes("netflix") ||
     d.includes("spotify") ||
     d.includes("disney") ||
+    d.includes("amazon prime") ||
+    d.includes("amazonprime") ||
+    d.includes("prime video") ||
     (d.includes("microsoft") && !d.includes("banco")) ||
     d.includes("ppro *")
   )
@@ -250,7 +331,18 @@ export function mapearCategoria(
   if (d.includes("deliane alves do nascimento")) return "Serviços Domésticos";
 
   // Alimentação
-  if (d.includes("superm") || d.includes("super sao luiz"))
+  if (
+    d.includes("superm") ||
+    d.includes("super sao luiz") ||
+    d.includes("atacad") ||
+    d.includes("assai") ||
+    d.includes("sams club") ||
+    d.includes("carrefour") ||
+    d.includes("pao de acucar") ||
+    d.includes("mercadinho") ||
+    d.includes("mercearia") ||
+    d.includes("hortifruti")
+  )
     return "Supermercado e Mercearia";
   if (
     d.includes("kina do feijao verde") ||
@@ -258,22 +350,20 @@ export function mapearCategoria(
     d.includes("art pao") ||
     d.includes("natura suco") ||
     d.includes("star midia e cafe") ||
-    d.includes("milky moo")
+    d.includes("milky moo") ||
+    /(restaurante|pizza|churrascaria|hamburg|burger|sushi|lanchonete|pastelaria|sorveteria|cafeteria)/.test(d)
   )
     return "Restaurantes e Lanches";
-  if (
-    d.includes("ifd*") ||
-    d.includes("rappi") ||
-    d.includes("ifood com agencia de restaurantes online s a")
-  )
-    return "Delivery e iFood";
 
   // Transporte
+  // 99 na fatura do C6 vem sem o "99*": "POP 13AGO 17H41MIN"
+  if (/^pop \d{1,2}[a-z]{3} \d{1,2}h\d{2}min/.test(d)) return "Transporte por App";
   if (d.includes("uber") || d.includes("99 ride") || d.startsWith("99* pop") || d.startsWith("99*pop") || d.includes("99app") || d.includes("99 tecnologia"))
     return "Transporte por App";
   if (
     d.includes("c6tag") ||
-    d.includes("estacionamento") ||
+    d.includes("estacio") || // o nome vem cortado: "ANCAR NORDESTE ESTACIO"
+    /(parkfor|repark|parking|estapar|zona azul)/.test(d) || // PARKFOR, MP *NONREPARK
     d.includes("relacionados a automotivo")
   )
     return "Automóvel";
@@ -284,7 +374,7 @@ export function mapearCategoria(
   if (d.includes("narjara") || d.includes("correia e duete servicos medicos ltda"))
     return "Consultas e Terapias";
   if (d.includes("stark") || d.includes("wellhub")) return "Academia e Bem-estar";
-  if (d.includes("rd saude") || d.includes("raia drogasil s a")) return "Farmácia";
+  if (/(rd saude|drogasil|droga ?raia|drogaria|farmacia|farmácia|pague menos|extrafarma|panvel)/.test(d)) return "Farmácia";
 
   // Educação
   if (d.includes("n b educacao infantil") || d.includes("ungposservicos"))
@@ -295,7 +385,17 @@ export function mapearCategoria(
     return "Pets";
   if (d.includes("barbearia") || d.includes("salao de beleza") || d.includes("salão de beleza"))
     return "Cuidados Pessoais";
-  if (d.includes("temu") || d.includes("vestuário")) return "Compras";
+  if (
+    d.includes("temu") ||
+    d.includes("vestuário") ||
+    d.includes("mercadolivre") ||
+    d.includes("amazon") ||
+    d.includes("shopee") ||
+    d.includes("shein") ||
+    d.includes("aliexpress") ||
+    d.includes("magalu")
+  )
+    return "Compras";
   if (d.includes("entretenimento")) return "Lazer e Entretenimento";
 
   // Empresa (antes de Impostos: "simples nacional" não é tributo pessoal)
@@ -314,7 +414,8 @@ export function mapearCategoria(
     return "Empresa (PJ)";
 
   // Impostos
-  if (d.includes("ipva") || d.includes("iptu") || d.includes("darf") || d.includes("sefaz"))
+  if (d.includes("ipva") || d.includes("iptu") || d.includes("darf") || d.includes("sefaz") ||
+      d.includes("prefeitura") || d.includes("*pref")) // "BR1*PREFFORTALEZA"
     return "Impostos e Tributos";
 
   // Financeiro
@@ -340,9 +441,12 @@ export function mapearCategoria(
   )
     return "Taxas e Anuidades";
   if (d.includes("seguro")) return "Seguros";
+  // mensagem do Pix diz para que foi: "Pix enviado para FULANO · Emprestimo"
+  if (d.includes("pix") && /· .*\bempr[eé]stimo\b/.test(d)) return "Empréstimo";
   if (
     d.includes("agência: 1956") ||
     d.includes("pix enviado para") ||
+    d.includes("pix enviada para") || // "Recorrência Pix enviada para …"
     d.includes("transferência enviada")
   )
     return "Transferência para Terceiros";

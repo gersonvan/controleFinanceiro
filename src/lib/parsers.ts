@@ -1,4 +1,4 @@
-import { mapearCategoria } from "./categorias";
+import { mapearCategoria, type FonteMemoria } from "./categorias";
 import { parseValor } from "./importacao/tipos";
 
 export interface LancamentoImportado {
@@ -25,7 +25,7 @@ function parseDateBR(str: string): Date | null {
 export function parseFaturaC6(
   rows: string[][],
   fileName: string,
-  memoriaIA: Map<string, string>
+  memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
   const ano = fileName.substring(7, 11);
@@ -94,7 +94,7 @@ export function descricaoExtratoC6(titulo: string, detalhe: string): string {
 
 export function parseExtratoC6(
   rows: string[][],
-  memoriaIA: Map<string, string>
+  memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
 
@@ -146,7 +146,7 @@ export function parseExtratoC6(
 export function parseFaturaNubank(
   rows: string[][],
   fileName: string,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null = null
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
@@ -202,7 +202,7 @@ export function parseFaturaNubank(
 
 export function parseExtratoNubank(
   rows: string[][],
-  memoriaIA: Map<string, string>
+  memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
 
@@ -247,7 +247,7 @@ export function parseExtratoNubank(
 export function parseExtratoBB(
   rows: string[][],
   conta: string,
-  memoriaIA: Map<string, string>
+  memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
 

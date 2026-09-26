@@ -1,7 +1,7 @@
 // Parser OFX (Open Financial Exchange) — formato bancário padrão.
 // Vantagem sobre CSV: estruturado, sem necessidade de mapeamento de colunas.
 // Suporta tanto OFX SGML (sem tags de fechamento) quanto OFX/XML.
-import { mapearCategoria } from "../categorias";
+import { mapearCategoria, type FonteMemoria } from "../categorias";
 import { LancamentoImportado, PerfilConfig } from "./tipos";
 
 // Extrai o valor de uma tag, tolerando SGML (<TAG>valor) e XML (<TAG>valor</TAG>).
@@ -37,7 +37,7 @@ function extrairBlocos(texto: string): string[] {
 export function parseOFX(
   texto: string,
   perfil: PerfilConfig,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];

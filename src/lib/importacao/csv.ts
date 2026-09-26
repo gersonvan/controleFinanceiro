@@ -1,5 +1,5 @@
 // Parser CSV genérico: lê qualquer CSV com base no mapeamento de colunas do Perfil.
-import { mapearCategoria } from "../categorias";
+import { mapearCategoria, type FonteMemoria } from "../categorias";
 import {
   LancamentoImportado,
   PerfilConfig,
@@ -11,7 +11,7 @@ import {
 export function parseCSVGenerico(
   texto: string,
   perfil: PerfilConfig,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   const linhas = parseCSV(texto, perfil.delimitador);

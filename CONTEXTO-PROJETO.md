@@ -77,11 +77,15 @@ OR: [
 
 Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/perfis` (`ensureBuiltinPerfis`): 10 OFX de conta corrente, 5 PDF de fatura de cartão (Nubank, C6, Itaú, Bradesco, Inter) e o CSV de fatura C6. O CSV C6 predefine as colunas, inverte o sinal, exige mês de referência e incorpora a parcela à descrição (`Compra (N/M)`). Perfis builtin não podem ser excluídos (DELETE filtra `builtin: null`); podem ser ativados/desativados (campo `ativo`, PATCH).
 
-## 6. Categorização (3 fases — POST /api/categorizar)
+## 6. Categorização (POST /api/categorizar e também na importação)
 
-1. **Memória da IA**: match exato (lowercase) da descrição contra tabela MemoriaIA.
-2. **Regras manuais**: `mapearCategoria()` em `src/lib/categorias.ts` — cascata de `includes()` com padrões pessoais do Gerson (nomes próprios, fornecedores locais de Fortaleza-CE, etc.).
-3. **Gemini** (só se `usarGemini: true`): REST p/ `gemini-2.0-flash-lite`, JSON schema com `categoria_sugerida`, temperature 0, sleep 1100ms entre chamadas (rate limit), erros ignorados silenciosamente. Sem `GEMINI_API_KEY`, a fase é pulada.
+Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + histórico carregados por `carregarMemoriaCategorizacao()` (`src/lib/memoria.ts`):
+
+1. **Memória Local**: regras salvas (MemoriaIA), comparadas pela `chaveMemoria()` — sem data/hora/parcela, sem cidade+BRA do extrato C6 (largura fixa 22+13), sem "Pix no Crédito - ", "Compra no débito - " e " - NuPay" do Nubank. Assim `DROGASIL 2460 FORTALEZA BRA`, `DROGASIL 2460 (2/2)` e parcelas diferentes caem na mesma chave.
+2. **Delivery** (qualquer "delivery", "ifood", "ifd*", "rappi"; exceto iFood Club): vence o histórico por decisão do Gerson (26/09) — delivery separado de Restaurantes.
+3. **Histórico** (26/09): o que o próprio usuário já categorizou, por `tipo|chave`; vale quando a mesma chave teve a mesma categoria em ≥ 75% das vezes. O coringa "Transferência para Terceiros" nunca é sugerido pelo histórico. Antes disso só a Memória (65 regras) era consultada e os 3 mil lançamentos categorizados eram ignorados.
+4. **Regras**: cascata de padrões em `regras()` (nomes próprios, fornecedores locais, e genéricos: pizza/restaurante/churrascaria, drogaria/Drogasil, atacadões, Mercado Livre/Amazon, prefeitura, estacionamentos conhecidos, "POP 13AGO 17H41MIN" = 99 na fatura C6, Pix com mensagem "Emprestimo").
+5. **Gemini** (só se `usarGemini: true`): REST p/ `gemini-2.0-flash-lite`, JSON schema com `categoria_sugerida`, temperature 0, sleep 1100ms entre chamadas (rate limit), erros ignorados silenciosamente. Sem `GEMINI_API_KEY`, a fase é pulada.
 
 ## 7. Catálogo de APIs (todas exigem sessão; 401 caso contrário)
 

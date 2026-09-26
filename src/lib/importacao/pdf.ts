@@ -2,7 +2,7 @@
 // Padrões baseados no projeto banksheet (tio-ze-rj/banksheet, MIT License).
 // Requer PDFs digitais com texto embutido; PDFs escaneados (imagem) não funcionam.
 
-import { mapearCategoria } from "../categorias";
+import { mapearCategoria, type FonteMemoria } from "../categorias";
 import { LancamentoImportado, PerfilConfig } from "./tipos";
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; 
 export function parsePDF(
   texto: string,
   perfil: PerfilPDF,
-  memoriaIA: Map<string, string>,
+  memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   switch (perfil.builtin) {
@@ -74,7 +74,7 @@ export function parsePDF(
 
 function parseNubank(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const ano = extrairAno(texto);
@@ -114,7 +114,7 @@ function parseNubank(
 
 function parseC6(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
@@ -155,7 +155,7 @@ function parseC6(
 
 function parseItau(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
@@ -198,7 +198,7 @@ function parseItau(
 
 function parseBradesco(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
@@ -241,7 +241,7 @@ function parseBradesco(
 
 function parseInter(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
@@ -290,7 +290,7 @@ function parseInter(
 
 function parseGenerico(
   texto: string, perfil: PerfilPDF,
-  memoriaIA: Map<string, string>, manual: Date | null
+  memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
