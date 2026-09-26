@@ -39,8 +39,12 @@ export type BancoPDF =
 
 export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; bancoNome: string } {
   const t = texto.toLowerCase();
-  if (t.includes("banco sofisa") || t.includes("sofisadireto"))
+  if (t.includes("banco sofisa") || t.includes("sofisadireto") || t.includes("sofisa direto")) {
+    // comprovante de aplicação/resgate repete o que já está no extrato — não importar
+    if (t.includes("comprovante de") || !t.includes("extrato do per"))
+      return { builtinKey: null, bancoNome: "Sofisa — comprovante (importe o extrato da conta)" };
     return { builtinKey: "sofisa-extrato-pdf", bancoNome: "Sofisa — Extrato da Conta" };
+  }
   if (t.includes("nu pagamentos") || (t.includes("nubank") && t.includes("fatura")))
     return { builtinKey: "nubank-cartao-pdf", bancoNome: "Nubank — Fatura do Cartão" };
   if (t.includes("c6 bank") || t.includes("banco c6") || t.includes("31.872.495"))

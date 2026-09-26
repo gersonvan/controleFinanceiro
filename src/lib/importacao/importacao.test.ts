@@ -467,6 +467,9 @@ describe("extrato do Sofisa (PDF)", () => {
   it("detecta o banco e lê entradas e saídas, sem as linhas de saldo", async () => {
     const { detectarBancoPDF, parseSofisa } = await import("./pdf");
     expect(detectarBancoPDF(texto).builtinKey).toBe("sofisa-extrato-pdf");
+    // comprovante de aplicação/resgate não é extrato: não importa (duplicaria)
+    const comprovante = "Sofisa Direto\nNovo Investimento\n15/07/2025 09:08 15/07/2028 105.00% do CDI CDB Direto DI Liquidez Diária R$ 10.000,00\nComprovante de Investimento";
+    expect(detectarBancoPDF(comprovante).builtinKey).toBeNull();
     const perfil = { conta: "Sofisa", builtin: "sofisa-extrato-pdf" } as Parameters<typeof parseSofisa>[1];
     const ls = parseSofisa(texto, perfil, new Map());
     expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.valor, l.categoria])).toEqual([
