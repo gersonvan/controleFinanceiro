@@ -43,6 +43,7 @@ export const CATEGORIAS = [
   // Financeiro e Transferências
   "Pagamento de Cartão de Crédito",
   "Investimentos (Aportes)",
+  "Pagamento de Empréstimos", // quitar dívida sua: empréstimo na previdência, consignado, financiamento, crédito pessoal
   "Compra e Venda de Bens", // imóvel, carro…: patrimônio mudando de forma, com os custos da operação (comissão, ITBI, cartório)
   "Taxas e Anuidades",
   "Impostos e Tributos",
@@ -67,7 +68,7 @@ export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
   { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
   { grupo: "Educação", categorias: ["Mensalidades e Cursos"] },
   { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Pets"] },
-  { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Compra e Venda de Bens", "Empréstimo"] },
+  { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Compra e Venda de Bens", "Empréstimo", "Pagamento de Empréstimos"] },
   { grupo: "Transferências", categorias: ["Transferência para Terceiros", "Transferência entre Contas", "Pagamento de Cartão de Crédito", "Gastos de Terceiros"] },
   { grupo: "Empresa", categorias: ["Empresa (PJ)"] },
 ];
@@ -116,6 +117,7 @@ export const CATEGORIAS_SAIDA = [
   "Lazer e Entretenimento",
   "Mensalidades e Cursos",
   "Pagamento de Cartão de Crédito",
+  "Pagamento de Empréstimos",
   "Pets",
   "Plano de Saúde",
   "Prestação de Imóvel",
@@ -441,6 +443,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     d.includes("pgto fat cartao c6")
   )
     return "Pagamento de Cartão de Crédito";
+  // quitação de dívida própria (≠ "Empréstimo", que é dinheiro emprestado a alguém)
+  if (/(soc\.? ?cred\.? ?financ|consignad|empr[eé]stimo pessoal|cr[eé]dito pessoal)/.test(d)) return "Pagamento de Empréstimos";
   if (d.includes("compra de ações") || d.includes("aplicação rdb") || d.includes("aplicacao rdb"))
     return "Investimentos (Aportes)";
   if (

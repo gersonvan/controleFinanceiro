@@ -417,6 +417,7 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
       ["Pix enviado para TIM S A", "Contas de Consumo"],
       ["GCI CAIXA  - HABITACAO", "Prestação de Imóvel"],
       ["CAIXA ECONOMICA FEDERAL - ENGENHARIA", "Compra e Venda de Bens"],
+      ["SANTANDER SOC. CRED. FINANC. E", "Pagamento de Empréstimos"],
       ["PREFEITURA - ITBI 2026", "Compra e Venda de Bens"],
       ["Pix enviado para RESERVE IMOBILIARIA · comissão Apartamento Passaré imobiliária", "Compra e Venda de Bens"],
       ["TIM SA", "Contas de Consumo"],
