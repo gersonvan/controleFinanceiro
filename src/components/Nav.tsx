@@ -13,6 +13,7 @@ const links = [
   { href: "/matriz", label: "Matriz", icon: "🗂️" },
   { href: "/importar", label: "Importar Lançamentos", icon: "📂" },
   { href: "/previsao", label: "Previsão", icon: "🔮" },
+  { href: "/reserva", label: "Reserva", icon: "💰" },
   { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
   { href: "/memoria-ia", label: "Memória Local", icon: "🧠" },
   { href: "/configuracoes", label: "Configurações", icon: "⚙️" },

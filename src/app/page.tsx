@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   // null = ainda não sabemos; false = fotografia pendente; true = concluída
   const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
+  const [reserva, setReserva] = useState<{ disponivel: number; bloqueado: number; total: number } | null>(null);
   const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number }; totalLancamentos: number } | null>(null);
 
   useEffect(() => {
@@ -47,6 +48,15 @@ export default function Dashboard() {
       .catch(() => {});
     return () => { ativo = false; };
   }, [fotografiaFeita]);
+
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/reservas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (ativo && json?.reservas?.length) setReserva(json.totais); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -129,6 +139,20 @@ export default function Dashboard() {
           </Link>
         );
       })()}
+
+      {reserva && (
+        <Link href="/reserva" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors">
+          <div>
+            <div className="text-sm text-slate-500">💰 Reserva</div>
+            <div className="text-slate-800 mt-0.5">
+              <span className="font-semibold text-emerald-700">{fmt(reserva.disponivel)}</span> disponível
+              {reserva.bloqueado > 0 && <> · <span className="font-semibold text-slate-600">{fmt(reserva.bloqueado)}</span> bloqueado</>}
+              {" · "}total {fmt(reserva.total)}
+            </div>
+          </div>
+          <span className="text-sm text-blue-600">Ver reserva →</span>
+        </Link>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>

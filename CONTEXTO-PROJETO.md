@@ -41,6 +41,7 @@
 - **PlanejamentoItem** — a *Fotografia do mês*: grupo ("entrada"|"fixo"|"variavel"|"sazonal"|"parcela"), descricao, categoria (sempre de `CATEGORIAS`), valor (positivo), periodicidade ("mensal"|"semanal"|"anual"), parcelaAtual/parcelaTotal (só parcelas), ordem. Mensalização em `src/lib/planejamento.ts` (`valorMensal`: semanal × 52/12, anual ÷ 12, parcela pesa até a última).
 - **Conta** — tipo de cada conta do usuário: nome (= `Lancamento.conta`), tipo ("corrente"|"cartao"); `@@unique([userId, nome])`. Criada sob demanda por `garantirContas` (`src/lib/contas.ts`) a partir das contas usadas nos lançamentos, com tipo sugerido pelo nome ("Crédito"/"Cartão" → cartão). Migração `20260926150000_conta`.
 - **Reembolso** (26/09) — "Dividir": vínculo entre um Pix recebido (entradaId, categoria "Reembolso") e os gastos que ele devolve (saidaId), com a parte do Pix em cada um (`valor`); cascade nos dois lados. `Lancamento.valorReembolsado` guarda a soma por gasto (e, no Pix, quanto ele abateu) (recalculado em `src/lib/reembolso-dados.ts` a cada mudança e ao excluir o Pix). Migração `20260926200000_reembolso`.
+- **Reserva** (27/09) — onde está o dinheiro guardado: nome, tipo (investimento/previdência/conta), bloqueada, saldoInformado + dataSaldo, conta e filtroDescricao opcionais. Saldo estimado = informado + aplicações − resgates (lançamentos de Investimentos (Aportes) da conta, depois da data). `src/lib/reserva.ts`, `/api/reservas`, página `/reserva`, cartão no dashboard. Migração `20260927000000_reserva`.
 - **MemoriaIA** — regras descrição→categoria por usuário; `@@unique([descricao, userId])`.
 - **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool). `@@unique([userId, builtin])` garante um perfil nativo por usuário (migração `20260920120000_perfil_builtin_unique`).
 
@@ -120,6 +121,7 @@ Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + hist
 | `/api/reembolsos/candidatos` | GET (entradaId, busca) | `{gastos, sugerido}`: gastos para vincular (perto da data do Pix, ou pela descrição) e o que o padrão aprendido sugere |
 | `/api/reembolsos/parecidos` | GET (entradaId) | Outros Pix do mesmo pagador ainda sem divisão e o gasto sugerido para cada um (não grava) |
 | `/api/reembolsos/aplicar` | POST `{entradaIds}` | Divide pelos padrões os Pix confirmados; os pares são recalculados no servidor |
+| `/api/reservas` | GET, POST, PATCH, DELETE | Reservas com saldo estimado e movimentos desde o saldo informado; totais disponível/bloqueado |
 | `/api/planejamento/historico` | GET | Por categoria, nos 12 meses fechados: grupo provável, mediana/média dos 6 últimos, total anual e maiores estabelecimentos — sugestões da Fotografia |
 | `/api/planejamento/realizado` | GET (ano, mes) | Planejado (mensalizado para o mês) × realizado por categoria, entradas, saídas, margem e gastos não planejados |
 

@@ -147,3 +147,22 @@ model Reembolso {
   @@unique([entradaId, saidaId])
   @@index([userId, saidaId])
 }
+
+/// Onde o dinheiro guardado está (CDB, RDB, previdência…): saldo informado numa
+/// data; depois dela, aplicações e resgates dos extratos atualizam a estimativa.
+model Reserva {
+  id              Int      @id @default(autoincrement())
+  userId          String
+  nome            String
+  tipo            String   @default("investimento") // "investimento" | "previdencia" | "conta"
+  bloqueada       Boolean  @default(false)           // ex.: previdência até a portabilidade
+  saldoInformado  Float
+  dataSaldo       DateTime
+  conta           String?  // conta dos lançamentos que movimentam esta reserva (ex.: "Sofisa")
+  filtroDescricao String?  // opcional: só lançamentos cuja descrição contém isto (ex.: "RDB")
+  observacao      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
