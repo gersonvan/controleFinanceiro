@@ -145,12 +145,15 @@ export function parseExtratoC6(
 export function parseFaturaNubank(
   rows: string[][],
   fileName: string,
-  memoriaIA: Map<string, string>
+  memoriaIA: Map<string, string>,
+  mesReferenciaManual: Date | null = null
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
-  const anoArquivo = fileName.substring(7, 11);
-  const mesArquivo = fileName.substring(12, 14);
-  const mesReferencia = new Date(parseInt(anoArquivo), parseInt(mesArquivo) - 1, 1);
+  // Mês informado na importação manda; o nome "Nubank_AAAA-MM-DD.csv" é o plano B.
+  const doNome = fileName.match(/(20\d{2})[-_](\d{2})/);
+  const mesReferencia = mesReferenciaManual
+    ?? (doNome ? new Date(parseInt(doNome[1]), parseInt(doNome[2]) - 1, 1) : null);
+  if (!mesReferencia) throw new Error("Informe o mês de referência da fatura");
 
   for (const row of rows) {
     if (row.length < 3) continue;

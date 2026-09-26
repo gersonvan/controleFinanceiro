@@ -20,6 +20,15 @@ export function detectarPerfilCSV(texto: string): { builtinKey: string | null; n
     return { builtinKey: "c6-debito", nome: "C6 Bank — Extrato Débito" };
   }
 
+  // Nubank: fatura do cartão "date,title,amount"; conta "Data,Valor,Identificador,Descrição".
+  const campos = normalizado.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+  if (campos.join(",") === "date,title,amount") {
+    return { builtinKey: "nubank-credito", nome: "Nubank — Fatura Crédito" };
+  }
+  if (campos[0] === "data" && campos[1] === "valor" && campos[2] === "identificador" && campos[3] === "descricao") {
+    return { builtinKey: "nubank-debito", nome: "Nubank — Extrato Débito" };
+  }
+
   if (
     normalizado.includes("final do cartao") &&
     normalizado.includes("parcela") &&

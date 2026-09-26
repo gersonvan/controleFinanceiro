@@ -256,3 +256,32 @@ describe("Pix para as próprias contas", () => {
     }
   });
 });
+
+describe("CSV do Nubank", () => {
+  const fatura = "date,title,amount\n2026-09-02,Streaming XYZ,22.45\n2026-08-28,Pagamento recebido,-208.26\n2026-08-20,Loja Y,-15.00";
+  const conta = "Data,Valor,Identificador,Descrição\n03/09/2026,-22.45,abc-1,Pagamento de fatura\n06/09/2026,68000.00,abc-2,Transferência recebida pelo Pix - FULANO";
+
+  it("reconhece fatura e conta pelo cabeçalho", () => {
+    expect(detectarPerfilCSV(fatura).builtinKey).toBe("nubank-credito");
+    expect(detectarPerfilCSV(conta).builtinKey).toBe("nubank-debito");
+  });
+
+  it("fatura usa o mês informado, inverte o sinal e ignora o pagamento", () => {
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", usaMesReferencia: true, builtin: "nubank-credito" };
+    const itens = importar(fatura, "qualquer-nome.csv", perfil, new Map(), new Date(2026, 8, 1));
+    expect(itens.map(({ descricao, valor }) => ({ descricao, valor }))).toEqual([
+      { descricao: "Streaming XYZ", valor: -22.45 },
+      { descricao: "Loja Y", valor: 15 },
+    ]);
+    expect(itens.every((l) => l.mesReferencia.getMonth() === 8 && l.conta === "Nubank Crédito")).toBe(true);
+  });
+
+  it("conta lê data BR e valor com sinal", () => {
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", builtin: "nubank-debito" };
+    const itens = importar(conta, "NU_x.csv", perfil, new Map(), null);
+    expect(itens.map(({ descricao, valor, conta }) => ({ descricao, valor, conta }))).toEqual([
+      { descricao: "Pagamento de fatura", valor: -22.45, conta: "Nubank Débito" },
+      { descricao: "Transferência recebida pelo Pix - FULANO", valor: 68000, conta: "Nubank Débito" },
+    ]);
+  });
+});

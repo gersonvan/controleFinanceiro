@@ -71,7 +71,7 @@ function importarBruto(
     switch (perfil.builtin) {
       case "c6-credito":     return parseFaturaC6(dataRows, fileName, memoriaIA);
       case "c6-debito":      return parseExtratoC6(dataRows, memoriaIA);
-      case "nubank-credito": return parseFaturaNubank(dataRows, fileName, memoriaIA);
+      case "nubank-credito": return parseFaturaNubank(dataRows, fileName, memoriaIA, mesReferenciaManual);
       case "nubank-debito":  return parseExtratoNubank(dataRows, memoriaIA);
     }
   }
