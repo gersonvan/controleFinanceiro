@@ -16,7 +16,11 @@ export interface GrupoDescricao {
 const filtroSchema = z.object({
   // "__sem__" = sem categoria; qualquer outro valor filtra pela categoria atual
   categoria: z.string().trim().min(1).max(100),
+  // com descricao: devolve os lançamentos desse grupo ("Ver os N")
+  descricao: z.string().min(1).max(500).optional(),
 });
+
+export interface ItemGrupo { id: number; data: string; valor: number; conta: string }
 
 // Lançamentos agrupados pela descrição exata — base da tela "Revisar categorias":
 // o mesmo Pix/fornecedor recorrente é categorizado de uma vez só.
@@ -26,7 +30,17 @@ export async function GET(req: NextRequest) {
 
   const v = validar(filtroSchema, lerQuery(req));
   if (!v.ok) return v.resposta;
-  const { categoria } = v.dados;
+  const { categoria, descricao } = v.dados;
+
+  if (descricao) {
+    const itens = await prisma.lancamento.findMany({
+      where: escopoDoUsuario(userId, { categoria: categoria === "__sem__" ? null : categoria, descricao }),
+      select: { id: true, data: true, valor: true, conta: true },
+      orderBy: { data: "desc" },
+      take: 500,
+    });
+    return NextResponse.json({ itens: itens.map((i) => ({ ...i, data: i.data.toISOString().slice(0, 10) })) });
+  }
 
   const lancamentos = await prisma.lancamento.findMany({
     where: escopoDoUsuario(userId, { categoria: categoria === "__sem__" ? null : categoria }),

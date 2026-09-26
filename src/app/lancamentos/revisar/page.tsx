@@ -6,7 +6,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import CategoriaSelect from "@/components/CategoriaSelect";
-import type { GrupoDescricao } from "@/app/api/lancamentos/agrupados/route";
+import type { GrupoDescricao, ItemGrupo } from "@/app/api/lancamentos/agrupados/route";
+import { CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
+import { nomeContraparte } from "@/lib/reembolso-padroes";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (iso: string) => { const [a, m, d] = iso.split("-"); return `${d}/${m}/${a}`; };
@@ -32,13 +34,21 @@ export default function RevisarPage() {
     return () => { ativo = false; };
   }, [aba]);
 
-  const aplicado = (g: GrupoDescricao, categoria: string, lembrar: boolean) => {
-    setDados((prev) => prev && {
-      ...prev,
-      totalLancamentos: prev.totalLancamentos - g.quantidade,
-      grupos: prev.grupos.filter((x) => x.descricao !== g.descricao),
+  // aplicados = null → o grupo inteiro; senão, só esses (o grupo continua com o resto)
+  const aplicado = (g: GrupoDescricao, categoria: string, lembrar: boolean, aplicados: ItemGrupo[] | null) => {
+    const n = aplicados ? aplicados.length : g.quantidade;
+    setDados((prev) => {
+      if (!prev) return prev;
+      const grupos = aplicados && n < g.quantidade
+        ? prev.grupos.map((x) => x.descricao !== g.descricao ? x : {
+            ...x,
+            quantidade: x.quantidade - n,
+            total: Math.round((x.total - aplicados.reduce((a, i) => a + i.valor, 0)) * 100) / 100,
+          })
+        : prev.grupos.filter((x) => x.descricao !== g.descricao);
+      return { ...prev, totalLancamentos: prev.totalLancamentos - n, grupos };
     });
-    setAviso(`✅ ${g.quantidade} lançamento${g.quantidade !== 1 ? "s" : ""} → ${categoria}${lembrar ? " · lembrado para as próximas importações" : ""}`);
+    setAviso(`✅ ${n} lançamento${n !== 1 ? "s" : ""} → ${categoria}${lembrar ? " · lembrado para as próximas importações" : ""}`);
   };
 
   return (
@@ -47,7 +57,7 @@ export default function RevisarPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Revisar categorias</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Lançamentos iguais agrupados: escolha a categoria uma vez para o grupo inteiro.
+            Lançamentos iguais agrupados: escolha a categoria para o grupo inteiro, ou abra o grupo (“Ver os N”) e aplique só a alguns.
           </p>
         </div>
         <Link href="/lancamentos" className="btn btn-secondary">← Lançamentos</Link>
@@ -92,30 +102,65 @@ export default function RevisarPage() {
   );
 }
 
+// Pix/transferência para uma pessoa: cada envio pode ser uma coisa diferente,
+// então por padrão não vira regra da Memória.
+const ehPixParaPessoa = (d: string) => /(pix (enviado|recebido)|pix - (enviado|recebido)|transfer[êe]ncia)/i.test(d);
+
 function Grupo({ grupo, categoriaAtual, onAplicado }: {
   grupo: GrupoDescricao;
   categoriaAtual: AbaId;
-  onAplicado: (g: GrupoDescricao, categoria: string, lembrar: boolean) => void;
+  onAplicado: (g: GrupoDescricao, categoria: string, lembrar: boolean, aplicados: ItemGrupo[] | null) => void;
 }) {
   const [categoria, setCategoria] = useState("");
-  const [lembrar, setLembrar] = useState(true);
+  const [lembrar, setLembrar] = useState(() => !ehPixParaPessoa(grupo.descricao));
+  const [pessoa, setPessoa] = useState(() => nomeContraparte(grupo.descricao));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  // "Ver os N": itens do grupo e os marcados (null = grupo fechado)
+  const [itens, setItens] = useState<ItemGrupo[] | null>(null);
+  const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  const [abrindo, setAbrindo] = useState(false);
+
+  const aberto = itens !== null;
+  const parcial = aberto && marcados.size < itens.length;
+  const quantos = aberto ? marcados.size : grupo.quantidade;
+  const emprestimo = (CATEGORIAS_EMPRESTIMO as readonly string[]).includes(categoria);
+
+  const alternarAberto = async () => {
+    if (aberto) { setItens(null); return; }
+    setAbrindo(true);
+    const q = new URLSearchParams({ categoria: categoriaAtual, descricao: grupo.descricao });
+    const r = await fetch(`/api/lancamentos/agrupados?${q}`);
+    const j = r.ok ? await r.json() : { itens: [] };
+    setAbrindo(false);
+    setItens(j.itens);
+    setMarcados(new Set(j.itens.map((i: ItemGrupo) => i.id)));
+  };
+
+  const marcar = (id: number) => setMarcados((prev) => {
+    const novo = new Set(prev);
+    if (novo.has(id)) novo.delete(id); else novo.add(id);
+    return novo;
+  });
 
   const aplicar = async () => {
-    if (!categoria) return;
+    if (!categoria || quantos === 0) return;
     setSalvando(true);
     setErro("");
+    const filtroCategoria = categoriaAtual === "__sem__" ? { somenteSemCategoria: true } : { categoriaErrada: categoriaAtual };
     const r = await fetch("/api/lancamentos", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        descricaoExata: grupo.descricao,
+        ...(parcial ? { ids: [...marcados] } : { descricaoExata: grupo.descricao }),
         categoriaCorreta: categoria,
-        ...(categoriaAtual === "__sem__" ? { somenteSemCategoria: true } : { categoriaErrada: categoriaAtual }),
+        ...(emprestimo && pessoa.trim() ? { pessoa: pessoa.trim() } : {}),
+        ...filtroCategoria,
       }),
     });
-    if (r.ok && lembrar) {
+    // só vira regra da Memória quando vale para o grupo inteiro
+    const ensinar = lembrar && !parcial;
+    if (r.ok && ensinar) {
       await fetch("/api/memoria-ia", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -124,7 +169,15 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
     }
     setSalvando(false);
     if (!r.ok) { setErro("Não foi possível aplicar."); return; }
-    onAplicado(grupo, categoria, lembrar);
+    if (parcial) {
+      const aplicados = itens.filter((i) => marcados.has(i.id));
+      setItens(itens.filter((i) => !marcados.has(i.id)));
+      setMarcados(new Set());
+      setCategoria("");
+      onAplicado(grupo, categoria, false, aplicados);
+    } else {
+      onAplicado(grupo, categoria, ensinar, null);
+    }
   };
 
   return (
@@ -134,22 +187,65 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
           <div className="text-sm font-medium text-slate-800 break-words">{grupo.descricao}</div>
           <div className="text-xs text-slate-400 mt-0.5">
             {grupo.quantidade}× · último em {fmtData(grupo.ultimaData)} · {grupo.contas.join(", ")}
+            {grupo.quantidade > 1 && (
+              <>
+                {" · "}
+                <button onClick={alternarAberto} className="text-blue-600 hover:underline" disabled={abrindo}>
+                  {abrindo ? "abrindo…" : aberto ? "fechar" : `Ver os ${grupo.quantidade}`}
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <div className={`text-sm font-semibold whitespace-nowrap ${grupo.total >= 0 ? "valor-positivo" : "valor-negativo"}`}>
-          {fmt(grupo.total)}
+        <div className="text-right shrink-0">
+          <div className={`text-sm font-semibold whitespace-nowrap ${grupo.total >= 0 ? "valor-positivo" : "valor-negativo"}`}>
+            {fmt(grupo.total)}
+          </div>
+          {grupo.quantidade > 1 && <div className="text-xs text-slate-400">total de {grupo.quantidade}</div>}
         </div>
       </div>
+
+      {aberto && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50/60">
+          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-slate-500 border-b border-slate-200">
+            <span>{marcados.size} de {itens.length} marcados</span>
+            <span className="flex gap-3">
+              <button onClick={() => setMarcados(new Set(itens.map((i) => i.id)))} className="text-blue-600 hover:underline">todos</button>
+              <button onClick={() => setMarcados(new Set())} className="text-blue-600 hover:underline">nenhum</button>
+            </span>
+          </div>
+          <ul className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+            {itens.map((i) => (
+              <li key={i.id}>
+                <label className="flex items-center gap-3 px-3 py-1.5 text-sm cursor-pointer hover:bg-white">
+                  <input type="checkbox" checked={marcados.has(i.id)} onChange={() => marcar(i.id)} />
+                  <span className="text-slate-600 w-24">{fmtData(i.data)}</span>
+                  <span className="text-xs text-slate-400 flex-1">{i.conta}</span>
+                  <span className={`font-medium whitespace-nowrap ${i.valor >= 0 ? "valor-positivo" : "valor-negativo"}`}>{fmt(i.valor)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <CategoriaSelect value={categoria} onChange={setCategoria} className="text-sm flex-1 min-w-48" />
-        <label className="flex items-center gap-1.5 text-xs text-slate-500">
-          <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
+        {emprestimo && (
+          <input value={pessoa} onChange={(e) => setPessoa(e.target.value)} placeholder="Pessoa" className="text-sm w-48" title="Aparece em Empréstimos" />
+        )}
+        <label className={`flex items-center gap-1.5 text-xs ${parcial ? "text-slate-300" : "text-slate-500"}`}
+          title={parcial ? "Só dá para lembrar quando a categoria vale para o grupo inteiro" : undefined}>
+          <input type="checkbox" checked={lembrar && !parcial} disabled={parcial} onChange={(e) => setLembrar(e.target.checked)} />
           Lembrar nas próximas importações
         </label>
-        <button onClick={aplicar} disabled={!categoria || salvando} className="btn btn-primary text-sm">
-          {salvando ? "Aplicando…" : `Aplicar a ${grupo.quantidade}`}
+        <button onClick={aplicar} disabled={!categoria || salvando || quantos === 0} className="btn btn-primary text-sm">
+          {salvando ? "Aplicando…" : `Aplicar a ${quantos}`}
         </button>
       </div>
+      {!lembrar && !parcial && grupo.quantidade > 1 && ehPixParaPessoa(grupo.descricao) && (
+        <div className="text-xs text-slate-400">Pix para a mesma pessoa pode ser coisa diferente a cada vez — por isso não vira regra automática.</div>
+      )}
       {erro && <div className="text-xs text-red-600">{erro}</div>}
     </li>
   );

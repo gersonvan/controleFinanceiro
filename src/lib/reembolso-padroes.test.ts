@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aprenderPadroes, chaveContraparte, sugerirGasto, sugerirVarios, valorCompativel } from "./reembolso-padroes";
+import { aprenderPadroes, chaveContraparte, nomeContraparte, sugerirGasto, sugerirVarios, valorCompativel } from "./reembolso-padroes";
 
 const d = (s: string) => new Date(`${s}T00:00:00Z`);
 const tim = (id: number, data: string, reembolsado = 0) =>
@@ -15,6 +15,13 @@ describe("contraparte", () => {
     expect(chaveContraparte("Transferência Recebida - Janaina Maria Martins Vieira - •••.489.143-•• - NU PAGAMENTOS")).toBe("janaina maria martins vieira");
     expect(chaveContraparte("Pix enviado para FULANO · Emprestimo")).toBe("fulano");
     expect(chaveContraparte("DROGASIL 2460          FORTALEZA     BRA")).toBe("drogasil 2460");
+  });
+
+  it("nome como está no extrato, para preencher a pessoa do empréstimo", () => {
+    expect(nomeContraparte("Pix enviado para JESSICA PAIVA DE ALBUQUERQUE")).toBe("JESSICA PAIVA DE ALBUQUERQUE");
+    expect(nomeContraparte("Pix enviado para JESSICA PAIVA DE ALBUQUERQUE · Hapvidasushi")).toBe("JESSICA PAIVA DE ALBUQUERQUE");
+    expect(nomeContraparte("Pix - Enviado · 19/09 12:51 FULANO DE TAL")).toBe("FULANO DE TAL");
+    expect(nomeContraparte("Transferência enviada pelo Pix - Janaina Maria - ---.489.143-- - CAIXA")).toBe("Janaina Maria");
   });
 });
 

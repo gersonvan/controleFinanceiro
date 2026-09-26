@@ -199,4 +199,15 @@ describe("recategorização por descrição exata (Revisar categorias)", () => {
       data: { categoria: "Aluguel" },
     });
   });
+
+  it("Ver os N: só os marcados, ainda no coringa, com a pessoa do empréstimo", async () => {
+    const res = await PUT(json("PUT", {
+      ids: [7, 9], categoriaErrada: "Transferência para Terceiros", categoriaCorreta: "Empréstimo", pessoa: "JESSICA PAIVA DE ALBUQUERQUE",
+    }));
+    expect(res.status).toBe(200);
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { userId: "ana@example.com", id: { in: [7, 9] }, categoria: "Transferência para Terceiros" },
+      data: { categoria: "Empréstimo", pessoa: "JESSICA PAIVA DE ALBUQUERQUE" },
+    });
+  });
 });

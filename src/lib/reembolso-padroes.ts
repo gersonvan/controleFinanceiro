@@ -10,6 +10,11 @@ import { chaveMemoria } from "./categorias";
  * e "TIM SA" → "tim". Datas/horas e sufixos de empresa (S.A., LTDA…) saem.
  */
 export function chaveContraparte(descricao: string): string {
+  return chaveMemoria(nomeContraparte(descricao)).replace(/\s+(s\.? ?a\.?|ltda\.?|me|eireli|epp)$/, "").trim();
+}
+
+/** Nome da contraparte como está no extrato: "Pix enviado para JESSICA P · msg" → "JESSICA P". */
+export function nomeContraparte(descricao: string): string {
   let d = descricao.replace(/^(.{22}) .{13} BRA\s*$/, "$1").trim();
   // "·" separa o nome (BB: "Pix - Enviado · 10/08 09:50 NOME") ou a mensagem (C6: "Pix enviado para NOME · msg")
   const [antes, ...depois] = d.split("·");
@@ -18,7 +23,8 @@ export function chaveContraparte(descricao: string): string {
   d = d
     .replace(/^\s*(pix recebido de|pix enviado para|recorr[êe]ncia pix enviada para|transfer[êe]ncia (recebida|enviada)( pelo pix)?|pagamento de boleto efetuado|pix no cr[ée]dito|compra no d[ée]bito)\s*-?\s*/i, "")
     .replace(/\s+-\s+.*$/, ""); // "NOME - CPF - BANCO…"
-  return chaveMemoria(d).replace(/\s+(s\.? ?a\.?|ltda\.?|me|eireli|epp)$/, "").trim();
+  // BB: "10/08 09:50 NOME" — data e hora na frente do nome
+  return d.replace(/^\s*\d{1,2}\/\d{1,2}(\s+\d{1,2}:\d{2})?\s+/, "").replace(/\s+/g, " ").trim();
 }
 
 export interface PadraoReembolso {

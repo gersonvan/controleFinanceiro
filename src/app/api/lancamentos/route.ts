@@ -39,6 +39,7 @@ const recategorizacaoSchema = z
     categoriaErrada: z.string().trim().min(1).max(100).optional(),
     somenteSemCategoria: z.boolean().optional(),
     categoriaCorreta: categoriaSchema,
+    pessoa: textoCurto.optional(), // para Empréstimo / Recebimento de Empréstimo
   })
   // Sem nenhum critério o updateMany atingiria todos os lançamentos do usuário.
   .refine((v) => v.ids?.length || v.descricaoContem || v.descricaoExata || v.categoriaErrada, {
@@ -121,7 +122,7 @@ export async function PUT(req: NextRequest) {
 
   const v = validar(recategorizacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
-  const { ids, descricaoContem, descricaoExata, categoriaErrada, somenteSemCategoria, categoriaCorreta } = v.dados;
+  const { ids, descricaoContem, descricaoExata, categoriaErrada, somenteSemCategoria, categoriaCorreta, pessoa } = v.dados;
 
   const where = escopoDoUsuario(userId);
   if (ids?.length)     where.id       = { in: ids };
@@ -132,7 +133,7 @@ export async function PUT(req: NextRequest) {
 
   const result = await prisma.lancamento.updateMany({
     where,
-    data: { categoria: categoriaCorreta },
+    data: { categoria: categoriaCorreta, ...(pessoa ? { pessoa } : {}) },
   });
 
   return NextResponse.json({ corrigidos: result.count });
