@@ -12,7 +12,9 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 
 | Rota | Arquivo | Descrição | Acesso |
 |---|---|---|---|
-| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal; lembrete da fotografia enquanto não feita, card Planejado × Realizado do mês quando feita, estado vazio com CTAs de importar/lançar à mão | Requer autenticação + onboarding |
+| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal; lembrete da fotografia enquanto não feita, card Planejado × Realizado do mês quando feita, estado vazio com CTAs de importar/lançar à mão; cartões Como você pagou, Ritmo do mês e Custo de dívida (`PaineisFinancas`) | Requer autenticação + onboarding |
+| `/financas/meios` | `src/app/financas/meios/page.tsx` | Como você pagou: 6 meses por meio de pagamento (barras empilhadas + tabela com média e guardado); navega por mês | Requer autenticação + onboarding |
+| `/financas/divida` | `src/app/financas/divida/page.tsx` | Custo de dívida: 12 meses de juros/IOF/multas, de onde vem e o que fazer | Requer autenticação + onboarding |
 | `/planejamento` | `src/app/planejamento/page.tsx` | Abas Fotografia do mês (wizard) e Planejado × Realizado; `?aba=comparacao` abre a segunda | Requer autenticação + onboarding |
 | `/lancamentos` | `src/app/lancamentos/page.tsx` | Lista paginada de lançamentos com filtros e edição inline; botão **+ Novo** abre o lançamento manual (`?novo=1` abre direto) | Requer autenticação + onboarding |
 | `/matriz` | `src/app/matriz/page.tsx` | Matriz de gastos: categorias × meses, com drill-down por descrição | Requer autenticação + onboarding |
@@ -20,7 +22,7 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | `/previsao` | `src/app/previsao/page.tsx` | Previsão de despesas dos próximos 12 meses | Requer autenticação + onboarding |
 | `/emprestimos` | `src/app/emprestimos/page.tsx` | Controle de empréstimos por pessoa com status | Requer autenticação + onboarding |
 | `/memoria-ia` | `src/app/memoria-ia/page.tsx` | Gerenciamento de regras da memória de IA | Requer autenticação + onboarding |
-| `/configuracoes` | `src/app/configuracoes/page.tsx` | Gerenciamento de perfis de importação (ativar/desativar/criar/excluir) | Requer autenticação + onboarding |
+| `/configuracoes` | `src/app/configuracoes/page.tsx` | Tipo de cada conta (corrente/cartão) e gerenciamento de perfis de importação (ativar/desativar/criar/excluir) | Requer autenticação + onboarding |
 | `/onboarding` | `src/app/onboarding/page.tsx` | Wizard de 4 etapas para configuração inicial do usuário | Requer autenticação; acessível sem onboarding |
 | `/login` | `src/app/login/page.tsx` | Página de login com botão "Entrar com Google" | Público |
 
@@ -33,6 +35,9 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | `PlanejadoRealizado` | `src/components/planejamento/PlanejadoRealizado.tsx` | Tabela e cartões do Planejado × Realizado de um mês (`GET /api/planejamento/realizado`) |
 | `LancamentoForm` | `src/components/LancamentoForm.tsx` | Modal de lançamento manual (`POST /api/lancamentos`); contas sugeridas a partir dos perfis |
 | `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |
+| `PaineisFinancas` | `src/components/financas/PaineisFinancas.tsx` | Os três cartões mensais do dashboard (`/api/financas/*`) |
+| `NavegadorMes` | `src/components/financas/NavegadorMes.tsx` | Cabeçalho das páginas `/financas/*`: voltar e trocar de mês pela URL (`?ano&mes`) |
+| `ContasTipo` | `src/components/ContasTipo.tsx` | Seção Contas de Configurações: alterna corrente/cartão (`/api/contas`) |
 | `CategoriaSelect` | `src/components/CategoriaSelect.tsx` | Select de categorias agrupado em Saídas/Entradas |
 
 ## Layout raiz e controle de sessão

@@ -39,6 +39,7 @@
 - **Lancamento** — id, userId, data, descricao, valor (float, negativo = saída), tipo ("Entrada"/"Saída"), conta, categoria (nullable), pessoa (nullable, p/ empréstimos), mesReferencia (nullable, competência de fatura de cartão).
 - **UserProfile** — userId (PK, e-mail), nome, onboardingCompleto (bool), createdAt, margemPercentual (default 20), fotografiaConcluidaEm (null = dashboard lembra de fazer a fotografia).
 - **PlanejamentoItem** — a *Fotografia do mês*: grupo ("entrada"|"fixo"|"variavel"|"sazonal"|"parcela"), descricao, categoria (sempre de `CATEGORIAS`), valor (positivo), periodicidade ("mensal"|"semanal"|"anual"), parcelaAtual/parcelaTotal (só parcelas), ordem. Mensalização em `src/lib/planejamento.ts` (`valorMensal`: semanal × 52/12, anual ÷ 12, parcela pesa até a última).
+- **Conta** — tipo de cada conta do usuário: nome (= `Lancamento.conta`), tipo ("corrente"|"cartao"); `@@unique([userId, nome])`. Criada sob demanda por `garantirContas` (`src/lib/contas.ts`) a partir das contas usadas nos lançamentos, com tipo sugerido pelo nome ("Crédito"/"Cartão" → cartão). Migração `20260926150000_conta`.
 - **MemoriaIA** — regras descrição→categoria por usuário; `@@unique([descricao, userId])`.
 - **PerfilImportacao** — configuração de importação por banco: nome, conta, formato ("csv"|"ofx"|"pdf"), mapeamento de colunas (colData, colDescricao, colParcela, colValor, colEntrada, colSaida), delimitador, linhasPular, formatoData, modoValor ("unica"|"separadas"), inverterSinal, usaMesReferencia, builtin (chave string p/ perfis nativos, null p/ personalizados), ativo (bool). `@@unique([userId, builtin])` garante um perfil nativo por usuário (migração `20260920120000_perfil_builtin_unique`).
 
@@ -61,6 +62,8 @@ OR: [
 - **Onboarding**: `onboardingCompleto` vive no JWT (setado no callback `jwt` no login; atualizado via `update()` do next-auth/react quando o wizard termina). O middleware redireciona para `/onboarding` se `=== false` (check estrito: `undefined` de sessões antigas passa). Auto-graduação: usuário sem UserProfile mas com Lancamentos ganha `onboardingCompleto: true` no primeiro login.
 - **Categorias**: lista estática de 39 categorias em `src/lib/categorias.ts` (const `CATEGORIAS`), organizadas em `GRUPOS_CATEGORIAS` (Entradas, Moradia, Alimentação, Transporte, Saúde, Educação, Pessoal e Lazer, Financeiro, Transferências, Empresa) — todos os seletores usam `OpcoesCategorias`; teste garante que toda categoria está em exatamente um grupo. **Empresa (PJ)** (25/09) fica em `CATEGORIAS_NEUTRAS`: gastos da empresa pagos da conta pessoal não entram nos totais pessoais. "Pagamento de Empréstimo" foi removida (nunca usada). Adicionar categoria = mudança de código (e o `categoriaSchema` da validação passa a aceitá-la). Subconjuntos: `CATEGORIAS_FIXAS` (previsão), `CATEGORIAS_EMPRESTIMO`, `CATEGORIAS_NEUTRAS` (movimentação interna, excluída dos totais do dashboard, resumo e Planejado × Realizado). Em 20/09 entraram Plano de Saúde, Pets, Cuidados Pessoais, Presentes e Impostos e Tributos, com regras genéricas em `mapearCategoria`.
 - **Fotografia do mês** (`/planejamento`): pré-configuração opcional e sugerida no onboarding — entradas, fixos, variáveis (mês/semana), sazonais (ano ÷ 12), parcelas e margem (% das entradas) → "sobra/falta". Alimenta o Planejado × Realizado (`/api/planejamento/realizado`) e a Previsão (categorias sem histórico ganham `tipoPrevisao: "Planejado"`; parcelas da fotografia não repetem parcelas já vistas nos lançamentos). Sugestões (chips) em `src/lib/planejamento-sugestoes.ts`. Inspirada na planilha de consultoria da irmã do Gerson — ideia, não cópia.
+
+- **Painéis de finanças** (26/09, `src/lib/financas.ts`, funções puras testadas): *Como você pagou* — gasto do mês por meio (cartão pelo mês da fatura; nas contas correntes a descrição decide Pix / débito / juros-IOF-multa / resto = "Boletos e contas"), com aportes em "Guardado" separado; *Ritmo do mês* — acumulado diário só das contas correntes × média dos 5 meses anteriores, projeção = gasto até hoje + o que a média gasta nos dias que faltam; *Custo de dívida* — juros, IOF e multas em 12 meses, devoluções descontadas, IOF de compra no exterior fora, agrupado por origem (`origemEncargo`: cheque especial / atraso de fatura / rotativo). "Gasto" = saída fora de `CATEGORIAS_NEUTRAS` e de Investimentos (Aportes).
 
 ## 5. Motor de importação (src/lib/importacao/)
 
@@ -97,11 +100,15 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 | `/api/importar/analisar` | POST (arquivo) | Análise sem gravar: formato, banco, perfil nativo do usuário, total/novos/duplicados, período e mês de referência sugerido (faturas). Base da importação em lote |
 | `/api/onboarding` | PATCH | Marca onboarding completo + salva nome |
 | `/api/planejamento` | GET, PUT | Fotografia do mês: itens + margem + totais; PUT substitui o conjunto inteiro numa transação (`concluir: true` grava `fotografiaConcluidaEm`) |
+| `/api/contas` | GET, PATCH | Contas do usuário com tipo e nº de lançamentos (cria as que faltam); PATCH `{id, tipo}` |
+| `/api/financas/meios` | GET (ano, mes) | Gasto por meio de pagamento no mês e nos 5 anteriores + média |
+| `/api/financas/ritmo` | GET (ano, mes) | Acumulado diário × média, projeção de fim de mês e cartão do mês |
+| `/api/financas/divida` | GET (ano, mes) | Juros/IOF/multas nos 12 meses até o mês, maiores lançamentos, por origem e principal |
 | `/api/planejamento/realizado` | GET (ano, mes) | Planejado (mensalizado para o mês) × realizado por categoria, entradas, saídas, margem e gastos não planejados |
 
 ## 8. Páginas (frontend)
 
-`/` dashboard (lembrete/card da fotografia, estado vazio com CTAs) · `/planejamento` (abas Fotografia do mês e Planejado × Realizado; `?aba=comparacao`) · `/lancamentos/revisar` ("Revisar categorias": sem categoria e o coringa "Transferência para Terceiros" agrupados por descrição; aplica ao grupo e ensina a Memória Local) · `/lancamentos` (botão **+ Novo** = lançamento manual via `LancamentoForm`; `?novo=1` abre direto) · `/matriz` · `/importar` (com `ComoBaixarExtrato`; aceita vários arquivos de uma vez → fila `ImportacaoLote` com análise por arquivo, mês da fatura sugerido e editável, importação sequencial, "Configurar" para os não reconhecidos e "Categorizar agora" ao final; um arquivo só segue o fluxo guiado de antes) · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (gerencia perfis) · `/onboarding` (wizard 4 etapas: nome → fotografia do mês (opcional, "Fazer depois") → bancos → checklist de próximos passos) · `/login`.
+`/` dashboard (lembrete/card da fotografia, estado vazio com CTAs; cartões Como você pagou, Ritmo do mês e Custo de dívida do mês escolhido — em "Ano todo", o mês corrente) · `/financas/meios` (6 meses por meio de pagamento, barras empilhadas + tabela) · `/financas/divida` (12 meses de juros/IOF/multas, de onde vem, o que fazer) · `/planejamento` (abas Fotografia do mês e Planejado × Realizado; `?aba=comparacao`) · `/lancamentos/revisar` ("Revisar categorias": sem categoria e o coringa "Transferência para Terceiros" agrupados por descrição; aplica ao grupo e ensina a Memória Local) · `/lancamentos` (botão **+ Novo** = lançamento manual via `LancamentoForm`; `?novo=1` abre direto) · `/matriz` · `/importar` (com `ComoBaixarExtrato`; aceita vários arquivos de uma vez → fila `ImportacaoLote` com análise por arquivo, mês da fatura sugerido e editável, importação sequencial, "Configurar" para os não reconhecidos e "Categorizar agora" ao final; um arquivo só segue o fluxo guiado de antes) · `/previsao` · `/emprestimos` · `/memoria-ia` · `/configuracoes` (tipo de cada conta — corrente/cartão — e perfis de importação) · `/onboarding` (wizard 4 etapas: nome → fotografia do mês (opcional, "Fazer depois") → bancos → checklist de próximos passos) · `/login`.
 
 Layout raiz (`src/app/layout.tsx`, Server Component): sem sessão ou onboarding incompleto → body sem Nav; caso contrário SessionProvider + Nav (9 links). Dados carregados client-side via fetch às APIs; sem Server Actions; sem estado global.
 
@@ -135,6 +142,7 @@ Migrações: `npx prisma migrate dev` (dev) / `npx prisma migrate deploy` (prod)
 - ✅ Importação de vários extratos de uma vez (25/09): análise por arquivo no servidor, fila com status, mês de referência sugerido (vencimento do PDF ou compra mais recente + 10 dias — acerta as 12 últimas faturas C6), deduplicação entre arquivos por importação sequencial
 - ✅ Layout para celular (24/09): menu superior no celular, grids empilhados, lançamentos em cartões
 - ✅ Fotografia do mês + nova jornada de entrada (20/09): wizard no onboarding e em `/planejamento`, Planejado × Realizado, Previsão com base na fotografia, lançamento manual, estados vazios e ajuda de download de extrato — pensado para a irmã do Gerson como primeira usuária externa
+- ✅ Fase 1 dos painéis (26/09): tipo de conta (corrente/cartão) em Configurações, cartões do dashboard Como você pagou / Ritmo do mês / Custo de dívida e páginas `/financas/meios` e `/financas/divida`. Protótipo de referência: artifact "FinanceiroWeb — Fase 1". Próximas fases das ideias de gráficos (categoria × média/previsão etc.) ainda não priorizadas
 - ✅ Revisão de segurança (20/09): upgrade Next 16.3.5 / next-auth beta.32 / Prisma 7.10 (CVEs críticos), validação zod em todas as APIs, cabeçalhos de segurança + CSP, sessão de 7 dias com allowlist por requisição, migração `middleware.ts` → `src/proxy.ts`, chave Gemini no header e teto de 50 chamadas/requisição, unique em perfis nativos
 
 ## 11. Backlog / próximos passos e dívidas conhecidas
@@ -179,7 +187,7 @@ Itens identificados como carência na documentação ou pendências naturais (ne
 ```
 financeiro-web/
 ├── next.config.ts             # serverExternalPackages (não remover) + cabeçalhos de segurança/CSP
-├── prisma/schema.prisma       # 4 models
+├── prisma/schema.prisma       # 6 models
 ├── src/
 │   ├── proxy.ts               # Gate de sessão + redirect onboarding (NUNCA importar Prisma aqui)
 │   ├── auth.ts                # NextAuth completo (Node, Prisma, callbacks JWT, allowlist por requisição)
@@ -192,6 +200,9 @@ financeiro-web/
 │   │   ├── validacao.ts       # zod: validar(), lerCorpo(), lerQuery(), lerArquivo()
 │   │   ├── planejamento.ts    # Fotografia do mês: mensalização, totais, planejado por categoria
 │   │   ├── planejamento-sugestoes.ts # chips do wizard (nome → categoria)
+│   │   ├── financas.ts        # painéis: meio de pagamento, custo de dívida, ritmo do mês (puro)
+│   │   ├── financas-dados.ts  # carga de lançamentos por competência para /api/financas
+│   │   ├── contas.ts          # garantirContas / tiposDasContas
 │   │   ├── filtros.ts         # filtros de período compartilhados (lancamentos/resumo/matriz)
 │   │   ├── categorias.ts      # CATEGORIAS + mapearCategoria() (regras)
 │   │   ├── parsers.ts         # Parsers legados C6/Nubank
@@ -200,6 +211,8 @@ financeiro-web/
 │   │   ├── Nav.tsx
 │   │   ├── LancamentoForm.tsx         # lançamento manual (modal)
 │   │   ├── ComoBaixarExtrato.tsx      # ajuda de download (onboarding + importar)
+│   │   ├── ContasTipo.tsx             # Configurações → Contas (corrente/cartão)
+│   │   ├── financas/                  # PaineisFinancas (dashboard), NavegadorMes, comum (cores/tipos)
 │   │   └── planejamento/              # FotografiaWizard, PlanejadoRealizado
 │   └── app/
 │       ├── layout.tsx         # Sessão + Nav condicional

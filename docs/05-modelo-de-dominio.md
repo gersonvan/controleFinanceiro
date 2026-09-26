@@ -7,6 +7,7 @@
 | `Lancamento` | Registro de uma transação financeira (débito ou crédito) em uma conta ou cartão de um usuário | `prisma/schema.prisma:Lancamento` |
 | `UserProfile` | Perfil do usuário com nome, estado do onboarding, margem da fotografia (`margemPercentual`) e data de conclusão da fotografia (`fotografiaConcluidaEm`) | `prisma/schema.prisma:UserProfile` |
 | `PlanejamentoItem` | Item da Fotografia do mês: o que o usuário planeja receber (entrada) ou gastar (fixo, variável, sazonal, parcela), com categoria do sistema, valor e periodicidade; parcelas guardam atual/total | `prisma/schema.prisma:PlanejamentoItem`, `src/lib/planejamento.ts:1` |
+| `Conta` | Tipo de cada conta do usuário (`corrente` ou `cartao`), chaveada pelo mesmo nome gravado em `Lancamento.conta`; decide como os gastos entram nos painéis de meio de pagamento | `prisma/schema.prisma:Conta`, `src/lib/contas.ts` |
 | `MemoriaIA` | Regra de correção de categoria vinculada a uma descrição exata; base de conhecimento por usuário | `prisma/schema.prisma:MemoriaIA` |
 | `PerfilImportacao` | Configuração de mapeamento de colunas e metadados para um banco/formato de importação específico | `prisma/schema.prisma:PerfilImportacao` |
 
@@ -75,6 +76,9 @@ erDiagram
 | Saída | Lançamento que representa débito (despesa) na conta | `tipo = "Saída"` em `Lancamento` | `src/lib/importacao/tipos.ts:9` |
 | Categoria | Classificação semântica de um lançamento (ex: "Supermercado e Mercearia") | Campo `categoria` em `Lancamento`; lista em `CATEGORIAS` | `src/lib/categorias.ts:1` |
 | Conta | Identificador da conta ou cartão de origem do lançamento (ex: "Nubank Cartão") | Campo `conta` em `Lancamento` | `prisma/schema.prisma:Lancamento` |
+| Meio de pagamento | Como um gasto saiu: cartão (conta do tipo cartão, pelo mês da fatura), Pix, débito, juros e encargos ou boletos e contas (demais saídas de conta corrente) | `Meio` / `classificarMeio` | `src/lib/financas.ts` |
+| Custo de dívida | Juros, IOF e multas pagos por usar crédito, menos devoluções do banco; agrupado por origem (cheque especial, atraso de fatura, rotativo) | `custoDivida` / `origemEncargo` | `src/lib/financas.ts` |
+| Guardado | Saídas para Investimentos (Aportes): mostradas à parte, fora do total de gastos | `CATEGORIA_INVESTIMENTO` | `src/lib/financas.ts` |
 | Memória da IA | Conjunto de regras de correção de categoria baseadas em descrição exata, aprendidas por interação do usuário | Entidade `MemoriaIA` | `prisma/schema.prisma:MemoriaIA` |
 | Perfil de importação | Configuração de como interpretar um arquivo de extrato de um banco específico (mapeamento de colunas, formato de data, etc.) | Entidade `PerfilImportacao` | `prisma/schema.prisma:PerfilImportacao` |
 | Perfil nativo (builtin) | Perfil pré-configurado para um banco suportado pelo sistema, identificado por chave string em `builtin` | Campo `builtin` em `PerfilImportacao` | `src/app/api/perfis/route.ts:656` |

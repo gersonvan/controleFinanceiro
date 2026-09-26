@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import PaineisFinancas from "@/components/financas/PaineisFinancas";
 
 const CORES = [
   "#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6",
@@ -72,6 +73,8 @@ export default function Dashboard() {
   }, [ano, mes]);
 
   const anos = Array.from({ length: 5 }, (_, i) => anoAtual - i);
+  // Painéis mensais: mês escolhido; em "Ano todo", o mês corrente (ou dezembro de anos passados)
+  const mesPaineis = mes !== "" ? mes : ano === anoAtual ? new Date().getMonth() + 1 : 12;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -156,6 +159,8 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+
+          <PaineisFinancas ano={ano} mes={mesPaineis} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card">

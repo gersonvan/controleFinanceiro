@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import ContasTipo from "@/components/ContasTipo";
 
 interface Perfil {
   id: number;
@@ -97,15 +98,17 @@ export default function ConfiguracoesPage() {
         </p>
       </div>
 
+      <ContasTipo />
+
       {carregando ? (
         <div className="text-slate-400 text-sm">Carregando…</div>
       ) : (
         <>
-          {/* Perfis OFX nativos */}
+          {/* Perfis nativos */}
           <div className="card">
-            <h2 className="font-semibold text-slate-700 mb-1">Bancos com suporte nativo (OFX)</h2>
+            <h2 className="font-semibold text-slate-700 mb-1">Bancos com suporte nativo</h2>
             <p className="text-xs text-slate-400 mb-4">
-              Baixe o arquivo OFX direto do seu internet banking e importe sem configuração.
+              Baixe o extrato (CSV) direto do seu internet banking e importe sem configuração.
             </p>
             <div className="space-y-2">
               {nativos.map((p) => (
@@ -123,7 +126,7 @@ export default function ConfiguracoesPage() {
                       <div className="text-xs text-slate-400">{p.conta}</div>
                     </div>
                   </div>
-                  <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">OFX</span>
+                  <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{p.formato.toUpperCase()}</span>
                 </div>
               ))}
             </div>

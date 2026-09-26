@@ -29,6 +29,11 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `PATCH` | `/api/onboarding` | Marca o onboarding como completo e salva o nome do usuário | `src/app/api/onboarding/route.ts:634` |
 | `GET` | `/api/planejamento` | Fotografia do mês do usuário: itens, `margemPercentual`, `fotografiaConcluidaEm` e totais mensalizados | `src/app/api/planejamento/route.ts:63` |
 | `PUT` | `/api/planejamento` | Substitui a fotografia inteira (`itens[]`, `margemPercentual`, `concluir`) numa transação; validação zod por grupo/periodicidade/parcelas | `src/app/api/planejamento/route.ts:71` |
+| `GET` | `/api/contas` | Contas do usuário com tipo e nº de lançamentos; cria as que faltam com tipo sugerido pelo nome | `src/app/api/contas/route.ts` |
+| `PATCH` | `/api/contas` | Muda o tipo (`corrente`/`cartao`) de uma conta do usuário por `id`; 404 se não for dele | `src/app/api/contas/route.ts` |
+| `GET` | `/api/financas/meios` | Gasto por meio de pagamento no mês (`ano`/`mes`, padrão mês atual) e nos 5 anteriores, com a média deles e o investido | `src/app/api/financas/meios/route.ts` |
+| `GET` | `/api/financas/ritmo` | Gasto acumulado dia a dia das contas correntes × média dos 5 meses anteriores; projeção quando o mês está em andamento | `src/app/api/financas/ritmo/route.ts` |
+| `GET` | `/api/financas/divida` | Juros, IOF e multas nos 12 meses até o mês; maiores lançamentos, total por origem e a principal | `src/app/api/financas/divida/route.ts` |
 | `GET` | `/api/planejamento/realizado` | Planejado × realizado por categoria para `ano`/`mes` (padrão: mês atual); exclui `CATEGORIAS_NEUTRAS`; lista gastos não planejados | `src/app/api/planejamento/realizado/route.ts:37` |
 
 ## Parâmetros de filtro — GET /api/lancamentos

@@ -114,3 +114,17 @@ model PerfilImportacao {
   // Um perfil nativo por usuário; perfis personalizados (builtin null) não colidem.
   @@unique([userId, builtin])
 }
+
+// Tipo de cada conta (nome como aparece em Lancamento.conta): separa gastos
+// no cartão de crédito dos gastos pela conta corrente. Criada sob demanda a
+// partir das contas dos lançamentos, com o tipo sugerido pelo nome.
+model Conta {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  nome      String
+  tipo      String   @default("corrente") // "corrente" | "cartao"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, nome])
+}
