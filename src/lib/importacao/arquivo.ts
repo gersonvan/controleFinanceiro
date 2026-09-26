@@ -1,5 +1,6 @@
 // Leitura de arquivos enviados à importação (somente servidor).
 import { decodificarBytes } from "./decodificar";
+import { garantirPolyfillsPDF } from "./pdf-polyfill";
 
 /**
  * Texto do arquivo: UTF-8 quando válido, senão Latin-1/Windows-1252 — o CSV
@@ -16,6 +17,7 @@ export function ehPDF(buffer: Buffer): boolean {
 /** Extrai o texto de um PDF digital. Lança erro para PDF escaneado ou corrompido. */
 export async function extrairTextoPDF(buffer: Buffer): Promise<string> {
   // pdf-parse v2: classe PDFParse (a v1 exportava uma função — chamar assim quebrava toda leitura de PDF)
+  garantirPolyfillsPDF(); // sem isso a Vercel falha com "DOMMatrix is not defined"
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PDFParse } = require("pdf-parse");
   const parser = new PDFParse({ data: buffer });
