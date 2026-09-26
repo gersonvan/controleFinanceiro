@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   try {
     const lancamentos = parsePDF(texto, perfilTemp, memoriaIA, null);
     preview = lancamentos.slice(0, 10).map((l) => ({
-      data: l.data.toLocaleDateString("pt-BR"),
+      data: l.data.toLocaleDateString("pt-BR", { timeZone: "UTC" }), // datas gravadas à meia-noite UTC
       descricao: l.descricao,
       valor: l.valor,
     }));
