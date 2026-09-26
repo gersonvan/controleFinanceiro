@@ -332,3 +332,18 @@ describe("extrato da conta Nubank (formato real)", () => {
     ]);
   });
 });
+
+describe("Memória Local ignora data, hora e parcela", () => {
+  it("uma regra aprendida vale para todas as variações", async () => {
+    const { chaveMemoria, mapearCategoria } = await import("../categorias");
+    expect(chaveMemoria("99* POP 25Set 13h37min SP            BRA")).toBe(chaveMemoria("99* POP 01Out 08h05min SP BRA"));
+    expect(chaveMemoria("Pix - Enviado · 19/09 12:51 FULANO DE TAL")).toBe("pix - enviado · fulano de tal");
+    expect(chaveMemoria("Amazon BR VI - NuPay - Parcela 3/4")).toBe(chaveMemoria("Amazon BR VI - NuPay - Parcela 4/4"));
+    expect(chaveMemoria("LOJA X (2/10)")).toBe("loja x");
+    expect(chaveMemoria("Pix enviado para PADARIA 2000")).toBe("pix enviado para padaria 2000");
+
+    const memoria = new Map([[chaveMemoria("Pix - Enviado · 19/09 12:51 FULANO DE TAL"), "Serviços Domésticos"]]);
+    expect(mapearCategoria("Pix - Enviado · 03/10 09:12 FULANO DE TAL", "", "Saída", memoria)).toBe("Serviços Domésticos");
+    expect(mapearCategoria("99* POP 22Set 13h53min SP BRA", "", "Saída")).toBe("Transporte por App");
+  });
+});

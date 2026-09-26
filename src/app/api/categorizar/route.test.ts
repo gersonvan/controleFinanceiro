@@ -14,6 +14,7 @@ vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
 vi.mock("@/lib/categorias", () => ({
   CATEGORIAS: ["Compras"],
   mapearCategoria: mocks.mapearCategoria,
+  chaveMemoria: (d: string) => d.toLowerCase(),
 }));
 vi.mock("@/lib/db", () => ({
   prisma: {

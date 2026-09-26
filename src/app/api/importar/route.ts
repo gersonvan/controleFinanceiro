@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
+import { chaveMemoria } from "@/lib/categorias";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
   const memoriaMap = new Map<string, string>(
-    memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
+    memoria.map((m): [string, string] => [chaveMemoria(m.descricao), m.categoriaCorreta])
   );
 
   let lancamentos;

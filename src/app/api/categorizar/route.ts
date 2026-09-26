@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { mapearCategoria, CATEGORIAS } from "@/lib/categorias";
+import { mapearCategoria, chaveMemoria, CATEGORIAS } from "@/lib/categorias";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Carrega Memória da IA do usuário
   const memoria = await prisma.memoriaIA.findMany({ where: escopoDoUsuario(userId) });
   const memoriaMap = new Map<string, string>(
-    memoria.map((m): [string, string] => [m.descricao.toLowerCase(), m.categoriaCorreta])
+    memoria.map((m): [string, string] => [chaveMemoria(m.descricao), m.categoriaCorreta])
   );
 
   // Só processa lançamentos sem categoria do usuário
@@ -44,9 +44,9 @@ export async function POST(req: NextRequest) {
   const restantes: typeof lancamentos = [];
 
   for (const l of lancamentos) {
-    const descLower = l.descricao.toLowerCase();
-    if (memoriaMap.has(descLower)) {
-      porMemoria.push({ id: l.id, categoria: memoriaMap.get(descLower)! });
+    const chave = chaveMemoria(l.descricao);
+    if (memoriaMap.has(chave)) {
+      porMemoria.push({ id: l.id, categoria: memoriaMap.get(chave)! });
     } else {
       restantes.push(l);
     }

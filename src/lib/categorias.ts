@@ -161,6 +161,26 @@ const NOMES_PROPRIOS = [
   "gerson v albuquerque",
 ];
 
+const MESES_ABREV = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez";
+
+/**
+ * Chave da Memória Local: a descrição sem as partes que mudam a cada compra —
+ * data e hora ("99* POP 25Set 13h37min", "19/09 12:51"), número de parcela
+ * ("Parcela 3/4", "(2/10)"), espaços e maiúsculas. Assim uma regra aprendida
+ * para uma corrida do 99 vale para todas.
+ */
+export function chaveMemoria(descricao: string): string {
+  return descricao
+    .toLowerCase()
+    .replace(new RegExp(`\\b\\d{1,2}(${MESES_ABREV})\\b`, "g"), " ")   // 25set
+    .replace(/\b\d{1,2}h\d{2}(min)?\b/g, " ")                              // 13h37min
+    .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, " ")                   // 19/09, 19/09/2026, parcela 3/4
+    .replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, " ")                          // 12:51
+    .replace(/\(\s*\)|\bparcela\b/g, " ")                                   // "( )" e "parcela" que sobraram
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function mapearCategoria(
   descricao: string,
   categoriaOriginal: string,
@@ -170,7 +190,8 @@ export function mapearCategoria(
   const d = descricao.toLowerCase();
 
   // Prioridade 0: Memória da IA
-  if (memoriaIA?.has(d)) return memoriaIA.get(d)!;
+  const chave = chaveMemoria(descricao);
+  if (memoriaIA?.has(chave)) return memoriaIA.get(chave)!;
 
   // Prioridade 1: transferências entre contas próprias (inclui a aplicação
   // automática "BB Rende Fácil", que entra e sai da conta sozinha)
@@ -248,7 +269,8 @@ export function mapearCategoria(
     return "Delivery e iFood";
 
   // Transporte
-  if (d.includes("uber") || d.includes("99 ride")) return "Transporte por App";
+  if (d.includes("uber") || d.includes("99 ride") || d.startsWith("99* pop") || d.startsWith("99*pop") || d.includes("99app") || d.includes("99 tecnologia"))
+    return "Transporte por App";
   if (
     d.includes("c6tag") ||
     d.includes("estacionamento") ||
