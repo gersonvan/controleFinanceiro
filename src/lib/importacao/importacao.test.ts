@@ -320,3 +320,15 @@ describe("formatos atuais dos CSV (arquivos reais de 09/2026, dados fictícios)"
     ]);
   });
 });
+
+describe("extrato da conta Nubank (formato real)", () => {
+  it("mantém vírgulas na descrição e categoriza aplicação RDB", () => {
+    const csv = "Data,Valor,Identificador,Descrição\n06/09/2026,-10000.00,id-1,Aplicação RDB\n" +
+      "10/09/2026,-60.45,id-2,Compra no débito - LOJA X, UNIDADE 2";
+    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", builtin: "nubank-debito" };
+    expect(importar(csv, "NU.csv", perfil, new Map(), null).map(({ descricao, categoria }) => ({ descricao, categoria }))).toEqual([
+      { descricao: "Aplicação RDB", categoria: "Investimentos (Aportes)" },
+      { descricao: "Compra no débito - LOJA X, UNIDADE 2", categoria: "" },
+    ]);
+  });
+});

@@ -305,7 +305,8 @@ export function mapearCategoria(
     d.includes("pgto fat cartao c6")
   )
     return "Pagamento de Cartão de Crédito";
-  if (d.includes("compra de ações")) return "Investimentos (Aportes)";
+  if (d.includes("compra de ações") || d.includes("aplicação rdb") || d.includes("aplicacao rdb"))
+    return "Investimentos (Aportes)";
   if (
     d.includes("anuidade diferenciada") ||
     d.includes("iof") ||
