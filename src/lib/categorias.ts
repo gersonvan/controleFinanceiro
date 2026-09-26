@@ -11,6 +11,7 @@ export const CATEGORIAS = [
   // Moradia
   "Contas de Consumo",
   "Aluguel",
+  "Prestação de Imóvel", // financiamento/prestação do imóvel próprio
   "Condomínio",
   "Casa: Manutenção e Móveis",
   "Serviços Domésticos",
@@ -59,7 +60,7 @@ export type Categoria = (typeof CATEGORIAS)[number];
  */
 export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
   { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno", "Reembolso"] },
-  { grupo: "Moradia", categorias: ["Aluguel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
+  { grupo: "Moradia", categorias: ["Aluguel", "Prestação de Imóvel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
   { grupo: "Alimentação", categorias: ["Supermercado e Mercearia", "Restaurantes e Lanches", "Delivery e iFood"] },
   { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Viagem"] },
   { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
@@ -115,6 +116,7 @@ export const CATEGORIAS_SAIDA = [
   "Pagamento de Cartão de Crédito",
   "Pets",
   "Plano de Saúde",
+  "Prestação de Imóvel",
   "Presentes",
   "Restaurantes e Lanches",
   "Seguros",
@@ -132,6 +134,7 @@ export const CATEGORIAS_EMPRESTIMO = ["Empréstimo", "Recebimento de Empréstimo
 
 export const CATEGORIAS_FIXAS = [
   "Aluguel",
+  "Prestação de Imóvel",
   "Assinaturas Digitais",
   "Condomínio",
   "Contas de Consumo",
@@ -330,6 +333,7 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
   // operadoras: "Pix enviado para TIM S A", "TIM SA", "CLARO S.A.", "TELEFONICA BRASIL" (Vivo)
   if (/\b(tim s\.? ?a|claro s\.? ?a|telefonica|vivo (fibra|s\.? ?a)|oi s\.? ?a)\b/.test(d)) return "Contas de Consumo";
   if (d.includes("his emp imobiliarios ltda")) return "Aluguel";
+  if (/(caixa\W+habitac|habitacional|prestac[aã]o (do )?(im[oó]vel|apartamento|apto)|financiamento imobili)/.test(d)) return "Prestação de Imóvel";
   if (d.includes("edificio livorno")) return "Condomínio";
   if (d.includes("normatel")) return "Casa: Manutenção e Móveis";
   if (d.includes("deliane alves do nascimento")) return "Serviços Domésticos";

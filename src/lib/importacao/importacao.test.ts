@@ -415,6 +415,7 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
       ["Recorrência Pix enviada para FULANO DE TAL", "Transferência para Terceiros"],
       ["Pix enviado para FULANO DE TAL · Emprestimo", "Empréstimo"],
       ["Pix enviado para TIM S A", "Contas de Consumo"],
+      ["GCI CAIXA  - HABITACAO", "Prestação de Imóvel"],
       ["TIM SA", "Contas de Consumo"],
       ["CLARO S.A.", "Contas de Consumo"],
       ["TELEFONICA BRASIL S A", "Contas de Consumo"],

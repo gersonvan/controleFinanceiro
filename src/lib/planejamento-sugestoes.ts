@@ -26,7 +26,8 @@ export const SUGESTOES: Record<Grupo, Sugestao[]> = {
     { nome: "Rendimentos", categoria: "Rendimento Investimentos" },
   ],
   fixo: [
-    { nome: "Aluguel / financiamento", categoria: "Aluguel" },
+    { nome: "Aluguel", categoria: "Aluguel" },
+    { nome: "Prestação do imóvel", categoria: "Prestação de Imóvel" },
     { nome: "Condomínio", categoria: "Condomínio" },
     { nome: "Energia", categoria: "Contas de Consumo" },
     { nome: "Água", categoria: "Contas de Consumo" },
