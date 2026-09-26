@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { comValorLiquido } from "@/lib/reembolso";
+import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
@@ -86,13 +87,16 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.planejado - a.planejado);
 
+  // Aporte não é gasto: fica na linha própria (se planejado), fora dos totais e dos "não planejados"
   const naoPlanejado: LinhaComparacao[] = Object.entries(realizadoSaida)
-    .filter(([categoria]) => !planejado[categoria])
+    .filter(([categoria]) => !planejado[categoria] && categoria !== CATEGORIA_INVESTIMENTO)
     .map(([categoria, realizado]) => ({ categoria, grupos: [], planejado: 0, realizado }))
     .sort((a, b) => b.realizado - a.realizado);
 
-  const saidasPlanejadas = linhas.reduce((acc, l) => acc + l.planejado, 0);
-  const saidasRealizadas = Object.values(realizadoSaida).reduce((acc, v) => acc + v, 0);
+  const saidasPlanejadas = linhas.filter((l) => l.categoria !== CATEGORIA_INVESTIMENTO).reduce((acc, l) => acc + l.planejado, 0);
+  const saidasRealizadas = Object.entries(realizadoSaida)
+    .filter(([categoria]) => categoria !== CATEGORIA_INVESTIMENTO)
+    .reduce((acc, [, v]) => acc + v, 0);
   const margemPercentual = perfil?.margemPercentual ?? 20;
 
   return NextResponse.json({

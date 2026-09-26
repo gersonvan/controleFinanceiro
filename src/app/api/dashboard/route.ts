@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
 import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
+import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { lerQuery, opcional, validar } from "@/lib/validacao";
 import { z } from "zod";
@@ -43,8 +44,13 @@ export async function GET(req: NextRequest) {
     select: { data: true, valor: true, tipo: true, categoria: true, conta: true, valorReembolsado: true },
   }).then((ls) => ls.map(comValorLiquido)); // gastos já descontados dos reembolsos
 
-  // Filtra movimentações internas (não representam receita/despesa real)
-  const reais = lancamentos.filter((l) => !CATEGORIAS_NEUTRAS.has(l.categoria ?? ""));
+  // Aportes não são gasto: o dinheiro continua do usuário — aparecem à parte, como "Guardado"
+  const investido = Math.round(lancamentos
+    .filter((l) => l.categoria === CATEGORIA_INVESTIMENTO)
+    .reduce((acc, l) => acc - l.valor, 0) * 100) / 100;
+
+  // Filtra movimentações internas (não representam receita/despesa real) e aportes
+  const reais = lancamentos.filter((l) => !CATEGORIAS_NEUTRAS.has(l.categoria ?? "") && l.categoria !== CATEGORIA_INVESTIMENTO);
 
   // Totais gerais
   const totalEntradas = reais
@@ -88,6 +94,7 @@ export async function GET(req: NextRequest) {
     totalEntradas,
     totalSaidas,
     saldo,
+    investido,
     porCategoria: Object.entries(porCategoria)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15),

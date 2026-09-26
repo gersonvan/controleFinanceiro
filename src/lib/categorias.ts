@@ -12,7 +12,6 @@ export const CATEGORIAS = [
   "Contas de Consumo",
   "Aluguel",
   "Prestação de Imóvel", // financiamento/prestação do imóvel próprio
-  "Compra de Imóvel", // custos de comprar imóvel: vistoria, ITBI, cartório, registro
   "Condomínio",
   "Casa: Manutenção e Móveis",
   "Serviços Domésticos",
@@ -44,6 +43,7 @@ export const CATEGORIAS = [
   // Financeiro e Transferências
   "Pagamento de Cartão de Crédito",
   "Investimentos (Aportes)",
+  "Compra e Venda de Bens", // imóvel, carro…: patrimônio mudando de forma, com os custos da operação (comissão, ITBI, cartório)
   "Taxas e Anuidades",
   "Impostos e Tributos",
   "Seguros",
@@ -61,13 +61,13 @@ export type Categoria = (typeof CATEGORIAS)[number];
  */
 export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
   { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno", "Reembolso"] },
-  { grupo: "Moradia", categorias: ["Aluguel", "Prestação de Imóvel", "Compra de Imóvel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
+  { grupo: "Moradia", categorias: ["Aluguel", "Prestação de Imóvel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
   { grupo: "Alimentação", categorias: ["Supermercado e Mercearia", "Restaurantes e Lanches", "Delivery e iFood"] },
   { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Viagem"] },
   { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
   { grupo: "Educação", categorias: ["Mensalidades e Cursos"] },
   { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Pets"] },
-  { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Empréstimo"] },
+  { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Compra e Venda de Bens", "Empréstimo"] },
   { grupo: "Transferências", categorias: ["Transferência para Terceiros", "Transferência entre Contas", "Pagamento de Cartão de Crédito", "Gastos de Terceiros"] },
   { grupo: "Empresa", categorias: ["Empresa (PJ)"] },
 ];
@@ -100,7 +100,7 @@ export const CATEGORIAS_SAIDA = [
   "Assinaturas Digitais",
   "Automóvel",
   "Casa: Manutenção e Móveis",
-  "Compra de Imóvel",
+  "Compra e Venda de Bens",
   "Compras",
   "Condomínio",
   "Consultas e Terapias",
@@ -154,6 +154,7 @@ export const CATEGORIAS_FIXAS = [
  * Realizado; continuam visíveis em Lançamentos e na Matriz.
  */
 export const CATEGORIAS_NEUTRAS = new Set<string>([
+  "Compra e Venda de Bens", // venda de imóvel/carro e custos da operação não são renda nem gasto do mês
   "Pagamento de Cartão de Crédito",
   "Transferência entre Contas",
   "Gastos de Terceiros",
@@ -336,8 +337,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
   if (/\b(tim s\.? ?a|claro s\.? ?a|telefonica|vivo (fibra|s\.? ?a)|oi s\.? ?a)\b/.test(d)) return "Contas de Consumo";
   if (d.includes("his emp imobiliarios ltda")) return "Aluguel";
   if (/(caixa\W+habitac|habitacional|prestac[aã]o (do )?(im[oó]vel|apartamento|apto)|financiamento imobili)/.test(d)) return "Prestação de Imóvel";
-  // compra de imóvel: ITBI, registro, vistoria da Caixa ("CAIXA ECONOMICA FEDERAL - ENGENHARIA")
-  if (/(\bitbi\b|registro de im[oó]veis|caixa economica federal - engenharia)/.test(d)) return "Compra de Imóvel";
+  // compra/venda de imóvel: ITBI, registro, vistoria da Caixa, sinal/comissão do compra e venda
+  if (/(\bitbi\b|registro de im[oó]veis|caixa economica federal - engenharia|sinal cv|comiss[aã]o apartamento)/.test(d)) return "Compra e Venda de Bens";
   if (d.includes("edificio livorno")) return "Condomínio";
   if (d.includes("normatel")) return "Casa: Manutenção e Móveis";
   if (d.includes("deliane alves do nascimento")) return "Serviços Domésticos";

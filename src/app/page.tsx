@@ -20,6 +20,7 @@ interface DashData {
   totalEntradas: number;
   totalSaidas: number;
   saldo: number;
+  investido: number;
   porCategoria: [string, number][];
   porMes: [string, { entradas: number; saidas: number }][];
   porConta: [string, number][];
@@ -147,15 +148,19 @@ export default function Dashboard() {
         </div>
       ) : data ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-3 ${data.investido > 0 ? "lg:grid-cols-4" : ""} gap-4`}>
             {[
-              { label: "Total Entradas", valor: data.totalEntradas, classe: "valor-positivo" },
-              { label: "Total Saídas", valor: data.totalSaidas, classe: "valor-negativo" },
-              { label: "Saldo", valor: data.saldo, classe: data.saldo >= 0 ? "valor-positivo" : "valor-negativo" },
+              { label: "Total Entradas", valor: data.totalEntradas, classe: "valor-positivo", nota: "" },
+              { label: "Total Saídas", valor: data.totalSaidas, classe: "valor-negativo", nota: "" },
+              { label: "Saldo", valor: data.saldo, classe: data.saldo >= 0 ? "valor-positivo" : "valor-negativo", nota: "" },
+              ...(data.investido > 0
+                ? [{ label: "Guardado", valor: data.investido, classe: "text-emerald-700", nota: "aportes e aplicações — fora das saídas" }]
+                : []),
             ].map((k) => (
               <div key={k.label} className="card">
                 <div className="text-sm text-slate-500 mb-1">{k.label}</div>
                 <div className={`text-2xl font-bold ${k.classe}`}>{fmt(k.valor)}</div>
+                {k.nota && <div className="text-xs text-slate-400 mt-0.5">{k.nota}</div>}
               </div>
             ))}
           </div>
