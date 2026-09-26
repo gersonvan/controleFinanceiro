@@ -38,6 +38,8 @@ const BUILTIN_PDF_PERFIS: { builtin: string; nome: string; conta: string; invert
   { builtin: "nubank-cartao-pdf",   nome: "Nubank — Fatura Cartão",   conta: "Nubank Cartão",   inverterSinal: false },
   { builtin: "c6-cartao-pdf",       nome: "C6 — Fatura Cartão",       conta: "C6 Cartão",       inverterSinal: false },
   { builtin: "itau-cartao-pdf",     nome: "Itaú — Fatura Cartão",     conta: "Itaú Cartão",     inverterSinal: false },
+  // mesma conta do OFX do Itaú: quem importar os dois formatos não fica com duas contas
+  { builtin: "itau-extrato-pdf",    nome: "Itaú — Extrato da Conta",  conta: "Itaú Corrente",   inverterSinal: false, usaMesReferencia: false },
   { builtin: "bradesco-cartao-pdf", nome: "Bradesco — Fatura Cartão", conta: "Bradesco Cartão", inverterSinal: false },
   { builtin: "inter-cartao-pdf",    nome: "Inter — Fatura Cartão",    conta: "Inter Cartão",    inverterSinal: false },
 ];

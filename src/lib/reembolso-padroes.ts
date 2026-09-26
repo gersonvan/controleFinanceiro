@@ -1,19 +1,19 @@
 // Padrões de reembolso aprendidos com as divisões que o usuário já fez:
-// "Pix de MARGARET de ~R$ 76,25 → TIM". Um Pix novo do mesmo pagador, com
+// "Pix de MARIA de ~R$ 76,25 → TIM". Um Pix novo do mesmo pagador, com
 // valor parecido, é ligado ao gasto desse tipo mais próximo na data que ainda
 // tenha o que reembolsar. Funções puras; a leitura/gravação fica em reembolso-dados.ts.
 import { chaveMemoria } from "./categorias";
 
 /**
  * Quem está do outro lado do lançamento, sem o texto do banco: "Pix recebido de
- * JANAINA M", "PIX RECEBIDO · JANAINA M" → "janaina m"; "Pix enviado para TIM S A"
+ * ANA M", "PIX RECEBIDO · ANA M" → "ana m"; "Pix enviado para TIM S A"
  * e "TIM SA" → "tim". Datas/horas e sufixos de empresa (S.A., LTDA…) saem.
  */
 export function chaveContraparte(descricao: string): string {
   return chaveMemoria(nomeContraparte(descricao)).replace(/\s+(s\.? ?a\.?|ltda\.?|me|eireli|epp)$/, "").trim();
 }
 
-/** Nome da contraparte como está no extrato: "Pix enviado para JESSICA P · msg" → "JESSICA P". */
+/** Nome da contraparte como está no extrato: "Pix enviado para FULANA P · msg" → "FULANA P". */
 export function nomeContraparte(descricao: string): string {
   let d = descricao.replace(/^(.{22}) .{13} BRA\s*$/, "$1").trim();
   // "·" separa o nome (BB: "Pix - Enviado · 10/08 09:50 NOME") ou a mensagem (C6: "Pix enviado para NOME · msg")
@@ -107,7 +107,7 @@ export function sugerirGasto(
 
 /**
  * Sugestões para vários Pix de uma vez, sem usar duas vezes o mesmo saldo:
- * Margaret e Janaina no mesmo mês dividem a mesma TIM até ela zerar.
+ * Maria e Ana no mesmo mês dividem a mesma TIM até ela zerar.
  */
 export function sugerirVarios(
   pixes: { id: number; descricao: string; valor: number; data: Date }[],

@@ -1,5 +1,5 @@
 // Gravação dos vínculos de reembolso, valorReembolsado de cada gasto e os
-// padrões aprendidos ("Pix da Margaret → TIM").
+// padrões aprendidos ("Pix da Maria → TIM").
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { escopoDoUsuario } from "./tenant";

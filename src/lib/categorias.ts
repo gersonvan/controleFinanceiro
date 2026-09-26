@@ -1,3 +1,5 @@
+import { ehNomeProprio } from "./nome-proprio";
+
 export const CATEGORIAS = [
   // Receitas
   "Salário",
@@ -163,14 +165,6 @@ export const CATEGORIAS_NEUTRAS = new Set<string>([
   "Empresa (PJ)",
 ]);
 
-// Pix entre contas do próprio Gerson (os bancos grafam o nome de vários jeitos).
-const NOMES_PROPRIOS = [
-  "gerson neto",
-  "gerson albuquerque",
-  "gerson vieira alb", // o BB corta o nome: "GERSON VIEIRA ALB"
-  "gerson v albuquerque",
-];
-
 const MESES_ABREV = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez";
 
 /**
@@ -203,6 +197,8 @@ export interface MemoriaCategorizacao {
   memoria: Map<string, string>;
   /** chave = `${tipo}|${chaveMemoria(descricao)}` — ver montarHistorico */
   historico?: Map<string, string>;
+  /** nome completo do usuário, para reconhecer Pix/TED entre contas dele (ver nome-proprio.ts) */
+  nomeCompleto?: string;
 }
 /** Só a Memória (Map) ou Memória + histórico. */
 export type FonteMemoria = Map<string, string> | MemoriaCategorizacao;
@@ -256,7 +252,7 @@ export function categorizarComOrigem(
   tipo: string,
   fonte?: FonteMemoria,
 ): { categoria: string; origem: OrigemCategoria | null } {
-  const { memoria, historico } = fonte instanceof Map ? { memoria: fonte, historico: undefined } : fonte ?? {};
+  const { memoria, historico, nomeCompleto } = fonte instanceof Map ? { memoria: fonte, historico: undefined, nomeCompleto: undefined } : fonte ?? {};
   const chave = chaveMemoria(descricao);
   if (memoria?.has(chave)) return { categoria: memoria.get(chave)!, origem: "memoria" };
 
@@ -266,7 +262,7 @@ export function categorizarComOrigem(
   const h = historico?.get(chaveHistorico(tipo, descricao));
   if (h) return { categoria: h, origem: "historico" };
 
-  const categoria = regras(d, categoriaOriginal, tipo);
+  const categoria = ehNomeProprio(descricao, nomeCompleto) ? "Transferência entre Contas" : regras(d, categoriaOriginal, tipo);
   return { categoria, origem: categoria ? "regra" : null };
 }
 
@@ -281,10 +277,10 @@ export function mapearCategoria(
 
 /** Regras fixas por padrão de texto (d = descrição em minúsculas). */
 function regras(d: string, categoriaOriginal: string, tipo: string): string {
-  // Prioridade 1: transferências entre contas próprias (inclui a aplicação
-  // automática "BB Rende Fácil", que entra e sai da conta sozinha)
-  // Sofisa mascara o nome: "Para GERSON XXXXXX XXXXXXXXXXX NETO"
-  if (NOMES_PROPRIOS.some((nome) => d.includes(nome)) || /gerson x+ x+ neto/.test(d) || d.includes("bb rende f"))
+  // Prioridade 1: transferências entre contas próprias. As com o nome do usuário
+  // são vistas antes, em categorizarComOrigem (ehNomeProprio); aqui fica a aplicação
+  // automática "BB Rende Fácil", que entra e sai da conta sozinha.
+  if (d.includes("bb rende f"))
     return "Transferência entre Contas";
 
   // Prioridade 2: pagamento de fatura do cartão (aparece como Entrada no extrato
@@ -294,18 +290,21 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     d.includes("pag fatura boleto") ||
     d.includes("pagamento de fatura boleto") ||
     d.includes("pgto fat cartao") ||
-    d.includes("pagamento fatura cartao")
+    d.includes("pagamento fatura cartao") ||
+    /^fatura (paga|itau)\b/.test(d) // extrato Itaú: "FATURA PAGA Itau Uniclass", "FATURA ITAU UNICLASS MC"
   )
     return "Pagamento de Cartão de Crédito";
 
   if (tipo === "Entrada") {
     // resgate de aplicação: dinheiro guardado voltando — abate o "Guardado", não é renda
     if (/resgate.*(investimento|cdb|rdb|lci|lca|tesouro)/.test(d)) return "Investimentos (Aportes)";
-    if (d.includes("recebimento salario")) return "Salário";
-    if (d.includes("reserve imobiliaria")) return "Receita de Aluguel";
+    if (d.includes("recebimento salario") || /^(remuneracao\/salario|pagto salario)\b/.test(d)) return "Salário";
+    if (d.startsWith("rend pago aplic")) return "Rendimento Investimentos"; // Itaú: aplicação automática
+    if (d.startsWith("dev pix") || d.startsWith("cancelamento de compra") || d.startsWith("estorno")) return "Estorno";
+    if (d.includes("imobiliaria") || d.includes("imobiliária")) return "Receita de Aluguel"; // repasse de aluguel
     if (d.includes("transferência de saldo nuinvest"))
       return "Rendimento Investimentos";
-    if (d.includes("pix recebido") || d.includes("transferência recebida"))
+    if (d.includes("pix recebido") || d.includes("transferência recebida") || d.startsWith("pix transf"))
       return "Transferência Recebida";
     return categoriaOriginal || "Outras Entradas";
   }
@@ -465,13 +464,15 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     d.includes("juros de mora")
   )
     return "Taxas e Anuidades";
-  if (d.includes("seguro")) return "Seguros";
+  if (d.includes("seguro") || d.includes("seg vida")) return "Seguros";
+  // GPS = guia do INSS ("PAGAMENTO TRIBUTO GPS", "INT /GPS 0109…")
+  if (/\btributo gps\b|^int \/gps\b/.test(d)) return "Impostos e Tributos";
   // mensagem do Pix diz para que foi: "Pix enviado para FULANO · Emprestimo"
   if (d.includes("pix") && /· .*\bempr[eé]stimo\b/.test(d)) return "Empréstimo";
   if (
-    d.includes("agência: 1956") ||
     d.includes("pix enviado para") ||
     d.includes("pix enviada para") || // "Recorrência Pix enviada para …"
+    d.startsWith("pix transf") || // Itaú: "PIX TRANSF FULANO 25/09" (Pix por QR code, "PIX QRS", é compra)
     d.includes("transferência enviada")
   )
     return "Transferência para Terceiros";

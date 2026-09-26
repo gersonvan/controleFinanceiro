@@ -64,7 +64,7 @@ function importarBruto(
     return parseExtratoBB(parseCSV(texto, ",").slice(1), perfil.conta, memoriaIA);
   }
 
-  // 1. Perfis legados do Gerson (compatibilidade total)
+  // 1. Perfis legados de CSV (C6 e Nubank, formato antigo)
   if (perfil.builtin) {
     const delim = perfil.builtin === "c6-credito" ? ";" : ",";
     const rows = parseCSV(texto, delim);

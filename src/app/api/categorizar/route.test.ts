@@ -8,12 +8,14 @@ const mocks = vi.hoisted(() => ({
   groupBy: vi.fn(),
   updateMany: vi.fn(),
   transaction: vi.fn(),
+  perfilFindUnique: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     memoriaIA: { findMany: mocks.memoriaFindMany },
+    userProfile: { findUnique: mocks.perfilFindUnique },
     lancamento: { findMany: mocks.lancamentoFindMany, groupBy: mocks.groupBy, updateMany: mocks.updateMany },
     $transaction: mocks.transaction,
   },
@@ -32,6 +34,7 @@ describe("API de categorização", () => {
     vi.clearAllMocks();
     mocks.getSessionUserId.mockResolvedValue("ana@example.com");
     mocks.memoriaFindMany.mockResolvedValue([]);
+    mocks.perfilFindUnique.mockResolvedValue({ nomeCompleto: "" });
     mocks.groupBy.mockResolvedValue([]);
     mocks.lancamentoFindMany.mockResolvedValue([
       { id: 9, descricao: "LOJA DE ROUPAS TEMU", tipo: "Saída", categoria: null },

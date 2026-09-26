@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       })),
       select: { id: true, valor: true },
     });
-    // Pix que seguem um padrão de reembolso aprendido ("Margaret → TIM") já entram divididos
+    // Pix que seguem um padrão de reembolso aprendido ("Maria → TIM") já entram divididos
     reembolsosVinculados = await aplicarPadroes(userId, criados.filter((c) => c.valor > 0).map((c) => c.id));
   }
 

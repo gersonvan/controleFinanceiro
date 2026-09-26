@@ -249,11 +249,15 @@ describe("fatura de cartão em OFX (Nubank)", () => {
 });
 
 describe("Pix para as próprias contas", () => {
-  it("reconhece as grafias do nome como transferência entre contas", async () => {
+  it("reconhece as grafias do nome do usuário como transferência entre contas", async () => {
     const { mapearCategoria } = await import("../categorias");
-    for (const d of ["Pix recebido de GERSON V ALBUQUERQUE NT", "Pix recebido de Gerson Vieira Albuquerque Neto", "Pix enviado para GERSON NETO · transferência entre contas"]) {
-      expect(mapearCategoria(d, "", "Entrada"), d).toBe("Transferência entre Contas");
+    const fonte = { memoria: new Map<string, string>(), nomeCompleto: "Maria Clara de Souza Neto" };
+    for (const d of ["Pix recebido de MARIA C SOUZA NT", "Pix recebido de Maria Clara Souza Neto", "Pix enviado para MARIA NETO · transferência entre contas"]) {
+      expect(mapearCategoria(d, "", "Entrada", fonte), d).toBe("Transferência entre Contas");
     }
+    // o nome vem do perfil de cada usuário: sem ele (ou para outra pessoa), é um Pix comum
+    expect(mapearCategoria("Pix recebido de MARIA NETO", "", "Entrada")).toBe("Transferência Recebida");
+    expect(mapearCategoria("Pix recebido de MARIA NETO", "", "Entrada", { memoria: new Map(), nomeCompleto: "João Pedro Lima" })).toBe("Transferência Recebida");
   });
 });
 
@@ -307,16 +311,16 @@ describe("formatos atuais dos CSV (arquivos reais de 09/2026, dados fictícios)"
       '"08/09/2026","Recebimento de Proventos","EMPRESA X","4505","176,55","Entrada"',
       '"08/09/2026","BB Rende Fácil","Rende Facil","9903","-187,85","Saída"',
       '"08/09/2026","Saldo do dia","","","0,00",""',
-      '"24/09/2026","TED","336 0001 123 GERSON VIEIRA ALB","92402","-1.800,00","Saída"',
+      '"24/09/2026","TED","336 0001 123 MARIA CLARA SOU","92402","-1.800,00","Saída"',
       '"28/09/2026","S A L D O","","","0,00",""',
     ].join("\n");
     const texto = decodificarTexto(Buffer.from(csv, "latin1"));
     expect(detectarPerfilCSV(texto).builtinKey).toBe("bb-corrente-csv");
     const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", conta: "BB Corrente", builtin: "bb-corrente-csv" };
-    expect(importar(texto, "bb.csv", perfil, new Map(), null).map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
+    expect(importar(texto, "bb.csv", perfil, { memoria: new Map(), nomeCompleto: "Maria Clara de Souza Neto" }, null).map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
       { descricao: "Recebimento de Proventos · EMPRESA X", valor: 176.55, categoria: "Outras Entradas" },
       { descricao: "BB Rende Fácil · Rende Facil", valor: -187.85, categoria: "Transferência entre Contas" },
-      { descricao: "TED · 336 0001 123 GERSON VIEIRA ALB", valor: -1800, categoria: "Transferência entre Contas" },
+      { descricao: "TED · 336 0001 123 MARIA CLARA SOU", valor: -1800, categoria: "Transferência entre Contas" },
     ]);
   });
 });
@@ -458,11 +462,11 @@ describe("extrato do Sofisa (PDF)", () => {
     "Banco Sofisa S.A. | Al. Santos, 1496 - São Paulo / SP",
     "www.sofisadireto.com.br",
     "Extrato do período de 01/01/2025 até 28/09/2026",
-    "14/07/2025 Recebimento de transferência via PIX - De GERSON XXXXXX XXXXXXXXXXX NETO R$ 10.000,00",
+    "14/07/2025 Recebimento de transferência via PIX - De MARIA XXXXXX XXXXXXXXXXX NETO R$ 10.000,00",
     "14/07/2025 Saldo em 14/07/2025 R$ 10.000,00",
     "15/07/2025 Aplicação - Meus Investimentos - CDB DIRETO DI -R$ 10.000,00",
     "13/08/2025 Resgate Antecipado - Meus Investimentos - CDB DIRETO DI R$ 7.000,76",
-    "13/08/2025 Envio de transferência via PIX - Para GERSON XXXXXX XXXXXXXXXXX NETO -R$ 7.000,76",
+    "13/08/2025 Envio de transferência via PIX - Para MARIA XXXXXX XXXXXXXXXXX NETO -R$ 7.000,76",
     "14/08/2026 Saldo em 14/08/2026 -R$ 0,01",
     "A - 26/09/2026 Saldo Disponível -R$ 0,01",
   ].join("\n");
@@ -474,7 +478,7 @@ describe("extrato do Sofisa (PDF)", () => {
     const comprovante = "Sofisa Direto\nNovo Investimento\n15/07/2025 09:08 15/07/2028 105.00% do CDI CDB Direto DI Liquidez Diária R$ 10.000,00\nComprovante de Investimento";
     expect(detectarBancoPDF(comprovante).builtinKey).toBeNull();
     const perfil = { conta: "Sofisa", builtin: "sofisa-extrato-pdf" } as Parameters<typeof parseSofisa>[1];
-    const ls = parseSofisa(texto, perfil, new Map());
+    const ls = parseSofisa(texto, perfil, { memoria: new Map(), nomeCompleto: "Maria Clara de Souza Neto" });
     expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.valor, l.categoria])).toEqual([
       ["2025-07-14", 10000, "Transferência entre Contas"],
       ["2025-07-15", -10000, "Investimentos (Aportes)"],
@@ -482,5 +486,87 @@ describe("extrato do Sofisa (PDF)", () => {
       ["2025-08-13", -7000.76, "Transferência entre Contas"],
     ]);
     expect(ls.every((l) => l.conta === "Sofisa" && l.mesReferencia.getUTCDate() === 1)).toBe(true);
+  });
+});
+
+describe("Itaú (PDF)", () => {
+  // Layout da exportação atual do app/internet banking do Itaú (pdf-parse v2)
+  const extrato = [
+    "saldo em conta Limite da Conta utilizado Limite da Conta disponível",
+    "extrato conta / lançamentos",
+    "período de visualização: 01/07/2026 até 31/07/2026",
+    "data lançamentos valor (R$) saldo (R$)",
+    "30/07/2026 PAGTO SALARIO 5.000,00",
+    "30/07/2026 SALDO DO DIA 4.100,00",
+    "29/07/2026 PIX TRANSF FULANO 29/07 150,00",
+    "29/07/2026 PIX QRS PADARIA BO29/07 -20,00",
+    "29/07/2026 PAG BOLETO NU PAGAMENTOS SA -300,00",
+    "20/07/2026 FATURA PAGA Itau Uniclas -1.234,56",
+    "20/07/2026 APLICACAO CDB DI -500,00",
+    "20/07/2026 REND PAGO APLIC AUT MAIS 0,05",
+    "20/07/2026 ITAU SEG VIDA PF 07/12 -71,74",
+    "20/07/2026 INT /GPS 01091798211 -83,45",
+    "01/07/2026 SALDO ANTERIOR 100,00",
+    "Consulte a última versão das Condições Gerais da sua Conta em www.itau.com.br",
+  ].join("\n");
+
+  const fatura = [
+    "Resumo da fatura em R$",
+    "Total da fatura anterior 900,00",
+    "Pagamento efetuado em 17/12/2025 -900,00",
+    "Total desta fatura 480,00",
+    "Vencimento: 17/01/2026",
+    "Pagamentos efetuados",
+    "DATA VALOR EM R$",
+    "17/12 PAGAMENTO DEB AUTOMATIC -900,00",
+    "Total dos pagamentos -900,00",
+    "Lançamentos: compras e saques",
+    "DATA ESTABELECIMENTO VALOR EM R$",
+    "23/10 LOJA PARCELADA 03/06 100,00",
+    "vestuário FORTALEZA",
+    "18/12 HOTEL RESERVA 200,00",
+    "outros SAO PAULO",
+    "18/12 CANCELAMENTO DE COMPRA -200,00",
+    "05/01 MERCADO 380,00",
+    "Lançamentos no cartão 480,00",
+    "Compras parceladas - próximas faturas",
+    "DATA ESTABELECIMENTO VALOR EM R$",
+    "23/10 LOJA PARCELADA 04/06 100,00",
+    "Próxima fatura 100,00",
+    "Consulte o site Itaú Cartões",
+  ].join("\n");
+
+  it("extrato da conta não é confundido com fatura Nubank por um boleto pago à Nu Pagamentos", async () => {
+    const { detectarBancoPDF, parsePDF } = await import("./pdf");
+    expect(detectarBancoPDF(extrato).builtinKey).toBe("itau-extrato-pdf");
+    const ls = parsePDF(extrato, { conta: "Itaú Corrente", builtin: "itau-extrato-pdf" } as Parameters<typeof parsePDF>[1], new Map(), null);
+    expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.descricao, l.valor, l.categoria])).toEqual([
+      ["2026-07-30", "PAGTO SALARIO", 5000, "Salário"],
+      ["2026-07-29", "PIX TRANSF FULANO 29/07", 150, "Transferência Recebida"],
+      ["2026-07-29", "PIX QRS PADARIA BO 29/07", -20, ""],
+      ["2026-07-29", "PAG BOLETO NU PAGAMENTOS SA", -300, ""],
+      ["2026-07-20", "FATURA PAGA Itau Uniclas", -1234.56, "Pagamento de Cartão de Crédito"],
+      ["2026-07-20", "APLICACAO CDB DI", -500, "Investimentos (Aportes)"],
+      ["2026-07-20", "REND PAGO APLIC AUT MAIS", 0.05, "Rendimento Investimentos"],
+      ["2026-07-20", "ITAU SEG VIDA PF 07/12", -71.74, "Seguros"],
+      ["2026-07-20", "INT /GPS 01091798211", -83.45, "Impostos e Tributos"],
+    ]);
+    expect(ls.every((l) => l.mesReferencia.toISOString().startsWith("2026-07-01"))).toBe(true);
+  });
+
+  it("fatura: soma bate com o total, sem o pagamento anterior nem as parcelas futuras", async () => {
+    const { detectarBancoPDF, parsePDF } = await import("./pdf");
+    expect(detectarBancoPDF(fatura).builtinKey).toBe("itau-cartao-pdf");
+    const ls = parsePDF(fatura, { conta: "Itaú Cartão", builtin: "itau-cartao-pdf" } as Parameters<typeof parsePDF>[1], new Map(), null);
+    expect(ls.find((l) => l.valor > 0)?.categoria).toBe("Estorno");
+    expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.descricao, l.valor])).toEqual([
+      ["2025-10-23", "LOJA PARCELADA (03/06)", -100],
+      ["2025-12-18", "HOTEL RESERVA", -200],
+      ["2025-12-18", "CANCELAMENTO DE COMPRA", 200],
+      ["2026-01-05", "MERCADO", -380],
+    ]);
+    expect(ls.reduce((a, l) => a + l.valor, 0)).toBe(-480);
+    // sem mês informado, vale o vencimento impresso na fatura
+    expect(ls.every((l) => l.mesReferencia.toISOString().startsWith("2026-01-01"))).toBe(true);
   });
 });

@@ -33,6 +33,7 @@ export type BancoPDF =
   | "nubank-cartao-pdf"
   | "c6-cartao-pdf"
   | "itau-cartao-pdf"
+  | "itau-extrato-pdf"
   | "bradesco-cartao-pdf"
   | "inter-cartao-pdf"
   | "sofisa-extrato-pdf";
@@ -45,6 +46,13 @@ export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; 
       return { builtinKey: null, bancoNome: "Sofisa — comprovante (importe o extrato da conta)" };
     return { builtinKey: "sofisa-extrato-pdf", bancoNome: "Sofisa — Extrato da Conta" };
   }
+  // Itaú antes dos outros: o extrato da conta cita outros bancos nos boletos pagos
+  // ("PAG BOLETO NU PAGAMENTOS SA", "BANCO INTER SA") e era lido como fatura Nubank.
+  const itau = t.includes("itaú") || t.includes("itau");
+  if (itau && t.includes("saldo do dia") && /extrato conta|lançamentos|lancamentos/.test(t))
+    return { builtinKey: "itau-extrato-pdf", bancoNome: "Itaú — Extrato da Conta" };
+  if (t.includes("itauunibanco") || t.includes("itaú cartões") || (itau && /total desta fatura|lançamentos: compras e saques/.test(t)))
+    return { builtinKey: "itau-cartao-pdf", bancoNome: "Itaú — Fatura do Cartão" };
   if (t.includes("nu pagamentos") || (t.includes("nubank") && t.includes("fatura")))
     return { builtinKey: "nubank-cartao-pdf", bancoNome: "Nubank — Fatura do Cartão" };
   if (t.includes("c6 bank") || t.includes("banco c6") || t.includes("31.872.495"))
@@ -70,6 +78,7 @@ export function parsePDF(
     case "nubank-cartao-pdf":    return parseNubank(texto, perfil, memoriaIA, mesReferenciaManual);
     case "c6-cartao-pdf":        return parseC6(texto, perfil, memoriaIA, mesReferenciaManual);
     case "itau-cartao-pdf":      return parseItau(texto, perfil, memoriaIA, mesReferenciaManual);
+    case "itau-extrato-pdf":     return parseItauExtrato(texto, perfil, memoriaIA);
     case "bradesco-cartao-pdf":  return parseBradesco(texto, perfil, memoriaIA, mesReferenciaManual);
     case "inter-cartao-pdf":     return parseInter(texto, perfil, memoriaIA, mesReferenciaManual);
     case "sofisa-extrato-pdf":   return parseSofisa(texto, perfil, memoriaIA);
@@ -189,46 +198,92 @@ function parseC6(
 }
 
 // ─── Itaú Cartão ─────────────────────────────────────────────────────────────
-// Formato: "15/01 Descrição 150,00" (ou com parcelas: "15/01 Descrição 01/12150,00")
+// Blocos da fatura:
+//   "Pagamentos efetuados"          → "17/08 PAGAMENTO DEB AUTOMATIC -4.816,49" — é a quitação da
+//                                     fatura anterior (já está no extrato da conta): não entra.
+//   "Lançamentos: compras e saques" → "23/04 PG *LOJA 05/06 105,76" (parcela 5 de 6),
+//                                     "18/08 CANCELAMENTO DE COMPRA -604,80" (crédito);
+//                                     a linha seguinte ("vestuário FORTALEZA") é ignorada.
+//   "Compras parceladas - próximas faturas" → parcelas futuras: não entram.
+// A soma do que entra bate com "Lançamentos atuais" da fatura. Versões antigas do
+// pdf-parse colavam a parcela no valor ("01/12150,00"); o espaço é opcional.
 
-function parseItau(
+export function parseItau(
   texto: string, perfil: PerfilPDF,
   memoriaIA: FonteMemoria, manual: Date | null
 ): LancamentoImportado[] {
-  const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
-  const ano = extrairAno(texto);
-  const vistos = new Set<string>();
+  // ano/mês do vencimento: compras de meses depois dele são do ano anterior (fatura de janeiro)
+  const venc = texto.match(/vencimento[^\d\n]{0,40}\d{2}\/(\d{2})\/(\d{4})/i);
+  const anoVenc = venc ? parseInt(venc[2]) : extrairAno(texto);
+  const mesVenc = venc ? parseInt(venc[1]) : 12;
+  const RE = /^(\d{2})\/(\d{2})\s+(.+?)(?:\s+(\d{2})\/(\d{2}))?\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
 
-  // DD/MM descrição [NN/NN]1.234,56
-  const RE = /^(\d{2})\/(\d{2})\s+(.+?)\s+(?:\d{2}\/\d{2})?(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
+  let bloco: "compras" | "fora" = "compras"; // faturas sem cabeçalhos de bloco: tudo é compra
+  for (const bruta of texto.split("\n")) {
+    const linha = bruta.trim();
+    const l = linha.toLowerCase();
+    if (/^pagamentos efetuados/.test(l) || /^compras parceladas\s*-\s*pr[óo]ximas faturas/.test(l)) { bloco = "fora"; continue; }
+    if (/^lan[çc]amentos:/.test(l)) { bloco = "compras"; continue; }
+    if (bloco === "fora") continue;
 
-  for (const linha of linhas) {
     const m = linha.match(RE);
     if (!m) continue;
-
     const dia = parseInt(m[1]), mes = parseInt(m[2]);
-    const descricao = m[3].trim();
-    const raw = parseBR(m[4].replace(/\s/g, ""));
-    if (isNaN(raw)) continue;
+    if (!dia || dia > 31 || !mes || mes > 12) continue;
+    const raw = parseBR(m[6].replace(/\s/g, ""));
+    if (isNaN(raw) || raw === 0) continue;
+    const base = m[3].trim();
+    // pagamento da fatura fora do bloco próprio (layouts antigos): não é compra nem receita
+    if (/^pagamento\b/i.test(base) && raw < 0) continue;
+    const parcela = m[4] && parseInt(m[4]) >= 1 && parseInt(m[4]) <= parseInt(m[5]) ? ` (${m[4]}/${m[5]})` : "";
+    const descricao = base + parcela;
 
-    const key = `${dia}/${mes}|${descricao}|${raw}`;
-    if (vistos.has(key)) continue;
-    vistos.add(key);
-
-    // No Itaú: positivo no PDF = débito (gasto)
-    const v = raw > 0 ? -raw : Math.abs(raw);
+    // No Itaú: positivo = compra; negativo = estorno/crédito
+    const v = -raw;
     const tipo: "Entrada" | "Saída" = v >= 0 ? "Entrada" : "Saída";
-    const data = new Date(ano, mes - 1, dia);
+    const ano = mes > mesVenc ? anoVenc - 1 : anoVenc;
+    const data = new Date(Date.UTC(ano, mes - 1, dia));
 
     result.push({
-      data, descricao, categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      data, descricao, categoria: mapearCategoria(base, "", tipo, memoriaIA),
       valor: v, tipo, conta: perfil.conta,
-      mesReferencia: mesRef(data, manual),
+      mesReferencia: manual ?? new Date(Date.UTC(anoVenc, mesVenc - 1, 1)),
       fonte: "Importado Itaú (PDF)",
     });
   }
   return result;
+}
+
+// ─── Itaú — extrato da conta corrente ───────────────────────────────────────────
+// Formato: "25/09/2026 PIX TRANSF FULANO 25/09 -175,91" (às vezes seguido do saldo).
+// Linhas "SALDO DO DIA"/"SALDO ANTERIOR" são ignoradas. Conta corrente: mês de referência = mês da data.
+
+export function parseItauExtrato(texto: string, perfil: PerfilPDF, memoriaIA: FonteMemoria): LancamentoImportado[] {
+  const resultado: LancamentoImportado[] = [];
+  const linha = /^(\d{2})\/(\d{2})\/(\d{4})\s+(.+?)\s+(-?[\d.]+,\d{2})(?:\s+-?[\d.]+,\d{2})?\s*$/;
+  for (const bruta of texto.split(/\r?\n/)) {
+    const m = bruta.trim().match(linha);
+    if (!m) continue;
+    const [, dd, mm, aaaa, desc, valorTxt] = m;
+    if (/^saldo\b|^s\s*a\s*l\s*d\s*o\b/i.test(desc)) continue;
+    const valor = parseBR(valorTxt);
+    if (!valor) continue;
+    // "PIX TRANSF FULANO25/09": o Itaú cola a data da operação no nome
+    const descricao = desc.replace(/(\S)(\d{2}\/\d{2})$/, "$1 $2").replace(/\s+/g, " ").trim();
+    const tipo = valor > 0 ? "Entrada" : "Saída";
+    resultado.push({
+      data: new Date(Date.UTC(+aaaa, +mm - 1, +dd)),
+      descricao,
+      valor,
+      tipo,
+      conta: perfil.conta,
+      categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      fonte: "Importado Itaú (PDF)",
+      mesReferencia: new Date(Date.UTC(+aaaa, +mm - 1, 1)),
+    });
+  }
+  return resultado;
 }
 
 // ─── Bradesco Cartão ──────────────────────────────────────────────────────────

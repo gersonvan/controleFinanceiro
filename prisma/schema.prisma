@@ -40,6 +40,7 @@ model Lancamento {
 model UserProfile {
   userId             String   @id
   nome               String   @default("")
+  nomeCompleto       String   @default("") // como aparece nos extratos: reconhece Pix entre contas próprias
   onboardingCompleto Boolean  @default(false)
   createdAt          DateTime @default(now())
 

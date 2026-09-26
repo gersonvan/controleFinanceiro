@@ -40,8 +40,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Auto-graduate existing users who already have data
           const temDados = (await prisma.lancamento.count({ where: { userId: email } })) > 0;
           profile = await prisma.userProfile.create({
-            data: { userId: email, onboardingCompleto: temDados },
+            data: { userId: email, onboardingCompleto: temDados, nomeCompleto: user.name?.trim() ?? "" },
           });
+        } else if (!profile.nomeCompleto && user.name?.trim()) {
+          // ponto de partida para reconhecer Pix entre contas próprias; o usuário corrige em Configurações › Importação
+          await prisma.userProfile.update({ where: { userId: email }, data: { nomeCompleto: user.name.trim() } });
         }
         token.onboardingCompleto = profile.onboardingCompleto;
       }

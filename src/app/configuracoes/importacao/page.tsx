@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import NomeNosExtratos from "@/components/NomeNosExtratos";
 
 interface Perfil {
   id: number;
@@ -96,6 +97,8 @@ export default function ConfiguracoesPage() {
           Ative os bancos que você usa. Só os ativos aparecem na tela de importação.
         </p>
       </div>
+
+      <NomeNosExtratos />
 
       {carregando ? (
         <div className="text-slate-400 text-sm">Carregando…</div>
