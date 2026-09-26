@@ -46,6 +46,9 @@ model UserProfile {
   // Fotografia do mês
   margemPercentual      Float     @default(20) // reserva sobre as entradas
   fotografiaConcluidaEm DateTime?               // null = dashboard lembra de fazer
+
+  // Previsão: categorias que o usuário marcou como encerradas (valem zero)
+  previsaoEncerradas String[] @default([])
 }
 
 // Item da Fotografia do mês: o que o usuário planeja receber/gastar.
