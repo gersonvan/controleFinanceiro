@@ -6,41 +6,90 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 
-const links = [
+interface ItemMenu { href: string; label: string; icon?: string }
+interface GrupoMenu { label: string; icon: string; href?: string; filhos: ItemMenu[] }
+type EntradaMenu = ItemMenu | GrupoMenu;
+
+// Uso real: acompanhar → planejar → importar → lançamentos → ferramentas → ajustes
+const menu: EntradaMenu[] = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/planejamento", label: "Planejamento", icon: "📸" },
-  { href: "/lancamentos", label: "Lançamentos", icon: "📋" },
-  { href: "/matriz", label: "Matriz", icon: "🗂️" },
   { href: "/importar", label: "Importar Lançamentos", icon: "📂" },
-  { href: "/previsao", label: "Previsão", icon: "🔮" },
-  { href: "/reserva", label: "Reserva", icon: "💰" },
-  { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
-  { href: "/memoria-ia", label: "Memória Local", icon: "🧠" },
-  { href: "/configuracoes", label: "Configurações", icon: "⚙️" },
+  { href: "/lancamentos", label: "Lançamentos", icon: "📋", filhos: [
+    { href: "/lancamentos/revisar", label: "Revisar categorias" },
+  ] },
+  { label: "Ferramentas", icon: "🧰", filhos: [
+    { href: "/matriz", label: "Matriz", icon: "🗂️" },
+    { href: "/previsao", label: "Previsão", icon: "🔮" },
+    { href: "/reserva", label: "Reserva", icon: "💰" },
+    { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
+  ] },
+  { label: "Configurações", icon: "⚙️", filhos: [
+    { href: "/configuracoes/contas", label: "Contas", icon: "🏦" },
+    { href: "/configuracoes/importacao", label: "Importação", icon: "📥" },
+    { href: "/configuracoes/memoria", label: "Memória Local", icon: "🧠" },
+  ] },
 ];
 
+const ehGrupo = (e: EntradaMenu): e is GrupoMenu => "filhos" in e;
+const ativoEm = (href: string, pathname: string) =>
+  href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+
 // Desktop (md+): barra lateral fixa. Celular: barra superior com menu que
-// abre/fecha; o menu fecha ao navegar.
+// abre/fecha; o menu fecha ao navegar. Grupos abrem e fecham; o grupo da
+// página atual já vem aberto.
 export default function Nav({ user }: { user?: Session["user"] }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
 
-  const itens = links.map((l) => {
-    const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+  const classeLink = (ativo: boolean, filho = false) =>
+    `flex items-center gap-2.5 ${filho ? "pl-9 pr-3 py-2" : "px-3 py-2.5"} rounded-lg text-sm transition-colors ${
+      ativo ? "bg-blue-600 text-white font-medium" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+    }`;
+
+  const link = (l: ItemMenu, filho = false, ativo = ativoEm(l.href, pathname)) => (
+    <Link key={l.href} href={l.href} onClick={() => setAberto(false)} className={classeLink(ativo, filho)}
+      aria-current={ativo ? "page" : undefined}>
+      {l.icon && <span>{l.icon}</span>}
+      {l.label}
+    </Link>
+  );
+
+  const itens = menu.map((e) => {
+    if (!ehGrupo(e)) return link(e);
+    const contemAtual = e.filhos.some((f) => ativoEm(f.href, pathname)) || (!!e.href && ativoEm(e.href, pathname));
+    const expandido = contemAtual || gruposAbertos.has(e.label);
+    const alternar = () => setGruposAbertos((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(e.label)) novo.delete(e.label); else novo.add(e.label);
+      return novo;
+    });
+    const seta = (
+      <span className={`ml-auto text-xs text-slate-500 transition-transform ${expandido ? "rotate-90" : ""}`} aria-hidden>▶</span>
+    );
     return (
-      <Link
-        key={l.href}
-        href={l.href}
-        onClick={() => setAberto(false)}
-        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-          active
-            ? "bg-blue-600 text-white font-medium"
-            : "text-slate-300 hover:bg-slate-800 hover:text-white"
-        }`}
-      >
-        <span>{l.icon}</span>
-        {l.label}
-      </Link>
+      <div key={e.label} className="space-y-0.5">
+        {e.href ? (
+          // grupo que também é página (Lançamentos): o link leva à página, a seta abre os filhos
+          <div className="flex items-center">
+            <Link href={e.href} onClick={() => setAberto(false)}
+              className={`${classeLink(pathname === e.href)} flex-1`} aria-current={pathname === e.href ? "page" : undefined}>
+              <span>{e.icon}</span>{e.label}
+            </Link>
+            <button onClick={alternar} aria-expanded={expandido} aria-label={`${expandido ? "Fechar" : "Abrir"} ${e.label}`}
+              className="px-2 py-2.5 text-slate-500 hover:text-white">
+              <span className={`inline-block text-xs transition-transform ${expandido ? "rotate-90" : ""}`}>▶</span>
+            </button>
+          </div>
+        ) : (
+          <button onClick={alternar} aria-expanded={expandido}
+            className={`w-full ${classeLink(false)} ${contemAtual ? "text-white" : ""}`}>
+            <span>{e.icon}</span>{e.label}{seta}
+          </button>
+        )}
+        {expandido && e.filhos.map((f) => link(f, true))}
+      </div>
     );
   });
 
