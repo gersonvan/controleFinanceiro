@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
+import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
@@ -53,13 +54,10 @@ const PAPEL_OPTS: { v: Papel; label: string }[] = [
   { v: "saida",     label: "⬇ Saída" },
 ];
 
+// Mesma decodificação do servidor. Ler tudo como Latin-1 estragava "Cartão"
+// nos CSV do C6 e a fatura deixava de ser reconhecida.
 async function lerArquivo(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = (e) => resolve((e.target?.result as string) ?? "");
-    r.onerror = reject;
-    r.readAsText(file, "latin1");
-  });
+  return decodificarBytes(await file.arrayBuffer());
 }
 
 export default function ImportarPage() {
@@ -199,6 +197,7 @@ export default function ImportarPage() {
       if (perfil) {
         setPerfilCSV(perfil);
         setNomePerfil(nome);
+        setMesRef(perfil.usaMesReferencia ? vencimentoNoNome(file.name) ?? "" : "");
         setFase("confirmar_csv");
         return;
       }
@@ -537,23 +536,32 @@ export default function ImportarPage() {
       {fase === "confirmar_csv" && perfilCSV && (
         <div className="card space-y-4">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">💳</span>
+            <span className="text-2xl">{perfilCSV.usaMesReferencia ? "💳" : "🏦"}</span>
             <div>
-              <div className="font-semibold text-slate-800">Fatura identificada: {perfilCSV.nome}</div>
+              <div className="font-semibold text-slate-800">
+                {perfilCSV.usaMesReferencia ? "Fatura identificada" : "Extrato identificado"}: {perfilCSV.nome}
+              </div>
               <div className="text-sm text-slate-400 mt-0.5">{arquivo?.name}</div>
             </div>
           </div>
           <p className="text-sm text-slate-500">
             As colunas, o sinal de compras e as parcelas serão tratados automaticamente.
           </p>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência da fatura</label>
-            <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
-          </div>
+          {perfilCSV.usaMesReferencia && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência da fatura</label>
+              <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
+              <p className="text-xs text-slate-400 mt-1">O mês do vencimento: é nele que os gastos da fatura entram.</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
-            <button className="btn btn-primary flex-1 justify-center" disabled={!mesRef} onClick={() => importar(perfilCSV.id, mesRef)}>
-              📥 Importar fatura
+            <button
+              className="btn btn-primary flex-1 justify-center"
+              disabled={perfilCSV.usaMesReferencia && !mesRef}
+              onClick={() => importar(perfilCSV.id, perfilCSV.usaMesReferencia ? mesRef : undefined)}
+            >
+              📥 Importar {perfilCSV.usaMesReferencia ? "fatura" : "extrato"}
             </button>
           </div>
         </div>
@@ -695,7 +703,14 @@ export default function ImportarPage() {
                 <button
                   key={p.id}
                   onClick={() => {
-                    importar(p.id, p.usaMesReferencia ? mesRef : undefined);
+                    // fatura precisa do mês: confirma antes de importar
+                    if (p.usaMesReferencia) {
+                      setPerfilCSV(p);
+                      setMesRef(arquivo ? vencimentoNoNome(arquivo.name) ?? "" : "");
+                      setFase("confirmar_csv");
+                    } else {
+                      importar(p.id);
+                    }
                   }}
                   className="p-3 rounded-lg border-2 border-slate-200 hover:border-blue-400 text-left transition-all"
                 >

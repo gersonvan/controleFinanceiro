@@ -421,3 +421,22 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
       expect(mapearCategoria(d, "", "Saída"), d).not.toBe("Automóvel");
   });
 });
+
+describe("fatura C6 em CSV no formato antigo (; e Valor em US$)", () => {
+  const cabecalho = "Data de Compra;Nome no Cartão;Final do Cartão;Categoria;Descrição;Parcela;Valor (em US$);Cotação (em R$);Valor (em R$)";
+  const linhas = [
+    cabecalho,
+    "12/03/2026;FULANO DE TAL;6906;Educacional;GRAN EDUCACAO;3/12;0;0;54.90",
+    "03/06/2026;FULANO DE TAL;6906;-;\"Encargos                 \";Única;0;0;53.34",
+  ].join("\r\n");
+
+  it("é reconhecida tanto em UTF-8 quanto em Latin-1", async () => {
+    const { decodificarBytes } = await import("./decodificar");
+    const { detectarPerfilCSV } = await import("./detectar");
+    const utf8 = new TextEncoder().encode(linhas);
+    const latin1 = Uint8Array.from([...linhas].map((c) => c.charCodeAt(0)));
+    expect(detectarPerfilCSV(decodificarBytes(utf8)).builtinKey).toBe("c6-cartao-csv");
+    expect(detectarPerfilCSV(decodificarBytes(latin1)).builtinKey).toBe("c6-cartao-csv");
+    expect(decodificarBytes(utf8)).toContain("Final do Cartão");
+  });
+});
