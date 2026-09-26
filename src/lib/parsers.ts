@@ -214,7 +214,7 @@ export function parseExtratoNubank(
 
     const dataStr = row[0];
     // Descrição é a última coluna e pode conter vírgula sem aspas
-    const descricao = row.slice(3).join(",").trim();
+    const descricao = row.slice(3).join(", ").trim();
     const tipo: "Entrada" | "Saída" = valor > 0 ? "Entrada" : "Saída";
     const categoria = mapearCategoria(descricao, "", tipo, memoriaIA);
 
