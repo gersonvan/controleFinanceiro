@@ -80,6 +80,8 @@ OR: [
 
 Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/perfis` (`ensureBuiltinPerfis`): 10 OFX de conta corrente, 5 PDF de fatura de cartão (Nubank, C6, Itaú, Bradesco, Inter) e o CSV de fatura C6. O CSV C6 predefine as colunas, inverte o sinal, exige mês de referência e incorpora a parcela à descrição (`Compra (N/M)`). Perfis builtin não podem ser excluídos (DELETE filtra `builtin: null`); podem ser ativados/desativados (campo `ativo`, PATCH).
 
+**Sofisa (26/09)**: perfil nativo `sofisa-extrato-pdf` (conta "Sofisa", extrato de conta em PDF, sem mês de referência — `parseSofisa` em `pdf.ts`; linhas "Saldo em" ignoradas). É onde fica a reserva (CDB DIRETO DI): aplicação vira Investimentos (−) e resgate vira Investimentos (+), então o "Guardado" é líquido (aplicado − resgatado) e mês negativo aparece como "Resgatado da reserva" no dashboard e em Como você pagou. O Sofisa mascara o nome ("GERSON XXXXXX XXXXXXXXXXX NETO") — regra de transferência entre contas cobre. **pdf-parse v2**: `extrairTextoPDF` usa a classe `PDFParse` (a chamada como função da v1 quebrava toda leitura de PDF desde a atualização); os leitores de fatura em PDF foram escritos para o texto da v1 e não foram revalidados.
+
 ## 6. Categorização (POST /api/categorizar e também na importação)
 
 Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + histórico carregados por `carregarMemoriaCategorizacao()` (`src/lib/memoria.ts`):

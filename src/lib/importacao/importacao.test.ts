@@ -449,3 +449,32 @@ describe("fatura C6 em CSV no formato antigo (; e Valor em US$)", () => {
     expect(decodificarBytes(utf8)).toContain("Final do Cartão");
   });
 });
+
+describe("extrato do Sofisa (PDF)", () => {
+  const texto = [
+    "Banco Sofisa S.A. | Al. Santos, 1496 - São Paulo / SP",
+    "www.sofisadireto.com.br",
+    "Extrato do período de 01/01/2025 até 28/09/2026",
+    "14/07/2025 Recebimento de transferência via PIX - De GERSON XXXXXX XXXXXXXXXXX NETO R$ 10.000,00",
+    "14/07/2025 Saldo em 14/07/2025 R$ 10.000,00",
+    "15/07/2025 Aplicação - Meus Investimentos - CDB DIRETO DI -R$ 10.000,00",
+    "13/08/2025 Resgate Antecipado - Meus Investimentos - CDB DIRETO DI R$ 7.000,76",
+    "13/08/2025 Envio de transferência via PIX - Para GERSON XXXXXX XXXXXXXXXXX NETO -R$ 7.000,76",
+    "14/08/2026 Saldo em 14/08/2026 -R$ 0,01",
+    "A - 26/09/2026 Saldo Disponível -R$ 0,01",
+  ].join("\n");
+
+  it("detecta o banco e lê entradas e saídas, sem as linhas de saldo", async () => {
+    const { detectarBancoPDF, parseSofisa } = await import("./pdf");
+    expect(detectarBancoPDF(texto).builtinKey).toBe("sofisa-extrato-pdf");
+    const perfil = { conta: "Sofisa", builtin: "sofisa-extrato-pdf" } as Parameters<typeof parseSofisa>[1];
+    const ls = parseSofisa(texto, perfil, new Map());
+    expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.valor, l.categoria])).toEqual([
+      ["2025-07-14", 10000, "Transferência entre Contas"],
+      ["2025-07-15", -10000, "Investimentos (Aportes)"],
+      ["2025-08-13", 7000.76, "Investimentos (Aportes)"],
+      ["2025-08-13", -7000.76, "Transferência entre Contas"],
+    ]);
+    expect(ls.every((l) => l.conta === "Sofisa" && l.mesReferencia.getUTCDate() === 1)).toBe(true);
+  });
+});

@@ -148,13 +148,15 @@ export default function Dashboard() {
         </div>
       ) : data ? (
         <>
-          <div className={`grid grid-cols-1 sm:grid-cols-3 ${data.investido > 0 ? "lg:grid-cols-4" : ""} gap-4`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-3 ${data.investido ? "lg:grid-cols-4" : ""} gap-4`}>
             {[
               { label: "Total Entradas", valor: data.totalEntradas, classe: "valor-positivo", nota: "" },
               { label: "Total Saídas", valor: data.totalSaidas, classe: "valor-negativo", nota: "" },
               { label: "Saldo", valor: data.saldo, classe: data.saldo >= 0 ? "valor-positivo" : "valor-negativo", nota: "" },
               ...(data.investido > 0
-                ? [{ label: "Guardado", valor: data.investido, classe: "text-emerald-700", nota: "aportes e aplicações — fora das saídas" }]
+                ? [{ label: "Guardado", valor: data.investido, classe: "text-emerald-700", nota: "aplicado menos resgatado — fora das saídas" }]
+                : data.investido < 0
+                ? [{ label: "Resgatado da reserva", valor: -data.investido, classe: "text-amber-700", nota: "resgates menos aplicações — cobriu gastos" }]
                 : []),
             ].map((k) => (
               <div key={k.label} className="card">

@@ -283,7 +283,8 @@ export function mapearCategoria(
 function regras(d: string, categoriaOriginal: string, tipo: string): string {
   // Prioridade 1: transferências entre contas próprias (inclui a aplicação
   // automática "BB Rende Fácil", que entra e sai da conta sozinha)
-  if (NOMES_PROPRIOS.some((nome) => d.includes(nome)) || d.includes("bb rende f"))
+  // Sofisa mascara o nome: "Para GERSON XXXXXX XXXXXXXXXXX NETO"
+  if (NOMES_PROPRIOS.some((nome) => d.includes(nome)) || /gerson x+ x+ neto/.test(d) || d.includes("bb rende f"))
     return "Transferência entre Contas";
 
   // Prioridade 2: pagamento de fatura do cartão (aparece como Entrada no extrato
@@ -298,6 +299,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     return "Pagamento de Cartão de Crédito";
 
   if (tipo === "Entrada") {
+    // resgate de aplicação: dinheiro guardado voltando — abate o "Guardado", não é renda
+    if (/resgate.*(investimento|cdb|rdb|lci|lca|tesouro)/.test(d)) return "Investimentos (Aportes)";
     if (d.includes("recebimento salario")) return "Salário";
     if (d.includes("reserve imobiliaria")) return "Receita de Aluguel";
     if (d.includes("transferência de saldo nuinvest"))
@@ -445,7 +448,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     return "Pagamento de Cartão de Crédito";
   // quitação de dívida própria (≠ "Empréstimo", que é dinheiro emprestado a alguém)
   if (/(soc\.? ?cred\.? ?financ|consignad|empr[eé]stimo pessoal|cr[eé]dito pessoal)/.test(d)) return "Pagamento de Empréstimos";
-  if (d.includes("compra de ações") || d.includes("aplicação rdb") || d.includes("aplicacao rdb"))
+  if (d.includes("compra de ações") || d.includes("aplicação rdb") || d.includes("aplicacao rdb") ||
+      /aplica[cç][aã]o.*(investimento|cdb|lci|lca|tesouro)/.test(d))
     return "Investimentos (Aportes)";
   if (
     d.includes("anuidade diferenciada") ||

@@ -85,7 +85,8 @@ export function gastosPorMeio(
   for (const l of lancamentos) {
     const alvo = porMes.get(mesCompetencia(l));
     if (!alvo) continue;
-    if (l.valor < 0 && l.categoria === CATEGORIA_INVESTIMENTO) { alvo.investido += -l.valor; continue; }
+    // aplicado (−) soma, resgatado (+) abate: guardado líquido do mês
+    if (l.categoria === CATEGORIA_INVESTIMENTO) { alvo.investido += -l.valor; continue; }
     if (!ehGasto(l)) continue;
     const tipo = tipos.get(l.conta) ?? tipoSugerido(l.conta);
     alvo.porMeio[classificarMeio(l, tipo)] += -l.valor;

@@ -15,10 +15,15 @@ export function ehPDF(buffer: Buffer): boolean {
 
 /** Extrai o texto de um PDF digital. Lança erro para PDF escaneado ou corrompido. */
 export async function extrairTextoPDF(buffer: Buffer): Promise<string> {
+  // pdf-parse v2: classe PDFParse (a v1 exportava uma função — chamar assim quebrava toda leitura de PDF)
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require("pdf-parse");
-  const pdfData = await pdfParse(buffer);
-  return pdfData.text as string;
+  const { PDFParse } = require("pdf-parse");
+  const parser = new PDFParse({ data: buffer });
+  try {
+    return (await parser.getText()).text as string;
+  } finally {
+    await parser.destroy?.();
+  }
 }
 
 /**

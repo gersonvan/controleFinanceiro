@@ -515,18 +515,20 @@ export default function ImportarPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência (fatura)</label>
-            <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
-            <p className="text-xs text-slate-400 mt-1">Informe o mês em que esta fatura será paga.</p>
-          </div>
+          {perfilPDF.usaMesReferencia && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência (fatura)</label>
+              <input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} />
+              <p className="text-xs text-slate-400 mt-1">Informe o mês em que esta fatura será paga.</p>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={!mesRef}
-              onClick={() => importar(perfilPDF.id, mesRef)}
+              disabled={perfilPDF.usaMesReferencia && !mesRef}
+              onClick={() => importar(perfilPDF.id, perfilPDF.usaMesReferencia ? mesRef : undefined)}
             >
               📥 Importar {previewPDF.length > 0 ? `(~${previewPDF.length}+ transações)` : ""}
             </button>

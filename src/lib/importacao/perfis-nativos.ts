@@ -33,7 +33,8 @@ const OFX_DEFAULTS = {
 };
 
 // Perfis PDF nativos — faturas de cartão de crédito (todos usaMesReferencia = true).
-const BUILTIN_PDF_PERFIS = [
+const BUILTIN_PDF_PERFIS: { builtin: string; nome: string; conta: string; inverterSinal: boolean; usaMesReferencia?: boolean }[] = [
+  { builtin: "sofisa-extrato-pdf",  nome: "Sofisa — Extrato da Conta", conta: "Sofisa",         inverterSinal: false, usaMesReferencia: false },
   { builtin: "nubank-cartao-pdf",   nome: "Nubank — Fatura Cartão",   conta: "Nubank Cartão",   inverterSinal: false },
   { builtin: "c6-cartao-pdf",       nome: "C6 — Fatura Cartão",       conta: "C6 Cartão",       inverterSinal: false },
   { builtin: "itau-cartao-pdf",     nome: "Itaú — Fatura Cartão",     conta: "Itaú Cartão",     inverterSinal: false },
@@ -107,7 +108,8 @@ export async function ensureBuiltinPerfis(userId: string) {
 
   const toCreate = [
     ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ...p })),
-    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ...p })),
+    // usaMesReferencia só vem no perfil quando difere do padrão (extrato de conta)
+    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ...p, usaMesReferencia: p.usaMesReferencia ?? true })),
     ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: true, ...p })),
   ];
   if (toCreate.length > 0) {

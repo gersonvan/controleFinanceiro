@@ -34,10 +34,13 @@ export type BancoPDF =
   | "c6-cartao-pdf"
   | "itau-cartao-pdf"
   | "bradesco-cartao-pdf"
-  | "inter-cartao-pdf";
+  | "inter-cartao-pdf"
+  | "sofisa-extrato-pdf";
 
 export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; bancoNome: string } {
   const t = texto.toLowerCase();
+  if (t.includes("banco sofisa") || t.includes("sofisadireto"))
+    return { builtinKey: "sofisa-extrato-pdf", bancoNome: "Sofisa — Extrato da Conta" };
   if (t.includes("nu pagamentos") || (t.includes("nubank") && t.includes("fatura")))
     return { builtinKey: "nubank-cartao-pdf", bancoNome: "Nubank — Fatura do Cartão" };
   if (t.includes("c6 bank") || t.includes("banco c6") || t.includes("31.872.495"))
@@ -65,8 +68,39 @@ export function parsePDF(
     case "itau-cartao-pdf":      return parseItau(texto, perfil, memoriaIA, mesReferenciaManual);
     case "bradesco-cartao-pdf":  return parseBradesco(texto, perfil, memoriaIA, mesReferenciaManual);
     case "inter-cartao-pdf":     return parseInter(texto, perfil, memoriaIA, mesReferenciaManual);
+    case "sofisa-extrato-pdf":   return parseSofisa(texto, perfil, memoriaIA);
     default:                     return parseGenerico(texto, perfil, memoriaIA, mesReferenciaManual);
   }
+}
+
+// ─── Sofisa Direto — extrato da conta ───────────────────────────────────────────
+// Formato: "14/07/2025 Recebimento de transferência via PIX - De FULANO R$ 10.000,00"
+//          "15/07/2025 Aplicação - Meus Investimentos - CDB DIRETO DI -R$ 10.000,00"
+// Linhas "Saldo em DD/MM/AAAA" são ignoradas. Conta corrente: mês de referência = mês da data.
+
+export function parseSofisa(texto: string, perfil: PerfilPDF, memoriaIA: FonteMemoria): LancamentoImportado[] {
+  const resultado: LancamentoImportado[] = [];
+  const linha = /^(\d{2})\/(\d{2})\/(\d{4})\s+(.+?)\s+(-?)R\$\s*([\d.]+,\d{2})\s*$/;
+  for (const bruta of texto.split(/\r?\n/)) {
+    const m = bruta.trim().match(linha);
+    if (!m) continue;
+    const [, dd, mm, aaaa, descricao, sinal, valorTxt] = m;
+    if (/^saldo em\b/i.test(descricao)) continue;
+    const valor = (sinal ? -1 : 1) * parseBR(valorTxt);
+    if (!valor) continue;
+    const tipo = valor > 0 ? "Entrada" : "Saída";
+    resultado.push({
+      data: new Date(Date.UTC(+aaaa, +mm - 1, +dd)),
+      descricao: descricao.trim(),
+      valor,
+      tipo,
+      conta: perfil.conta,
+      categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      fonte: "Importado Sofisa",
+      mesReferencia: new Date(Date.UTC(+aaaa, +mm - 1, 1)), // extrato de conta: o próprio mês
+    });
+  }
+  return resultado;
 }
 
 // ─── Nubank Cartão ────────────────────────────────────────────────────────────

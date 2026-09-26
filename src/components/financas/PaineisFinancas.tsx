@@ -66,7 +66,7 @@ function ComoVocePagou({ dados, chave, query }: { dados: RespostaMeios; chave: s
         <Link href={`/financas/meios${query}`} className="text-sm text-blue-600 hover:underline">Ver últimos 6 meses →</Link>
       </div>
 
-      {atual.total === 0 && atual.investido === 0 ? (
+      {atual.total === 0 && !atual.investido ? (
         <p className="text-sm text-slate-400 py-6 text-center">Nenhum gasto registrado neste mês.</p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-6">
@@ -112,6 +112,15 @@ function ComoVocePagou({ dados, chave, query }: { dados: RespostaMeios; chave: s
               <div className="text-xl font-bold text-emerald-700">{fmtInteiro(atual.investido)}</div>
               <p className="text-xs text-emerald-800/80 mt-1">
                 Aportes e aplicações ficam fora dos gastos: é dinheiro que continua seu.
+              </p>
+            </div>
+          )}
+          {atual.investido < 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-100 p-4 self-start">
+              <div className="text-sm text-amber-800">Resgatado da reserva</div>
+              <div className="text-xl font-bold text-amber-700">{fmtInteiro(-atual.investido)}</div>
+              <p className="text-xs text-amber-800/80 mt-1">
+                Dinheiro guardado que voltou para a conta neste mês.
               </p>
             </div>
           )}

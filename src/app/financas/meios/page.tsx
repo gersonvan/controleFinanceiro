@@ -97,9 +97,9 @@ function Meios() {
                     {dados.meses.map((m) => <td key={m.mes} className="py-2 px-2 text-right">{fmtInteiro(m.total)}</td>)}
                     <td className="py-2 pl-3 text-right">{fmtInteiro(dados.media.total)}</td>
                   </tr>
-                  {dados.meses.some((m) => m.investido > 0) && (
+                  {dados.meses.some((m) => m.investido !== 0) && (
                     <tr className="text-emerald-700 border-t border-slate-200">
-                      <th scope="row" className="font-normal text-left py-2 pr-4">Guardado</th>
+                      <th scope="row" className="font-normal text-left py-2 pr-4" title="Aplicado menos resgatado">Guardado (líquido)</th>
                       {dados.meses.map((m) => <td key={m.mes} className="py-2 px-2 text-right">{m.investido ? fmtInteiro(m.investido) : "—"}</td>)}
                       <td />
                     </tr>
