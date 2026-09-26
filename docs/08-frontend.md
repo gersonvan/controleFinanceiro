@@ -31,7 +31,7 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | Componente | Arquivo | Responsabilidade |
 |---|---|---|
 | `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral com 9 links; ocultada durante onboarding e em sessões sem autenticação |
-| `FotografiaWizard` | `src/components/planejamento/FotografiaWizard.tsx` | Wizard da Fotografia do mês (entradas → fixos → variáveis → sazonais → parcelas → resumo); `modo="onboarding"` mostra "Fazer depois", `modo="pagina"` permite salvar em qualquer etapa; sempre envia o conjunto inteiro ao `PUT /api/planejamento` |
+| `FotografiaWizard` | `src/components/planejamento/FotografiaWizard.tsx` | Wizard da Fotografia do mês (entradas → fixos → variáveis → sazonais → parcelas → resumo); `modo="onboarding"` mostra "Fazer depois", `modo="pagina"` permite salvar em qualquer etapa; sempre envia o conjunto inteiro ao `PUT /api/planejamento`; com histórico, sugere valores nos chips, mostra referência em categorias compartilhadas e o bloco "Encontrado no seu histórico" (`GET /api/planejamento/historico`); sem histórico, mostra a dica da funcionalidade |
 | `PlanejadoRealizado` | `src/components/planejamento/PlanejadoRealizado.tsx` | Tabela e cartões do Planejado × Realizado de um mês (`GET /api/planejamento/realizado`) |
 | `LancamentoForm` | `src/components/LancamentoForm.tsx` | Modal de lançamento manual (`POST /api/lancamentos`); contas sugeridas a partir dos perfis |
 | `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |

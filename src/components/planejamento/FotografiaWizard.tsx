@@ -3,14 +3,22 @@
 // parcelas → resumo. Usado no onboarding (com "Fazer depois") e na página
 // Planejamento (edição a qualquer momento). Sempre salva o conjunto inteiro.
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import CategoriaSelect from "@/components/CategoriaSelect";
 import {
   totaisMensais, valorMensal,
   type Grupo, type ItemPlanejado, type Periodicidade,
 } from "@/lib/planejamento";
 import { CATEGORIA_LIVRE, PERIODICIDADE_PADRAO, SUGESTOES } from "@/lib/planejamento-sugestoes";
+import {
+  MESES_MINIMOS, fazSentidoSugerirNovo, valorSugerido,
+  type HistoricoCategoria, type HistoricoPlanejamento,
+} from "@/lib/planejamento-historico";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtInteiro = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+/** Valor digitável: "1.647,00" (o parser `numero` aceita de volta). */
+const valorCampo = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Campos numéricos ficam como texto enquanto o usuário digita ("12,5").
 interface ItemLocal {
@@ -65,7 +73,7 @@ function deServidor(i: ItemPlanejado): ItemLocal {
     grupo: i.grupo,
     descricao: i.descricao,
     categoria: i.categoria,
-    valor: String(i.valor).replace(".", ","),
+    valor: valorCampo(i.valor),
     periodicidade: i.periodicidade,
     parcelaAtual: i.parcelaAtual ? String(i.parcelaAtual) : "",
     parcelaTotal: i.parcelaTotal ? String(i.parcelaTotal) : "",
@@ -86,6 +94,22 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [historico, setHistorico] = useState<HistoricoPlanejamento | null>(null);
+
+  // Histórico é opcional: se falhar, o wizard funciona como sem histórico
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/planejamento/historico")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h: HistoricoPlanejamento | null) => { if (ativo) setHistorico(h); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
+  const temHistorico = !!historico && historico.mesesComDados >= MESES_MINIMOS;
+  const porCategoria = useMemo(
+    () => new Map((temHistorico ? historico!.categorias : []).map((c) => [c.categoria, c])),
+    [historico, temHistorico],
+  );
 
   useEffect(() => {
     let ativo = true;
@@ -114,11 +138,11 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
     setItens((prev) => prev.map((i) => (i.key === key ? { ...i, ...mudanca } : i)));
   const remover = (key: number) => setItens((prev) => prev.filter((i) => i.key !== key));
 
-  const adicionarSugestao = (grupo: Grupo, nome: string, categoria: string) => {
+  const adicionarSugestao = (grupo: Grupo, nome: string, categoria: string, valor?: number) => {
     const existente = doGrupo(grupo).find((i) => i.descricao === nome);
     if (existente) { remover(existente.key); return; }
     setItens((prev) => [...prev, {
-      key: proximaKey++, grupo, descricao: nome, categoria, valor: "",
+      key: proximaKey++, grupo, descricao: nome, categoria, valor: valor ? valorCampo(valor) : "",
       periodicidade: PERIODICIDADE_PADRAO[grupo], parcelaAtual: "", parcelaTotal: "", livre: false,
     }]);
   };
@@ -177,7 +201,11 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
             grupo={atual.grupo}
             itens={doGrupo(atual.grupo)}
             total={totalGrupo(atual.grupo)}
-            onSugestao={(nome, cat) => adicionarSugestao(atual.grupo as Grupo, nome, cat)}
+            onSugestao={(nome, cat, valor) => adicionarSugestao(atual.grupo as Grupo, nome, cat, valor)}
+            historico={temHistorico ? historico : null}
+            porCategoria={porCategoria}
+            categoriasUsadas={new Set(itens.map((i) => i.categoria))}
+            modo={modo}
             onLivre={() => adicionarLivre(atual.grupo as Grupo)}
             onAtualizar={atualizar}
             onRemover={remover}
@@ -222,17 +250,53 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
 
 // ─── Etapa de um grupo: chips + linhas ────────────────────────────────────────
 
-function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onRemover }: {
+function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onRemover, historico, porCategoria, categoriasUsadas, modo }: {
   grupo: Grupo;
   itens: ItemLocal[];
   total: number;
-  onSugestao: (nome: string, categoria: string) => void;
+  onSugestao: (nome: string, categoria: string, valor?: number) => void;
   onLivre: () => void;
   onAtualizar: (key: number, mudanca: Partial<ItemLocal>) => void;
   onRemover: (key: number) => void;
+  historico: HistoricoPlanejamento | null; // null = sem histórico suficiente
+  porCategoria: Map<string, HistoricoCategoria>;
+  categoriasUsadas: Set<string>;
+  modo: "onboarding" | "pagina";
 }) {
   const sugestoes = SUGESTOES[grupo];
   const nomesAdicionados = new Set(itens.map((i) => i.descricao));
+  const unidade = grupo === "sazonal" ? "/ano" : "/mês";
+
+  // Categoria de uma sugestão só (ex.: Condomínio) → dá para sugerir o valor.
+  // Compartilhada (Energia, Água, Internet… = Contas de Consumo) → só referência.
+  const usosNoGrupo = new Map<string, number>();
+  for (const s of sugestoes) usosNoGrupo.set(s.categoria, (usosNoGrupo.get(s.categoria) ?? 0) + 1);
+  const valorDaSugestao = (categoria: string) => {
+    const h = porCategoria.get(categoria);
+    if (!h || usosNoGrupo.get(categoria)! > 1) return 0;
+    return valorSugerido(h, grupo);
+  };
+  const referencia = (item: ItemLocal): string | null => {
+    const h = porCategoria.get(item.categoria);
+    if (!h || grupo === "parcela") return null;
+    const compartilhada = (usosNoGrupo.get(item.categoria) ?? 0) > 1 || item.livre;
+    if (!compartilhada) return null;
+    const lojas = h.maiores.map((m) => `${m.descricao} ~${fmtInteiro(m.media)}`).join(", ");
+    return `Seu histórico em ${item.categoria}: ~${fmtInteiro(grupo === "sazonal" ? h.anual : h.media)}${unidade}${lojas ? ` · ${lojas}` : ""}`;
+  };
+
+  // Categorias frequentes no histórico que se encaixam neste grupo e ainda não estão na fotografia
+  const encontrados = historico && grupo !== "parcela"
+    ? historico.categorias
+        // o que já tem botão com valor fica só no botão
+        .filter((h) => h.grupo === grupo && !categoriasUsadas.has(h.categoria) && valorDaSugestao(h.categoria) === 0
+          && fazSentidoSugerirNovo(h) && valorSugerido(h, grupo) > 0)
+        .slice(0, 6)
+    : [];
+  const nomeParaCategoria = (categoria: string) => {
+    const deste = sugestoes.filter((s) => s.categoria === categoria);
+    return deste.length === 1 ? deste[0].nome : categoria;
+  };
 
   return (
     <div className="space-y-5">
@@ -240,16 +304,20 @@ function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onR
         <div className="flex flex-wrap gap-2">
           {sugestoes.map((s) => {
             const ativo = nomesAdicionados.has(s.nome);
+            const sugerido = valorDaSugestao(s.categoria);
             return (
               <button
                 key={s.nome}
-                onClick={() => onSugestao(s.nome, s.categoria)}
+                onClick={() => onSugestao(s.nome, s.categoria, sugerido || undefined)}
                 className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                   ativo ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
                         : "bg-white border-slate-300 text-slate-600 hover:border-slate-400"
                 }`}
               >
                 <span className="inline-block w-3 text-center">{ativo ? "✓" : "+"}</span> {s.nome}
+                {!ativo && sugerido > 0 && (
+                  <span className="text-xs text-slate-400 ml-1">~{fmtInteiro(sugerido)}</span>
+                )}
               </button>
             );
           })}
@@ -268,10 +336,47 @@ function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onR
       ) : (
         <div className="space-y-2">
           {itens.map((item) => (
-            <Linha key={item.key} item={item} onAtualizar={(m) => onAtualizar(item.key, m)} onRemover={() => onRemover(item.key)} />
+            <Linha key={item.key} item={item} referencia={referencia(item)}
+              onAtualizar={(m) => onAtualizar(item.key, m)} onRemover={() => onRemover(item.key)} />
           ))}
         </div>
       )}
+
+      {encontrados.length > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-100 p-4 space-y-2">
+          <div className="text-sm font-medium text-amber-900">Encontrado no seu histórico</div>
+          <p className="text-xs text-amber-800/80">Você teve esses gastos com frequência e eles ainda não estão na fotografia.</p>
+          {encontrados.map((h) => {
+            const valor = valorSugerido(h, grupo);
+            return (
+              <div key={h.categoria} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-700">
+                  {h.categoria} <span className="text-slate-500">· ~{fmtInteiro(valor)}{unidade}</span>
+                  {h.maiores[0] && <span className="text-xs text-slate-400"> · {h.maiores.slice(0, 2).map((m) => m.descricao).join(", ")}</span>}
+                </span>
+                <button
+                  onClick={() => onSugestao(nomeParaCategoria(h.categoria), h.categoria, valor)}
+                  className="text-blue-600 hover:underline shrink-0"
+                >
+                  + Adicionar
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {grupo !== "parcela" && (historico ? (
+        <p className="text-xs text-slate-400">
+          💡 Os valores com ~ vêm da média dos seus lançamentos de {rotuloMeses(historico.meses)}. Confira e ajuste.
+        </p>
+      ) : (
+        <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-900">
+          💡 <strong>Sugestões automáticas:</strong> com extratos de pelo menos {MESES_MINIMOS} meses importados, esta etapa
+          sugere os valores a partir dos seus gastos reais e aponta o que ficou de fora
+          {modo === "pagina" ? <> — <Link href="/importar" className="text-blue-700 underline">importar extrato</Link>.</> : "."}
+        </div>
+      ))}
 
       {grupo === "parcela" && itens.length > 0 && (
         <button onClick={onLivre} className="text-sm text-blue-600 hover:underline">+ Adicionar outra parcela</button>
@@ -285,8 +390,9 @@ function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onR
   );
 }
 
-function Linha({ item, onAtualizar, onRemover }: {
+function Linha({ item, referencia, onAtualizar, onRemover }: {
   item: ItemLocal;
+  referencia: string | null;
   onAtualizar: (mudanca: Partial<ItemLocal>) => void;
   onRemover: () => void;
 }) {
@@ -310,6 +416,7 @@ function Linha({ item, onAtualizar, onRemover }: {
             inputMode="decimal"
             value={item.valor}
             onChange={(e) => onAtualizar({ valor: e.target.value })}
+            onBlur={() => { if (numero(item.valor) > 0) onAtualizar({ valor: valorCampo(numero(item.valor)) }); }}
             placeholder="0,00"
             className="w-28 text-right"
             autoFocus={!item.livre && !item.valor}
@@ -343,6 +450,7 @@ function Linha({ item, onAtualizar, onRemover }: {
           <CategoriaSelect value={item.categoria} onChange={(categoria) => onAtualizar({ categoria })} className="text-xs py-1" />
         </div>
       )}
+      {referencia && <div className="text-xs text-slate-400">{referencia}</div>}
       {item.grupo === "sazonal" && numero(item.valor) > 0 && (
         <div className="text-xs text-slate-400">≈ {fmt(numero(item.valor) / 12)} por mês</div>
       )}
@@ -351,6 +459,13 @@ function Linha({ item, onAtualizar, onRemover }: {
       )}
     </div>
   );
+}
+
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** ["2026-03", …, "2026-08"] → "mar a ago" */
+function rotuloMeses(meses: string[]): string {
+  const nome = (m: string) => MESES_CURTOS[Number(m.slice(5, 7)) - 1];
+  return meses.length ? `${nome(meses[0])} a ${nome(meses[meses.length - 1])}` : "";
 }
 
 // ─── Resumo ──────────────────────────────────────────────────────────────────
