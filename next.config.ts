@@ -31,6 +31,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // ambiente de testes (npm run dev:teste) usa outra pasta para rodar junto com o dev normal
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pdf-parse"],
   // pdf-parse v2 carrega o worker do pdf.js por um caminho montado em tempo de
   // execução — o rastreamento de arquivos não o encontra sozinho e a função

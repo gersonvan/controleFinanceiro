@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "padtec/**",
+    // ambiente de testes: build do servidor de teste e relatórios do Playwright
+    ".next-teste/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

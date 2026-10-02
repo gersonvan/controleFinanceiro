@@ -9,7 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:teste:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "db:teste:down": "docker compose -f docker-compose.test.yml down",
+    "db:teste:preparar": "node scripts/teste/com-env-teste.mjs node_modules/jiti/lib/jiti-cli.mjs scripts/teste/preparar-banco.ts",
+    "dev:teste": "node scripts/teste/com-env-teste.mjs node_modules/next/dist/bin/next dev -p 3100",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -31,6 +36,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",

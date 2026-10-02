@@ -1,5 +1,6 @@
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
+import { loginDeTesteAtivo, USUARIOS_TESTE } from "@/lib/login-teste";
 
 export default function LoginPage() {
   return (
@@ -35,6 +36,25 @@ export default function LoginPage() {
             Entrar com Google
           </button>
         </form>
+
+        {loginDeTesteAtivo() && (
+          <div className="space-y-2 border-t border-dashed border-amber-300 pt-4">
+            <p className="text-xs font-medium text-amber-700">Ambiente de testes (banco local)</p>
+            {USUARIOS_TESTE.map((u) => (
+              <form
+                key={u.email}
+                action={async () => {
+                  "use server";
+                  await signIn("teste", { email: u.email, redirectTo: "/" });
+                }}
+              >
+                <button type="submit" className="w-full px-4 py-2 rounded-xl text-sm bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors">
+                  Entrar como {u.rotulo}
+                </button>
+              </form>
+            ))}
+          </div>
+        )}
 
         <p className="text-xs text-slate-400">Acesso restrito</p>
       </div>

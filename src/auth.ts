@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/db";
 import { authConfig } from "./auth.config";
+import { loginDeTesteAtivo, usuarioDeTeste } from "@/lib/login-teste";
 
 const ALLOWED_EMAILS = new Set(
   (process.env.ALLOWED_EMAILS ?? "gersonvan@gmail.com")
@@ -10,13 +12,27 @@ const ALLOWED_EMAILS = new Set(
     .filter(Boolean)
 );
 
+// Ambiente de testes (src/lib/login-teste.ts): os usuários fictícios entram sem Google.
+const LOGIN_TESTE = loginDeTesteAtivo();
+
 function emailPermitido(email: string | null | undefined): boolean {
-  return !!email && ALLOWED_EMAILS.has(email.toLowerCase());
+  if (!email) return false;
+  return ALLOWED_EMAILS.has(email.toLowerCase()) || (LOGIN_TESTE && !!usuarioDeTeste(email));
 }
+
+const provedorDeTeste = Credentials({
+  id: "teste",
+  name: "Usuário de teste",
+  credentials: { email: { type: "email" } },
+  authorize(credenciais) {
+    const u = usuarioDeTeste(credenciais?.email);
+    return u ? { id: u.email, email: u.email, name: u.nome } : null;
+  },
+});
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  providers: [Google],
+  providers: LOGIN_TESTE ? [Google, provedorDeTeste] : [Google],
   session: {
     // Sessão JWT sem revogação no servidor: quanto menor, menor a janela de exposição.
     maxAge: 7 * 24 * 60 * 60,
