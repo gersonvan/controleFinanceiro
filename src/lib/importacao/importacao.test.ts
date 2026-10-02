@@ -457,9 +457,9 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
     const { mapearCategoria } = await import("../categorias");
     const casos: [string, string][] = [
       ["POP 13AGO 17H41MIN", "Transporte por App"],
-      ["PARKFOR IMPRENSA       FORTALEZA     BRA", "Automóvel"],
-      ["MP *NONREPARK          FORTALEZA     BRA", "Automóvel"],
-      ["ANCAR NORDESTE ESTACIO FORTALEZA     BRA", "Automóvel"],
+      ["PARKFOR IMPRENSA       FORTALEZA     BRA", "Estacionamento"],
+      ["MP *NONREPARK          FORTALEZA     BRA", "Estacionamento"],
+      ["ANCAR NORDESTE ESTACIO FORTALEZA     BRA", "Estacionamento"],
       ["Zé Delivery - NuPay", "Delivery e iFood"],
       ["Rezza Pizzaria", "Restaurantes e Lanches"],
       ["Churrascaria Chimarra", "Restaurantes e Lanches"],
@@ -477,7 +477,20 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
       ["CAIXA ECONOMICA FEDERAL - ENGENHARIA", "Compra e Venda de Bens"],
       ["SANTANDER SOC. CRED. FINANC. E", "Pagamento de Empréstimos"],
       ["Pix enviado para ZAMP S.A.", "Restaurantes e Lanches"],
-      ["Pix enviado para VIBRA ENERGIA S.A", "Automóvel"],
+      ["Pix enviado para VIBRA ENERGIA S.A", "Combustível"],
+      ["Petrobras PremmiaRIO DE", "Combustível"],
+      ["AUTO POSTO SAO JOSE     FORTALEZA     BRA", "Combustível"],
+      ["IPIRANGA ABASTECE AI", "Combustível"],
+      ["COND C *ESTACIONAMENTFO", "Estacionamento"],
+      ["MP *PETROBRASPREM", "Combustível"],
+      ["PREMMIA*BR", "Combustível"],
+      ["MP *POSTOPALVES", "Combustível"],
+      ["Pix enviado para POSTO EXEMPLO PETROLEO LTDA", "Combustível"],
+      ["BIG PARK SHOPPING X", "Estacionamento"],
+      ["BESTPARK", "Estacionamento"],
+      ["ZUL 2 CARTOES 1P6GOB", "Estacionamento"],
+      ["Compra no débito - ZUL 1 cartão 2DQOGA", "Estacionamento"],
+      ["HC PNEUS ALDEOTA CE", "Automóvel"],
       ["Pix enviado para BOLSAKI EDUCACAO E TECNOLOGIA", "Mensalidades e Cursos"],
       ["PREFEITURA - ITBI 2026", "Compra e Venda de Bens"],
       ["Pix enviado para RESERVE IMOBILIARIA · comissão Apartamento Passaré imobiliária", "Compra e Venda de Bens"],
@@ -488,7 +501,10 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
     for (const [d, esperado] of casos) expect(mapearCategoria(d, "", "Saída"), d).toBe(esperado);
     expect(mapearCategoria("Pix enviado para IFOOD.COM AGENCIA DE RESTAURANTES ONLINE S.A.", "", "Saída")).toBe("Delivery e iFood");
     for (const d of ["PARKSHOPPING", "Pix enviado para PARK ALIMENTACOES", "ALPEN PARK"])
-      expect(mapearCategoria(d, "", "Saída"), d).not.toBe("Automóvel");
+      expect(mapearCategoria(d, "", "Saída"), d).not.toBe("Estacionamento");
+    // "posto" só como palavra: imposto não é combustível
+    expect(mapearCategoria("PAGAMENTO IMPOSTO DE RENDA", "", "Saída")).not.toBe("Combustível");
+    expect(mapearCategoria("CORREIOS POSTAGEM", "", "Saída")).not.toBe("Combustível");
   });
 });
 

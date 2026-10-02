@@ -24,6 +24,8 @@ export const CATEGORIAS = [
   // Transporte
   "Transporte por App",
   "Automóvel",
+  "Combustível",
+  "Estacionamento",
   "Viagem",
   // Saúde
   "Consultas e Terapias",
@@ -66,7 +68,7 @@ export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
   { grupo: "Entradas", categorias: ["Salário", "Outras Entradas", "Transferência Recebida", "Rendimento Investimentos", "Receita de Aluguel", "Recebimento de Empréstimo", "Estorno", "Reembolso"] },
   { grupo: "Moradia", categorias: ["Aluguel", "Prestação de Imóvel", "Condomínio", "Contas de Consumo", "Casa: Manutenção e Móveis", "Serviços Domésticos"] },
   { grupo: "Alimentação", categorias: ["Supermercado e Mercearia", "Restaurantes e Lanches", "Delivery e iFood"] },
-  { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Viagem"] },
+  { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Combustível", "Estacionamento", "Viagem"] },
   { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
   { grupo: "Educação", categorias: ["Mensalidades e Cursos"] },
   { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Pets"] },
@@ -103,6 +105,7 @@ export const CATEGORIAS_SAIDA = [
   "Assinaturas Digitais",
   "Automóvel",
   "Casa: Manutenção e Móveis",
+  "Combustível",
   "Compra e Venda de Bens",
   "Compras",
   "Condomínio",
@@ -112,6 +115,7 @@ export const CATEGORIAS_SAIDA = [
   "Delivery e iFood",
   "Empresa (PJ)",
   "Empréstimo",
+  "Estacionamento",
   "Farmácia",
   "Gastos de Terceiros",
   "Impostos e Tributos",
@@ -378,18 +382,22 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
   // Transporte
   // empresas conhecidas pelo nome jurídico (aparecem assim em Pix)
   if (/\bzamp\b/.test(d)) return "Restaurantes e Lanches";         // operadora do Burger King
-  if (d.includes("vibra energia")) return "Automóvel";               // postos (ex-BR Distribuidora)
+  // postos: Vibra (ex-BR Distribuidora) aparece pelo nome jurídico em Pix; "\bposto\b" não pega "imposto"
+  // "MP *PETROBRASPREM", "PREMMIA*BR" (programa dos postos Petrobras), "MP *POSTOPALVES", "XYZ PETROLEO LTDA"
+  if (d.includes("vibra energia") || /petrobra|premmia|petr[oó]leo|\bposto|\b(ipiranga|shell|br mania|combustive(l|is))\b/.test(d)) return "Combustível";
   if (d.includes("bolsaki")) return "Mensalidades e Cursos";
   // 99 na fatura do C6 vem sem o "99*": "POP 13AGO 17H41MIN"
   if (/^pop \d{1,2}[a-z]{3} \d{1,2}h\d{2}min/.test(d)) return "Transporte por App";
   if (d.includes("uber") || d.includes("99 ride") || d.startsWith("99* pop") || d.startsWith("99*pop") || d.includes("99app") || d.includes("99 tecnologia"))
     return "Transporte por App";
   if (
-    d.includes("c6tag") ||
     d.includes("estacio") || // o nome vem cortado: "ANCAR NORDESTE ESTACIO"
-    /(parkfor|repark|parking|estapar|zona azul)/.test(d) || // PARKFOR, MP *NONREPARK
-    d.includes("relacionados a automotivo")
+    /(parkfor|repark|parking|estapar|zona azul|\b(big|best) ?park\b)/.test(d) || // PARKFOR, MP *NONREPARK, BIG PARK
+    /\bzul (\d+ cart|digital)/.test(d) // app de Zona Azul: "ZUL 2 CARTOES 1P6GOB", "Compra no débito - ZUL 1 cartão"
   )
+    return "Estacionamento";
+  if (d.includes("c6tag") || d.includes("relacionados a automotivo")) return "Automóvel"; // tag de pedágio, oficina
+  if (/\b(pneus?|baterias?|auto ?pe[cç]as|autoglass|oficina|mec[aâ]nica|lava ?jato|rent a car|locadora de ve[ií]culos|concession[aá]ria)\b/.test(d))
     return "Automóvel";
 
   // Saúde
