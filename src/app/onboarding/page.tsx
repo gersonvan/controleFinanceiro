@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import FotografiaWizard from "@/components/planejamento/FotografiaWizard";
@@ -102,10 +102,18 @@ export default function OnboardingPage() {
                 alt=""
                 width={28}
                 height={28}
+                unoptimized
                 className="rounded-full"
               />
             )}
             <span className="text-sm text-slate-600">{session.user.name}</span>
+            {/* no onboarding não há menu lateral: o sair fica aqui */}
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="ml-2 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg px-2 py-1 transition-colors"
+            >
+              Sair
+            </button>
           </div>
         )}
       </div>
