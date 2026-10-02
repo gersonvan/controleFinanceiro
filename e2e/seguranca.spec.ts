@@ -142,3 +142,48 @@ test("login não redireciona para site externo", async ({ baseURL }) => {
   expect(destino.startsWith("/") || destino.startsWith(baseURL!)).toBe(true);
   await anon.dispose();
 });
+
+test("CSP com nonce: cada página tem o seu, os scripts o carregam e nada é bloqueado", async ({ page }) => {
+  const violacoes: string[] = [];
+  page.on("console", (m) => { if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violacoes.push(m.text()); });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (e) => console.error(`Content Security Policy: ${e.violatedDirective} ${e.blockedURI}`));
+  });
+
+  const nonces = new Set<string>();
+  for (let i = 0; i < 2; i++) {
+    const r = await page.request.get("/login");
+    const csp = r.headers()["content-security-policy"] ?? "";
+    const scriptSrc = csp.split("; ").find((d) => d.startsWith("script-src")) ?? "";
+    expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+    expect(scriptSrc).not.toContain("unsafe-inline");
+    const nonce = scriptSrc.match(/'nonce-([^']+)'/)![1];
+    nonces.add(nonce);
+    // todo <script> do HTML do servidor carrega o nonce desta resposta (os que o Next
+    // insere depois, já em execução, valem pelo 'strict-dynamic')
+    const html = await r.text();
+    const scripts = html.match(/<script[^>]*>/g) ?? [];
+    expect(scripts.length).toBeGreaterThan(0);
+    expect(scripts.filter((t) => !t.includes(`nonce="${nonce}"`))).toEqual([]);
+  }
+  expect(nonces.size).toBe(2); // muda a cada carregamento
+
+  await entrar(page, "Ana");
+  for (const caminho of ["/", "/lancamentos", "/matriz"]) {
+    await page.goto(caminho);
+    await page.waitForLoadState("networkidle");
+  }
+  expect(violacoes).toEqual([]); // navegação normal: nenhum script legítimo bloqueado
+
+  // XSS como ele chega de verdade: marcação com handler embutido. Com 'unsafe-inline'
+  // (política anterior) o onerror rodava; com nonce o navegador bloqueia.
+  const executou = await page.evaluate(async () => {
+    const div = document.createElement("div");
+    div.innerHTML = `<img src="/nao-existe.png" onerror="window.__injetado = true">`;
+    document.body.appendChild(div);
+    await new Promise((r) => setTimeout(r, 500));
+    return (window as unknown as { __injetado?: boolean }).__injetado === true;
+  });
+  expect(executou).toBe(false);
+  expect(violacoes.length).toBeGreaterThan(0); // o navegador registrou o bloqueio da injeção
+});

@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { emailPermitido } from "@/lib/acesso";
 
 // Configuração mínima para o proxy (Edge-compatible, sem imports Node.js).
 // O segredo é referenciado aqui de forma estática: no bundle do proxy o Next
@@ -13,6 +14,12 @@ export const authConfig: NextAuthConfig = {
     error: "/login",
   },
   callbacks: {
+    // Mesma lista do login completo: e-mail retirado de ALLOWED_EMAILS perde a
+    // sessão também no proxy, que manda para o login (antes a página abria e
+    // quebrava com as APIs em 401).
+    jwt({ token }) {
+      return emailPermitido(token.email) ? token : null;
+    },
     // O proxy lê req.auth com esta configuração: sem copiar o campo do token,
     // onboardingCompleto chegava sempre undefined, ninguém era levado ao
     // onboarding, e o layout (que vê false) escondia o menu de quem não o concluiu.

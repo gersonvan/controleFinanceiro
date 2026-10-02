@@ -4,21 +4,10 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/db";
 import { authConfig } from "./auth.config";
 import { loginDeTesteAtivo, usuarioDeTeste } from "@/lib/login-teste";
-
-const ALLOWED_EMAILS = new Set(
-  (process.env.ALLOWED_EMAILS ?? "gersonvan@gmail.com")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-);
+import { emailPermitido } from "@/lib/acesso";
 
 // Ambiente de testes (src/lib/login-teste.ts): os usuários fictícios entram sem Google.
 const LOGIN_TESTE = loginDeTesteAtivo();
-
-function emailPermitido(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return ALLOWED_EMAILS.has(email.toLowerCase()) || (LOGIN_TESTE && !!usuarioDeTeste(email));
-}
 
 const provedorDeTeste = Credentials({
   id: "teste",

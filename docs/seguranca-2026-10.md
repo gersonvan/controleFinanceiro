@@ -35,13 +35,23 @@ rodam a cada `npm run test:e2e`.
    carregar tudo na memória (na Vercel a plataforma já corta acima de 4,5 MB).
 4. **Teto de 200 páginas na leitura de PDF** — um PDF hostil com milhares de
    páginas não prende a função.
+5. **CSP com nonce** (`src/lib/csp.ts`, aplicada no `src/proxy.ts`): cada
+   requisição sorteia um valor e só scripts marcados com ele executam — sai o
+   `'unsafe-inline'` de `script-src` (fica `'strict-dynamic'`). Estilos seguem com
+   `'unsafe-inline'` (com nonce o navegador o ignoraria e a Matriz usa `style=""`).
+   Conferido no build de produção: todos os `<script>` do HTML com o nonce,
+   nenhuma violação, e um `<img onerror>` injetado é bloqueado (com a política
+   anterior executava). O `/login` passou a ter a CSP também.
+6. **Sessão revogada no proxy**: quem sai de `ALLOWED_EMAILS` perdia a sessão só
+   no login completo; o proxy ainda deixava a página abrir, as APIs davam 401 e o
+   dashboard quebrava ("This page couldn't load"). A lista agora está em
+   `src/lib/acesso.ts`, usada pelos dois — o proxy manda para o login.
 
 ## Pendências (riscos aceitos ou para decidir)
 
 | Item | Risco | Recomendação |
 |---|---|---|
 | `npm audit`: 4 "high" em `prisma` (`@prisma/config` → `deepmerge-ts`; `mysql2`) | Baixo: só na ferramenta de linha de comando do Prisma e num driver MySQL que o app não usa | A correção sugerida rebaixa o Prisma para a v6; acompanhar um patch da v7 |
-| CSP com `'unsafe-inline'` em scripts | Médio-baixo: reduz a defesa em profundidade contra XSS (o React já escapa o conteúdo, e os testes não acharam injeção) | Migrar para CSP com nonce gerado no `proxy.ts` |
 | Sem limite de requisições por usuário | Baixo: só e-mails da lista entram | Se abrir para mais usuários, limitar `/api/importar` e `/api/categorizar` (Gemini tem custo) |
 | `DATABASE_URL` com `sslmode=require` | Nenhum hoje; a biblioteca avisa que o significado vai mudar | Trocar por `sslmode=verify-full` na Vercel |
 | Migrações não recriam o banco do zero | Recuperação de desastre / ambiente novo | Migração de alinhamento idempotente (ver CONTEXTO-PROJETO.md, "Ambiente de testes") |
