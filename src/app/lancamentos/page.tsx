@@ -592,7 +592,7 @@ function LancamentosContent() {
           <select
             value={categoriaMassa}
             onChange={(e) => setCategoriaMassa(e.target.value)}
-            className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 flex-1 min-w-0 sm:flex-none sm:w-52 focus:outline-none focus:border-blue-400"
+            className="campo-escuro text-sm rounded-lg border px-3 py-1.5 flex-1 min-w-0 sm:flex-none sm:w-52 focus:outline-none focus:border-blue-400"
           >
             <option value="">Nova categoria…</option>
             <OpcoesCategorias />
@@ -606,7 +606,7 @@ function LancamentosContent() {
             <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void juntarComoMesmoPagamento(); }}>
               <input value={nomeJunto} onChange={(e) => setNomeJunto(e.target.value)} list="nomes-mesmo-pagamento" autoFocus
                 placeholder="Nome comum (ex.: Financiamento do carro)"
-                className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 w-60 focus:outline-none focus:border-blue-400" />
+                className="campo-escuro text-sm rounded-lg border px-3 py-1.5 w-60 focus:outline-none focus:border-blue-400" />
               <datalist id="nomes-mesmo-pagamento">{nomesExistentes.map((n) => <option key={n} value={n} />)}</datalist>
               <button type="submit" disabled={nomeJunto.trim().length < 2} className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">Juntar</button>
             </form>

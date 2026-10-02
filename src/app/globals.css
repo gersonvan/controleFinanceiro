@@ -63,6 +63,14 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
 }
 
+/* Campos sobre fundo escuro (barra de seleção em massa). A regra acima fica fora
+   das camadas do Tailwind e vence classes como bg-slate-800 — sem esta classe o
+   campo ficava branco com texto branco. As opções da lista seguem claras. */
+.campo-escuro { background: #1e293b; color: #fff; border-color: #475569; }
+.campo-escuro::placeholder { color: #94a3b8; }
+.campo-escuro:focus { border-color: #60a5fa; }
+.campo-escuro option { background: #fff; color: #1e293b; }
+
 table { border-collapse: collapse; width: 100%; }
 thead th {
   text-align: left;
