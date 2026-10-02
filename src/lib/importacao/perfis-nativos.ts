@@ -19,6 +19,15 @@ const BUILTIN_OFX_PERFIS = [
   // Fatura de cartão exportada em OFX (CREDITCARDMSGSRSV1): compras já vêm
   // negativas; pede o mês de referência como as demais faturas.
   { builtin: "nubank-cartao-ofx",    nome: "Nubank — Fatura Cartão (OFX)", conta: "Nubank Crédito", inverterSinal: false, usaMesReferencia: true },
+  // Demais bancos: mesma conta da fatura em PDF, quando existe, para os dois formatos não virarem duas contas
+  { builtin: "bb-cartao-ofx",        nome: "Banco do Brasil — Fatura Cartão (OFX)", conta: "BB Cartão",        inverterSinal: false, usaMesReferencia: true },
+  { builtin: "itau-cartao-ofx",      nome: "Itaú — Fatura Cartão (OFX)",      conta: "Itaú Cartão",      inverterSinal: false, usaMesReferencia: true },
+  { builtin: "bradesco-cartao-ofx",  nome: "Bradesco — Fatura Cartão (OFX)",  conta: "Bradesco Cartão",  inverterSinal: false, usaMesReferencia: true },
+  { builtin: "santander-cartao-ofx", nome: "Santander — Fatura Cartão (OFX)", conta: "Santander Cartão", inverterSinal: false, usaMesReferencia: true },
+  { builtin: "caixa-cartao-ofx",     nome: "Caixa — Fatura Cartão (OFX)",     conta: "Caixa Cartão",     inverterSinal: false, usaMesReferencia: true },
+  { builtin: "inter-cartao-ofx",     nome: "Inter — Fatura Cartão (OFX)",     conta: "Inter Cartão",     inverterSinal: false, usaMesReferencia: true },
+  { builtin: "sicoob-cartao-ofx",    nome: "Sicoob — Fatura Cartão (OFX)",    conta: "Sicoob Cartão",    inverterSinal: false, usaMesReferencia: true },
+  { builtin: "sicredi-cartao-ofx",   nome: "Sicredi — Fatura Cartão (OFX)",   conta: "Sicredi Cartão",   inverterSinal: false, usaMesReferencia: true },
 ];
 
 const OFX_DEFAULTS = {

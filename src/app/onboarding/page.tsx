@@ -13,7 +13,12 @@ type Perfil = {
   formato: string;
   builtin: string | null;
   ativo: boolean;
+  usaMesReferencia: boolean;
 };
+
+// "Nubank — Fatura Cartão (OFX)" → "Nubank — Cartão · OFX": o grupo já diz se é conta ou fatura
+const rotuloPerfil = (p: Perfil) =>
+  `${p.nome.replace(/\s*\((OFX|PDF|CSV)\)/i, "").replace("Fatura ", "").trim()} · ${p.formato.toUpperCase()}`;
 
 const PASSOS = ["Boas-vindas", "Fotografia", "Seus bancos", "Pronto!"];
 
@@ -86,8 +91,12 @@ export default function OnboardingPage() {
     window.location.assign(destino);
   };
 
-  const ofxPerfis = perfis.filter((p) => p.formato === "ofx");
-  const pdfPerfis = perfis.filter((p) => p.formato === "pdf");
+  // agrupa pelo que o arquivo é (extrato de conta × fatura de cartão), não pelo formato
+  const ordenar = (a: Perfil, b: Perfil) => rotuloPerfil(a).localeCompare(rotuloPerfil(b), "pt-BR");
+  const grupos = [
+    { titulo: "Conta corrente e poupança", perfis: perfis.filter((p) => !p.usaMesReferencia).sort(ordenar), cor: "bg-blue-50 border-blue-300 text-blue-700" },
+    { titulo: "Cartão de crédito (fatura)", perfis: perfis.filter((p) => p.usaMesReferencia).sort(ordenar), cor: "bg-purple-50 border-purple-300 text-purple-700" },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -229,51 +238,24 @@ export default function OnboardingPage() {
                 <div className="text-center py-8 text-slate-400 text-sm">Carregando bancos...</div>
               ) : (
                 <div className="space-y-6">
-                  {ofxPerfis.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                        Conta corrente (OFX)
-                      </p>
+                  {grupos.filter((g) => g.perfis.length > 0).map((g) => (
+                    <div key={g.titulo}>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{g.titulo}</p>
                       <div className="flex flex-wrap gap-2">
-                        {ofxPerfis.map((p) => (
+                        {g.perfis.map((p) => (
                           <button
                             key={p.id}
                             onClick={() => togglePerfil(p.id, !p.ativo)}
                             className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                              p.ativo
-                                ? "bg-blue-50 border-blue-300 text-blue-700"
-                                : "bg-white border-slate-300 text-slate-500"
+                              p.ativo ? g.cor : "bg-white border-slate-300 text-slate-500"
                             }`}
                           >
-                            {p.ativo ? "✓ " : ""}{p.nome.replace(" (OFX)", "").replace(" OFX", "")}
+                            {p.ativo ? "✓ " : ""}{rotuloPerfil(p)}
                           </button>
                         ))}
                       </div>
                     </div>
-                  )}
-
-                  {pdfPerfis.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                        Cartão de crédito (PDF)
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {pdfPerfis.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => togglePerfil(p.id, !p.ativo)}
-                            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                              p.ativo
-                                ? "bg-purple-50 border-purple-300 text-purple-700"
-                                : "bg-white border-slate-300 text-slate-500"
-                            }`}
-                          >
-                            {p.ativo ? "✓ " : ""}{p.nome.replace(" (PDF)", "").replace(" PDF", "").replace("Fatura", "").trim()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               )}
 

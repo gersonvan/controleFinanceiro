@@ -216,6 +216,40 @@ describe("extrato CSV da conta C6", () => {
   });
 });
 
+describe("fatura de cartão em OFX (Banco do Brasil e demais bancos)", () => {
+  // Layout do OFX de fatura do BB (compras negativas; créditos positivos), dados fictícios
+  const fatura = [
+    "OFXHEADER:100", "DATA:OFXSGML", "<OFX>",
+    "<SIGNONMSGSRSV1><SONRS><FI><ORG>Banco do Brasil</ORG><FID>001</FID></FI></SONRS></SIGNONMSGSRSV1>",
+    "<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS><BANKTRANLIST>",
+    "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20251005<TRNAMT>-89.90<MEMO>LOJA FICTICIA     SAO PAULO     BR</STMTTRN>",
+    "<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20251010<TRNAMT>1500.00<MEMO>PGTO DEBITO CONTA 1234 000012345 200</STMTTRN>",
+    "<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20251012<TRNAMT>39.90<MEMO>PG LOJA FICTICIA   0000000000 BR</STMTTRN>",
+    "</BANKTRANLIST></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>",
+  ].join("\n");
+
+  it("cada banco tem perfil de fatura em OFX; FID com ou sem zeros", () => {
+    expect(detectarBancoOFX(fatura).builtinKey).toBe("bb-cartao-ofx");
+    expect(detectarBancoOFX(fatura.replace("<FID>001", "<FID>0001")).builtinKey).toBe("bb-cartao-ofx");
+    expect(detectarBancoOFX(fatura.replace("<FID>001", "<FID>").replace("Banco do Brasil", "Banco Itau S.A.")).builtinKey).toBe("itau-cartao-ofx");
+    const conta = fatura.replace("<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>", "<BANKMSGSRSV1><STMTTRNRS><STMTRS>");
+    expect(detectarBancoOFX(conta).builtinKey).toBe("bb-corrente-ofx");
+  });
+
+  it("crédito na fatura não é renda: pagamento da fatura e estorno", () => {
+    const perfil: PerfilCompleto = { ...perfilCsv, formato: "ofx", conta: "BB Cartão", usaMesReferencia: true, builtin: "bb-cartao-ofx" };
+    const itens = importar(fatura, "fatura.ofx", perfil, new Map(), new Date(2025, 10, 1));
+    expect(itens.map(({ valor, categoria }) => ({ valor, categoria }))).toEqual([
+      { valor: -89.9, categoria: "" },
+      { valor: 1500, categoria: "Pagamento de Cartão de Crédito" },
+      { valor: 39.9, categoria: "Estorno" },
+    ]);
+    // no extrato da conta, o mesmo crédito seria uma entrada comum
+    const conta = fatura.replace("<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>", "<BANKMSGSRSV1><STMTTRNRS><STMTRS>");
+    expect(importar(conta, "conta.ofx", { ...perfil, usaMesReferencia: false, builtin: "bb-corrente-ofx" }, new Map(), null)[2].categoria).toBe("Outras Entradas");
+  });
+});
+
 describe("fatura de cartão em OFX (Nubank)", () => {
   // Estrutura real do arquivo "Nubank_AAAA-MM-DD.ofx", com dados fictícios
   const fatura = [

@@ -46,31 +46,26 @@ export function detectarPerfilCSV(texto: string): { builtinKey: string | null; n
   return { builtinKey: null, nome: "CSV não identificado" };
 }
 
-// FID BACEN → builtin profile key
-const OFX_FID_MAP: Record<string, string> = {
-  "0341": "itau-corrente-ofx",
-  "0237": "bradesco-corrente-ofx",
-  "0033": "santander-corrente-ofx",
-  "0001": "bb-corrente-ofx",
-  "0104": "caixa-corrente-ofx",
-  "0077": "inter-corrente-ofx",
-  "0756": "sicoob-corrente-ofx",
-  "0748": "sicredi-corrente-ofx",
+// Banco do OFX pelo código BACEN (FID) ou pelo nome (ORG). Cada banco tem um
+// perfil de conta ("<banco>-corrente-ofx") e um de fatura ("<banco>-cartao-ofx").
+const OFX_FID_MAP: Record<number, string> = {
+  341: "itau", 237: "bradesco", 33: "santander", 1: "bb", 104: "caixa",
+  77: "inter", 756: "sicoob", 748: "sicredi", 260: "nubank",
 };
 
-// Fragmento do ORG → builtin key (ordem importa: mais específico primeiro)
+// Fragmento do ORG → banco (ordem importa: mais específico primeiro)
 const OFX_ORG_MAP: [string, string][] = [
-  ["nu pagamentos", "nubank-corrente-ofx"],
-  ["nubank",        "nubank-corrente-ofx"],
-  ["banco inter",   "inter-corrente-ofx"],
-  ["inter bank",    "inter-corrente-ofx"],
-  ["banco do brasil","bb-corrente-ofx"],
-  ["itau",          "itau-corrente-ofx"],
-  ["bradesco",      "bradesco-corrente-ofx"],
-  ["santander",     "santander-corrente-ofx"],
-  ["caixa econom",  "caixa-corrente-ofx"],
-  ["sicoob",        "sicoob-corrente-ofx"],
-  ["sicredi",       "sicredi-corrente-ofx"],
+  ["nu pagamentos", "nubank"],
+  ["nubank",        "nubank"],
+  ["banco inter",   "inter"],
+  ["inter bank",    "inter"],
+  ["banco do brasil","bb"],
+  ["itau",          "itau"],
+  ["bradesco",      "bradesco"],
+  ["santander",     "santander"],
+  ["caixa econom",  "caixa"],
+  ["sicoob",        "sicoob"],
+  ["sicredi",       "sicredi"],
 ];
 
 function tagValue(texto: string, tagName: string): string {
@@ -89,39 +84,29 @@ export function detectarFormato(texto: string, nomeArquivo: string): "ofx" | "cs
   return "csv";
 }
 
-// Faturas de cartão em OFX: só alguns bancos têm perfil próprio.
-const OFX_CARTAO_MAP: [string, string][] = [
-  ["nu pagamentos", "nubank-cartao-ofx"],
-  ["nubank",        "nubank-cartao-ofx"],
-];
-
 /** OFX de cartão de crédito usa CREDITCARDMSGSRSV1/CCSTMTRS em vez de BANKMSGSRSV1/STMTRS. */
 export function ehOFXCartao(texto: string): boolean {
   const t = texto.toUpperCase();
   return t.includes("<CREDITCARDMSGSRSV1>") || t.includes("<CCSTMTRS>");
 }
 
+function bancoDoOFX(fid: string, org: string): string | null {
+  const codigo = parseInt(fid, 10); // "0001", "001" e "1" são o mesmo BB
+  if (!isNaN(codigo) && OFX_FID_MAP[codigo]) return OFX_FID_MAP[codigo];
+  const l = org.toLowerCase();
+  return OFX_ORG_MAP.find(([padrao]) => l.includes(padrao))?.[1] ?? null;
+}
+
 export function detectarBancoOFX(texto: string): { builtinKey: string | null; orgName: string } {
   const fid = tagValue(texto, "FID");
   const org = tagValue(texto, "ORG");
+  const banco = bancoDoOFX(fid, org);
 
   // Mesmo banco, arquivo de fatura: nunca tratar como conta corrente.
   if (ehOFXCartao(texto)) {
-    const l = org.toLowerCase();
-    const achado = OFX_CARTAO_MAP.find(([padrao]) => l.includes(padrao));
-    return { builtinKey: achado?.[1] ?? null, orgName: `${org || "Banco não identificado"} — fatura de cartão` };
+    return { builtinKey: banco ? `${banco}-cartao-ofx` : null, orgName: `${org || "Banco não identificado"} — fatura de cartão` };
   }
-
-  if (fid && OFX_FID_MAP[fid]) return { builtinKey: OFX_FID_MAP[fid], orgName: org || fid };
-
-  if (org) {
-    const l = org.toLowerCase();
-    for (const [pattern, key] of OFX_ORG_MAP) {
-      if (l.includes(pattern)) return { builtinKey: key, orgName: org };
-    }
-  }
-
-  return { builtinKey: null, orgName: org || "Banco não identificado" };
+  return { builtinKey: banco ? `${banco}-corrente-ofx` : null, orgName: org || fid || "Banco não identificado" };
 }
 
 // Heurística para pré-preencher papéis das colunas num CSV.

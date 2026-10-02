@@ -89,6 +89,8 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 
 **Nome do usuário nas regras (26/09)**: nada de nome de pessoa no código (o produto é multiusuário). `UserProfile.nomeCompleto` (preenchido no login com o nome da conta Google, editável em Configurações › Importação, `/api/perfil`) alimenta `ehNomeProprio` (`src/lib/nome-proprio.ts`), que reconhece as grafias dos bancos — "NOME SOBRENOME", corte ("SOB"), iniciais, "NT" = Neto, nomes do meio mascarados — e marca Transferência entre Contas. Exige o primeiro nome + o último sobrenome ou duas partes; só primeiro + um do meio não basta (cobrança em nome do usuário). Sai a lista fixa `NOMES_PROPRIOS`, a agência fixa e a imobiliária específica (virou "imobiliaria" genérico em entradas).
 
+**Fatura em OFX para todos os bancos (01/10)**: só o Nubank tinha perfil de fatura em OFX; os demais caíam em "ainda não tem perfil". `detectarBancoOFX` acha o banco pelo FID numérico ("1", "001" e "0001" = BB) ou pelo ORG e devolve `<banco>-corrente-ofx` ou `<banco>-cartao-ofx` (CREDITCARDMSGSRSV1). Perfis novos de fatura OFX para BB, Itaú, Bradesco, Santander, Caixa, Inter, Sicoob e Sicredi (conta "<Banco> Cartão", a mesma da fatura em PDF quando existe). Na fatura em OFX, crédito não é renda: "PGTO/PAGAMENTO" → Pagamento de Cartão; o resto → Estorno (antes caíam em Outras Entradas). Onboarding agrupa os bancos por conta × fatura (usaMesReferencia), com o formato no nome, e inclui os CSV.
+
 ## 6. Categorização (POST /api/categorizar e também na importação)
 
 Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + histórico carregados por `carregarMemoriaCategorizacao()` (`src/lib/memoria.ts`):
