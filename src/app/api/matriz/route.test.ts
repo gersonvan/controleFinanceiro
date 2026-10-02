@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getSessionUserId: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
-vi.mock("@/lib/db", () => ({ prisma: { lancamento: { findMany: mocks.findMany } } }));
+vi.mock("@/lib/db", () => ({ prisma: { lancamento: { findMany: mocks.findMany }, apelido: { findMany: async () => [] } } }));
 
 import { GET } from "./route";
 

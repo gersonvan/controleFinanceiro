@@ -1,4 +1,5 @@
 import { ehNomeProprio } from "./nome-proprio";
+import { semRuido } from "./estabelecimento";
 
 export const CATEGORIAS = [
   // Receitas
@@ -181,8 +182,8 @@ const MESES_ABREV = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez";
  * 22 + 13) e os "Pix no Crédito - ", "Compra no débito - " e " - NuPay" do Nubank.
  */
 export function chaveMemoria(descricao: string): string {
-  return descricao
-    .replace(/^(.{22}) .{13} BRA\s*$/, "$1")                              // C6: estabelecimento + cidade + BRA
+  // C6 primeiro (largura fixa); depois o ruído de meio de pagamento, "Data balanc.", LTDA…
+  return semRuido(descricao.replace(/^(.{22}) .{13} BRA\s*$/, "$1"))
     .toLowerCase()
     .replace(/^(pix no cr[eé]dito|compra no d[eé]bito)\s+-\s+/, "")       // Nubank
     .replace(/\s+-\s+nupay\b/, " ")
@@ -203,6 +204,8 @@ export interface MemoriaCategorizacao {
   historico?: Map<string, string>;
   /** nome completo do usuário, para reconhecer Pix/TED entre contas dele (ver nome-proprio.ts) */
   nomeCompleto?: string;
+  /** "Mesmo pagamento": chaveMemoria → nome comum (ver chaveAgrupada) */
+  apelidos?: Map<string, string>;
 }
 /** Só a Memória (Map) ou Memória + histórico. */
 export type FonteMemoria = Map<string, string> | MemoriaCategorizacao;
@@ -213,7 +216,18 @@ export type OrigemCategoria = "memoria" | "historico" | "regra";
 const FORA_DO_HISTORICO = new Set(["Transferência para Terceiros"]);
 const PARTICIPACAO_MINIMA_HISTORICO = 0.75;
 
-export const chaveHistorico = (tipo: string, descricao: string) => `${tipo}|${chaveMemoria(descricao)}`;
+/**
+ * Chave do estabelecimento já com o "mesmo pagamento" do usuário: AYMORE e
+ * SANTANDER marcados como "Financiamento do carro" viram uma chave só.
+ */
+export function chaveAgrupada(descricao: string, apelidos?: Map<string, string>): string {
+  const chave = chaveMemoria(descricao);
+  const nome = apelidos?.get(chave);
+  return nome ? `≈${nome.toLowerCase()}` : chave;
+}
+
+export const chaveHistorico = (tipo: string, descricao: string, apelidos?: Map<string, string>) =>
+  `${tipo}|${chaveAgrupada(descricao, apelidos)}`;
 
 /**
  * Histórico → categoria por estabelecimento: vale quando a mesma chave recebeu
@@ -221,11 +235,12 @@ export const chaveHistorico = (tipo: string, descricao: string) => `${tipo}|${ch
  */
 export function montarHistorico(
   linhas: { descricao: string; tipo: string; categoria: string | null; n?: number }[],
+  apelidos?: Map<string, string>,
 ): Map<string, string> {
   const porChave = new Map<string, Map<string, number>>();
   for (const l of linhas) {
     if (!l.categoria) continue;
-    const chave = chaveHistorico(l.tipo, l.descricao);
+    const chave = chaveHistorico(l.tipo, l.descricao, apelidos);
     if (chave.length - l.tipo.length - 1 < 4) continue; // chave curta demais para dizer algo
     const cats = porChave.get(chave) ?? new Map<string, number>();
     cats.set(l.categoria, (cats.get(l.categoria) ?? 0) + (l.n ?? 1));
@@ -256,14 +271,15 @@ export function categorizarComOrigem(
   tipo: string,
   fonte?: FonteMemoria,
 ): { categoria: string; origem: OrigemCategoria | null } {
-  const { memoria, historico, nomeCompleto } = fonte instanceof Map ? { memoria: fonte, historico: undefined, nomeCompleto: undefined } : fonte ?? {};
+  const { memoria, historico, nomeCompleto, apelidos } = fonte instanceof Map
+    ? { memoria: fonte, historico: undefined, nomeCompleto: undefined, apelidos: undefined } : fonte ?? {};
   const chave = chaveMemoria(descricao);
   if (memoria?.has(chave)) return { categoria: memoria.get(chave)!, origem: "memoria" };
 
   const d = descricao.toLowerCase();
   if (tipo !== "Entrada" && ehDelivery(d)) return { categoria: "Delivery e iFood", origem: "regra" };
 
-  const h = historico?.get(chaveHistorico(tipo, descricao));
+  const h = historico?.get(chaveHistorico(tipo, descricao, apelidos));
   if (h) return { categoria: h, origem: "historico" };
 
   const categoria = ehNomeProprio(descricao, nomeCompleto) ? "Transferência entre Contas" : regras(d, categoriaOriginal, tipo);

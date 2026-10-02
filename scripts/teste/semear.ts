@@ -34,6 +34,17 @@ export async function semear() {
     add(a, m, 9, "STREAMING TESTE", -39.9, "Assinaturas Digitais", cartao, ref);
     add(a, m, 14, `LOJA PARCELADA TESTE (${6 - i}/6)`, -200, "Compras", cartao, ref);
   }
+  // mesmo pagamento com descrições diferentes (como no BB): financeira que mudou de
+  // nome e escola com variações ("LTDA", "- Data balanc.: 04")
+  const [ha, hm] = [hoje.getUTCFullYear(), hoje.getUTCMonth()];
+  add(ha, hm - 3, 2, "Pagamento de Boleto - FINANCEIRA A CREDITO - Data balanc.: 02", -2578.05, "Automóvel", "Conta Teste");
+  add(ha, hm - 2, 3, "Pagamento de Boleto - FINANCEIRA A CREDITO - Data balanc.: 03", -2579.2, "Automóvel", "Conta Teste");
+  add(ha, hm - 1, 1, "Pagamento de Boleto - BANCO B SOCIEDADE DE CREDITO", -2576.9, null, "Conta Teste");
+  add(ha, hm, 1, "Pagamento de Boleto - BANCO B SOCIEDADE DE CREDITO - Data balanc.: 0", -2580.35, null, "Conta Teste");
+  add(ha, hm - 1, 4, "Pagamento de Boleto - ESCOLA FICTICIA INFANTIL", -1804, null, "Conta Teste");
+  add(ha, hm - 1, 20, "Pagamento de Boleto - ESCOLA FICTICIA INFANTIL LTDA - Data balanc", -236.25, null, "Conta Teste");
+  add(ha, hm, 4, "Pagamento de Boleto - ESCOLA FICTICIA INFANTIL - Data balanc.: 04", -1864, null, "Conta Teste");
+
   // pendências para a tela Revisar
   add(hoje.getUTCFullYear(), hoje.getUTCMonth(), 2, "PIX QRS LOJINHA SEM CATEGORIA", -45, null, "Conta Teste");
   add(hoje.getUTCFullYear(), hoje.getUTCMonth(), 2, "COMPRA DESCONHECIDA TESTE", -60, null, "Cartão Teste");

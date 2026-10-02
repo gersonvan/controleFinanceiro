@@ -5,10 +5,11 @@ import { entrar, vigiarErros } from "./ajuda";
 
 test("escolher a categoria salva na hora e mantém a rolagem", async ({ page }) => {
   const erros = vigiarErros(page);
-  await page.setViewportSize({ width: 1024, height: 520 }); // lista maior que a tela
+  await page.setViewportSize({ width: 1024, height: 420 }); // lista maior que a tela
   await entrar(page, "Ana");
   await page.goto("/lancamentos");
-  const linha = page.locator("table tbody tr").nth(10);
+  // um lançamento específico (por índice, a semente nova mudaria o alvo e afetaria outros testes)
+  const linha = page.locator("table tbody tr").filter({ hasText: "RESTAURANTE TESTE" }).first();
   await linha.scrollIntoViewIfNeeded();
   const rolagem = await page.evaluate(() => window.scrollY);
   expect(rolagem).toBeGreaterThan(0);
@@ -27,12 +28,12 @@ test("escolher a categoria salva na hora e mantém a rolagem", async ({ page }) 
 test("Esc cancela a edição sem salvar", async ({ page }) => {
   await entrar(page, "Ana");
   await page.goto("/lancamentos");
-  const badge = page.locator("table tbody tr").first().locator("button.badge");
-  const antes = await badge.textContent();
+  const linha = page.locator("table tbody tr").filter({ hasText: "STREAMING TESTE" }).first();
+  const antes = await linha.locator("button.badge").textContent();
   let patch = false;
   page.on("request", (r) => { if (r.method() === "PATCH") patch = true; });
-  await badge.click();
-  await page.locator("table tbody tr").first().locator("select").press("Escape");
-  await expect(page.locator("table tbody tr").first().locator("button.badge")).toHaveText(antes!);
+  await linha.locator("button.badge").click();
+  await linha.locator("select").press("Escape");
+  await expect(linha.locator("button.badge")).toHaveText(antes!);
   expect(patch).toBe(false);
 });

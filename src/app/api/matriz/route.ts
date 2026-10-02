@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { CATEGORIAS_NEUTRAS, GRUPOS_CATEGORIAS } from "@/lib/categorias";
+import { CATEGORIAS_NEUTRAS, GRUPOS_CATEGORIAS, chaveMemoria } from "@/lib/categorias";
+import { carregarApelidos } from "@/lib/apelidos";
 import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { comValorLiquido } from "@/lib/reembolso";
+import { nomeDoEstabelecimento } from "@/lib/estabelecimento";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { filtroPeriodo, filtrosLancamentoSchema } from "@/lib/filtros";
@@ -45,38 +47,20 @@ function toMesStr(d: Date): string {
   return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
 }
 
-// Prefixos que os bancos adicionam antes do nome do fornecedor
-const PREFIXOS_BANCARIOS = [
-  "Pagamento de boleto efetuado - ",
-  "Transferência enviada pelo Pix - ",
-  "Pix enviado para ",
-];
-
 // Nomes longos → forma canônica curta já usada em outros lançamentos
 const CANONICOS: Record<string, string> = {
-  "BRISANET SERVICOS DE TELECOMUNICACOES S A": "BRISANET",
+  "BRISANET SERVICOS DE TELECOMUNICACOES": "BRISANET",
   "UNIMED FORTALEZA SOCIEDADE COOPERATIVA MEDICA LTD": "UNIMED FORTALEZA SOCIEDADE COOP",
   "SEFAZ CEARA-DAE-COD": "SEFAZ CE DAE",
-  "TIM S A": "TIM SA",
 };
 
 function normalizarDescricao(descricao: string): string {
-  let d = descricao.trim();
-
-  // Remove prefixo bancário (case-insensitive)
-  for (const p of PREFIXOS_BANCARIOS) {
-    if (d.toLowerCase().startsWith(p.toLowerCase())) {
-      d = d.slice(p.length);
-      break;
-    }
-  }
-
   // Remove CNPJ e tudo depois (Nubank Pix: "VENDOR - 00.000.000/0000-00 - ...")
+  let d = descricao;
   const cnpjIdx = d.search(/ - \d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
   if (cnpjIdx > 0) d = d.slice(0, cnpjIdx);
-
-  d = d.trim().toUpperCase();
-
+  // sem meio de pagamento, data/hora, "Data balanc." do BB e LTDA/S.A. (lib/estabelecimento)
+  d = nomeDoEstabelecimento(d).toUpperCase();
   return CANONICOS[d] ?? d;
 }
 
@@ -124,10 +108,13 @@ export async function GET(req: NextRequest) {
   if (tipo) where.tipo = tipo;
   if (dataInicio || dataFim) where.OR = filtroPeriodo(dataInicio, dataFim);
 
-  const lancamentos = await prisma.lancamento.findMany({
-    where,
-    select: { categoria: true, descricao: true, valor: true, data: true, mesReferencia: true, valorReembolsado: true },
-  }).then((ls) => ls.map(comValorLiquido));
+  const [lancamentos, apelidos] = await Promise.all([
+    prisma.lancamento.findMany({
+      where,
+      select: { categoria: true, descricao: true, valor: true, data: true, mesReferencia: true, valorReembolsado: true },
+    }).then((ls) => ls.map(comValorLiquido)),
+    carregarApelidos(userId),
+  ]);
 
   // categoria → descricao → mes → soma
   const estrutura: Record<string, Record<string, Record<string, number>>> = {};
@@ -139,7 +126,8 @@ export async function GET(req: NextRequest) {
     const mes = toMesStr(new Date(ref));
     mesesSet.add(mes);
 
-    const desc = normalizarDescricao(l.descricao);
+    // "mesmo pagamento" do usuário vira uma linha só (ex.: AYMORE + SANTANDER)
+    const desc = apelidos.get(chaveMemoria(l.descricao)) ?? normalizarDescricao(l.descricao);
     if (!estrutura[l.categoria]) estrutura[l.categoria] = {};
     if (!estrutura[l.categoria][desc]) estrutura[l.categoria][desc] = {};
     estrutura[l.categoria][desc][mes] =

@@ -28,6 +28,7 @@ const menu: EntradaMenu[] = [
     { href: "/configuracoes/contas", label: "Contas", icon: "🏦" },
     { href: "/configuracoes/importacao", label: "Importação", icon: "📥" },
     { href: "/configuracoes/memoria", label: "Memória Local", icon: "🧠" },
+    { href: "/configuracoes/mesmo-pagamento", label: "Mesmo pagamento", icon: "🔗" },
   ] },
 ];
 

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CategoriaSelect from "@/components/CategoriaSelect";
 import type { GrupoDescricao, ItemGrupo } from "@/app/api/lancamentos/agrupados/route";
-import { CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
+import { CATEGORIAS_EMPRESTIMO, chaveMemoria } from "@/lib/categorias";
 import { nomeContraparte } from "@/lib/reembolso-padroes";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -46,12 +46,13 @@ export default function RevisarPage() {
     setDados((prev) => {
       if (!prev) return prev;
       const grupos = aplicados && n < g.quantidade
-        ? prev.grupos.map((x) => x.descricao !== g.descricao ? x : {
+        ? prev.grupos.map((x) => x.chave !== g.chave ? x : {
             ...x,
             quantidade: x.quantidade - n,
+            ids: x.ids.filter((id) => !aplicados.some((i) => i.id === id)),
             total: Math.round((x.total - aplicados.reduce((a, i) => a + i.valor, 0)) * 100) / 100,
           })
-        : prev.grupos.filter((x) => x.descricao !== g.descricao);
+        : prev.grupos.filter((x) => x.chave !== g.chave);
       return { ...prev, totalLancamentos: prev.totalLancamentos - n, grupos };
     });
     setAviso(`✅ ${n} lançamento${n !== 1 ? "s" : ""} → ${categoria}${lembrar ? " · lembrado para as próximas importações" : ""}`);
@@ -105,7 +106,7 @@ export default function RevisarPage() {
       ) : (
         <ul className="card p-0 divide-y divide-slate-100 overflow-hidden">
           {dados!.grupos.map((g) => (
-            <Grupo key={g.descricao} grupo={g} categoriaAtual={aba} onAplicado={aplicado} />
+            <Grupo key={g.chave} grupo={g} categoriaAtual={aba} onAplicado={aplicado} />
           ))}
         </ul>
       )}
@@ -140,7 +141,7 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
   const alternarAberto = async () => {
     if (aberto) { setItens(null); return; }
     setAbrindo(true);
-    const q = new URLSearchParams({ categoria: categoriaAtual, descricao: grupo.descricao });
+    const q = new URLSearchParams({ categoria: categoriaAtual, chave: grupo.chave });
     const r = await fetch(`/api/lancamentos/agrupados?${q}`);
     const j = r.ok ? await r.json() : { itens: [] };
     setAbrindo(false);
@@ -163,7 +164,8 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...(parcial ? { ids: [...marcados] } : { descricaoExata: grupo.descricao }),
+        // o grupo junta variações da descrição: aplica pelos ids (até 1000 por vez na API)
+        ids: parcial ? [...marcados] : grupo.ids.slice(0, 1000),
         categoriaCorreta: categoria,
         ...(emprestimo && pessoa.trim() ? { pessoa: pessoa.trim() } : {}),
         ...filtroCategoria,
@@ -172,11 +174,15 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
     // só vira regra da Memória quando vale para o grupo inteiro
     const ensinar = lembrar && !parcial;
     if (r.ok && ensinar) {
-      await fetch("/api/memoria-ia", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ descricao: grupo.descricao, categoriaCorreta: categoria }),
-      });
+      // uma regra por chave distinta (variações com a mesma chave valem por uma só)
+      const porChave = new Map(grupo.descricoes.map((d) => [chaveMemoria(d), d]));
+      for (const descricao of porChave.values()) {
+        await fetch("/api/memoria-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ descricao, categoriaCorreta: categoria }),
+        });
+      }
     }
     setSalvando(false);
     if (!r.ok) { setErro("Não foi possível aplicar."); return; }
@@ -195,9 +201,15 @@ function Grupo({ grupo, categoriaAtual, onAplicado }: {
     <li className="px-4 sm:px-6 py-3 space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {grupo.apelido && <div className="text-xs font-medium text-blue-700">🔗 {grupo.apelido}</div>}
           <div className="text-sm font-medium text-slate-800 break-words">{grupo.descricao}</div>
           <div className="text-xs text-slate-400 mt-0.5">
             {grupo.quantidade}× · último em {fmtData(grupo.ultimaData)} · {grupo.contas.join(", ")}
+            {grupo.descricoes.length > 1 && (
+              <span title={grupo.descricoes.join("\n")} className="ml-1 underline decoration-dotted cursor-help">
+                · {grupo.descricoes.length} variações da descrição
+              </span>
+            )}
             {grupo.quantidade > 1 && (
               <>
                 {" · "}

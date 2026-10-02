@@ -170,3 +170,17 @@ model Reserva {
 
   @@index([userId])
 }
+
+/// "Mesmo pagamento": descrições diferentes do mesmo compromisso sob um nome
+/// comum (ex.: AYMORE e SANTANDER no financiamento do carro). chave =
+/// chaveMemoria(descrição); Matriz, Revisar e o histórico agrupam por nome.
+model Apelido {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  chave     String
+  nome      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, chave])
+  @@index([userId])
+}

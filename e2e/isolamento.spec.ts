@@ -8,6 +8,7 @@ const ROTAS: [string, string][] = [
   ["GET", "/api/lancamentos/agrupados"], ["GET", "/api/contas"], ["PATCH", "/api/contas"],
   ["GET", "/api/reservas"], ["POST", "/api/reservas"], ["PATCH", "/api/reservas"], ["DELETE", "/api/reservas?id=1"],
   ["GET", "/api/planejamento"], ["PUT", "/api/planejamento"], ["GET", "/api/planejamento/realizado"], ["GET", "/api/planejamento/historico"],
+  ["GET", "/api/apelidos"], ["POST", "/api/apelidos"], ["PATCH", "/api/apelidos"], ["DELETE", "/api/apelidos?nome=x"],
   ["GET", "/api/memoria-ia"], ["POST", "/api/memoria-ia"], ["DELETE", "/api/memoria-ia"],
   ["GET", "/api/perfis"], ["POST", "/api/perfis"], ["PATCH", "/api/perfis"], ["DELETE", "/api/perfis"],
   ["GET", "/api/perfil"], ["PATCH", "/api/perfil"], ["PATCH", "/api/onboarding"], ["PATCH", "/api/previsao"],

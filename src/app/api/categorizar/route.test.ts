@@ -16,6 +16,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     memoriaIA: { findMany: mocks.memoriaFindMany },
     userProfile: { findUnique: mocks.perfilFindUnique },
+    apelido: { findMany: async () => [] },
     lancamento: { findMany: mocks.lancamentoFindMany, groupBy: mocks.groupBy, updateMany: mocks.updateMany },
     $transaction: mocks.transaction,
   },

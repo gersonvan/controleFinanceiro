@@ -5,7 +5,7 @@ import { entrar, vigiarErros } from "./ajuda";
 const PAGINAS = [
   "/", "/planejamento", "/importar", "/lancamentos", "/lancamentos/revisar",
   "/matriz", "/previsao", "/reserva", "/emprestimos", "/financas/meios", "/financas/divida",
-  "/configuracoes/contas", "/configuracoes/importacao", "/configuracoes/memoria",
+  "/configuracoes/contas", "/configuracoes/importacao", "/configuracoes/memoria", "/configuracoes/mesmo-pagamento",
 ];
 
 for (const caminho of PAGINAS) {

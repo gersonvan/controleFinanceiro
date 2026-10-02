@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
 import CategoriaSelect from "@/components/CategoriaSelect";
+import { nomeDoEstabelecimento } from "@/lib/estabelecimento";
 import type { ResumoFiltro } from "@/app/api/resumo/route";
 import Link from "next/link";
 import LancamentoForm from "@/components/LancamentoForm";
@@ -92,6 +93,10 @@ function LancamentosContent() {
   const [selecionados, setSelecionados]   = useState<Set<number>>(new Set());
   const [categoriaMassa, setCategoriaMassa] = useState("");
   const [aplicandoMassa, setAplicandoMassa] = useState(false);
+  // "Mesmo pagamento…": junta as descrições selecionadas sob um nome (lib/apelidos)
+  const [juntando, setJuntando]               = useState(false);
+  const [nomeJunto, setNomeJunto]             = useState("");
+  const [nomesExistentes, setNomesExistentes] = useState<string[]>([]);
 
   const [filtros, setFiltros] = useState({
     busca: "", conta: "", categoria: "", tipo: "",
@@ -289,6 +294,28 @@ function LancamentosContent() {
     setCategoriaMassa("");
     carregar();
     showToast(`✅ ${json.corrigidos} lançamento${json.corrigidos !== 1 ? "s" : ""} atualizado${json.corrigidos !== 1 ? "s" : ""}.`);
+  };
+
+  const abrirJuntar = async () => {
+    const primeira = lancamentos.find((l) => selecionados.has(l.id));
+    setNomeJunto(primeira ? nomeDoEstabelecimento(primeira.descricao) : "");
+    setJuntando(true);
+    const r = await fetch("/api/apelidos");
+    if (r.ok) setNomesExistentes((await r.json()).map((g: { nome: string }) => g.nome));
+  };
+
+  const juntarComoMesmoPagamento = async () => {
+    const descricoes = [...new Set(lancamentos.filter((l) => selecionados.has(l.id)).map((l) => l.descricao))];
+    const r = await fetch("/api/apelidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: nomeJunto.trim(), descricoes }),
+    });
+    const j = await r.json();
+    if (!r.ok) { showToast(`⚠️ ${j.error ?? "Não foi possível juntar."}`); return; }
+    setJuntando(false);
+    setSelecionados(new Set());
+    showToast(`🔗 ${j.chaves} descriç${j.chaves !== 1 ? "ões" : "ão"} agora contam como "${j.nome}" na Matriz, na Revisão e nas sugestões.`);
   };
 
   // Badge de categoria clicável / editor inline — usado na tabela e na lista do celular.
@@ -574,7 +601,22 @@ function LancamentosContent() {
             className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">
             {aplicandoMassa ? <span className="spinner" /> : "Aplicar"}
           </button>
-          <button onClick={() => { setSelecionados(new Set()); setCategoriaMassa(""); }}
+          <div className="hidden sm:block w-px h-5 bg-slate-600" />
+          {juntando ? (
+            <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void juntarComoMesmoPagamento(); }}>
+              <input value={nomeJunto} onChange={(e) => setNomeJunto(e.target.value)} list="nomes-mesmo-pagamento" autoFocus
+                placeholder="Nome comum (ex.: Financiamento do carro)"
+                className="text-sm rounded-lg border border-slate-600 bg-slate-800 text-white px-3 py-1.5 w-60 focus:outline-none focus:border-blue-400" />
+              <datalist id="nomes-mesmo-pagamento">{nomesExistentes.map((n) => <option key={n} value={n} />)}</datalist>
+              <button type="submit" disabled={nomeJunto.trim().length < 2} className="btn btn-primary text-sm whitespace-nowrap disabled:opacity-50">Juntar</button>
+            </form>
+          ) : (
+            <button onClick={abrirJuntar} className="text-sm whitespace-nowrap text-slate-200 hover:text-white underline decoration-dotted"
+              title="Descrições diferentes do mesmo compromisso (ex.: AYMORE e SANTANDER) passam a contar como uma só">
+              Mesmo pagamento…
+            </button>
+          )}
+          <button onClick={() => { setSelecionados(new Set()); setCategoriaMassa(""); setJuntando(false); }}
             className="text-slate-400 hover:text-white text-lg leading-none transition-colors" title="Cancelar seleção">
             ×
           </button>
