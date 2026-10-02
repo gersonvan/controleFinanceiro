@@ -7,6 +7,7 @@ interface Props {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  onKeyDown?: React.KeyboardEventHandler<HTMLSelectElement>;
 }
 
 export default function CategoriaSelect({
@@ -15,6 +16,7 @@ export default function CategoriaSelect({
   placeholder = "Selecione a categoria…",
   className = "",
   autoFocus = false,
+  onKeyDown,
 }: Props) {
   return (
     <select
@@ -22,6 +24,7 @@ export default function CategoriaSelect({
       onChange={(e) => onChange(e.target.value)}
       className={className}
       autoFocus={autoFocus}
+      onKeyDown={onKeyDown}
     >
       <option value="">{placeholder}</option>
       <OpcoesCategorias />

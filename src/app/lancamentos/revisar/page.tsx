@@ -34,6 +34,12 @@ export default function RevisarPage() {
     return () => { ativo = false; };
   }, [aba]);
 
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(""), 3500);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
   // aplicados = null → o grupo inteiro; senão, só esses (o grupo continua com o resto)
   const aplicado = (g: GrupoDescricao, categoria: string, lembrar: boolean, aplicados: ItemGrupo[] | null) => {
     const n = aplicados ? aplicados.length : g.quantidade;
@@ -85,7 +91,12 @@ export default function RevisarPage() {
         </p>
       )}
 
-      {aviso && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{aviso}</div>}
+      {/* flutuante: quem rolou até o meio da lista vê a confirmação sem voltar ao topo */}
+      {aviso && (
+        <div role="status" className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-lg text-center">
+          {aviso}
+        </div>
+      )}
 
       {carregando ? (
         <div className="flex justify-center py-16"><div className="spinner" /></div>

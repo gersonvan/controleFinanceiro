@@ -117,8 +117,9 @@ function LancamentosContent() {
     return p;
   }, [page, limit, filtros]);
 
+  // Recarrega sem trocar a lista pelo "carregando": a página não encolhe e a
+  // rolagem fica onde estava (o spinner é só para filtro e paginação).
   const carregar = useCallback(async () => {
-    setLoading(true);
     const [resL, resR] = await Promise.all([
       fetch(`/api/lancamentos?${buildParams()}`),
       fetch(`/api/resumo?${buildParams({ page: "1", limit: "9999" })}`),
@@ -184,18 +185,28 @@ function LancamentosContent() {
     setLoading(true);
   };
 
-  const salvarCategoria = async (id: number) => {
-    await fetch("/api/lancamentos", {
+  const atualizarResumo = useCallback(async () => {
+    const r = await fetch(`/api/resumo?${buildParams({ page: "1", limit: "9999" })}`);
+    if (r.ok) setResumo(await r.json());
+  }, [buildParams]);
+
+  // Troca a categoria na própria linha (sem recarregar a lista) e salva; se falhar, desfaz.
+  const salvarCategoria = async (id: number, categoria = categoriaEdit, pessoa = pessoaEdit) => {
+    const antes = lancamentos.find((l) => l.id === id);
+    const novos = { categoria: categoria || null, pessoa: isEmprestimo(categoria) ? (pessoa || null) : null };
+    setLancamentos((prev) => prev.map((l) => (l.id === id ? { ...l, ...novos } : l)));
+    setEditando(null);
+    const r = await fetch("/api/lancamentos", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
-        categoria: categoriaEdit || null,
-        pessoa: isEmprestimo(categoriaEdit) ? (pessoaEdit || null) : null,
-      }),
+      body: JSON.stringify({ id, ...novos }),
     });
-    setEditando(null);
-    carregar();
+    if (!r.ok && antes) {
+      setLancamentos((prev) => prev.map((l) => (l.id === id ? antes : l)));
+      showToast("⚠️ Não foi possível salvar a categoria.");
+      return;
+    }
+    void atualizarResumo();
   };
 
   const excluir = async (id: number) => {
@@ -290,11 +301,16 @@ function LancamentosContent() {
               onChange={(v) => {
                 // Reembolso precisa dizer qual gasto devolve: abre o Dividir
                 if (v === CATEGORIA_REEMBOLSO && l.valor > 0) { setEditando(null); setDividindo(l); return; }
-                setCategoriaEdit(v); if (!isEmprestimo(v)) setPessoaEdit("");
+                setCategoriaEdit(v);
+                // escolher já salva; Empréstimo ainda pede a pessoa (Enter ou ✓)
+                if (!isEmprestimo(v)) { setPessoaEdit(""); void salvarCategoria(l.id, v, ""); }
               }}
+              onKeyDown={(e) => e.key === "Escape" && setEditando(null)}
               placeholder="Sem categoria" className="text-xs py-0.5" autoFocus />
-            <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
-            <button className="btn btn-secondary text-xs py-0.5 px-2" onClick={() => setEditando(null)}>✕</button>
+            {isEmprestimo(categoriaEdit) && (
+              <button className="btn btn-success text-xs py-0.5 px-2" onClick={() => salvarCategoria(l.id)}>✓</button>
+            )}
+            <button className="btn btn-secondary text-xs py-0.5 px-2" title="Cancelar (Esc)" onClick={() => setEditando(null)}>✕</button>
           </div>
           {isEmprestimo(categoriaEdit) && (
             <input className="text-xs py-0.5 w-full" placeholder="Nome da pessoa…"
