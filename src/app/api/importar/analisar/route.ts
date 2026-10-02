@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
-import { lerArquivo } from "@/lib/validacao";
+import { corpoGrandeDemais, lerArquivo } from "@/lib/validacao";
 import { chaveDataValor, chaveLancamento, decodificarTexto, ehParcela, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { detectarBancoOFX, detectarFormato, detectarPerfilCSV, ehOFXCartao } from "@/lib/importacao/detectar";
 import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const grande = corpoGrandeDemais(req);
+  if (grande) return grande;
   const arquivo = lerArquivo(await req.formData());
   if (!arquivo.ok) return arquivo.resposta;
   const file = arquivo.dados;

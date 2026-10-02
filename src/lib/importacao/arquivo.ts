@@ -14,6 +14,8 @@ export function ehPDF(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString("latin1") === "%PDF-";
 }
 
+export const MAX_PAGINAS_PDF = 200;
+
 /** Extrai o texto de um PDF digital. Lança erro para PDF escaneado ou corrompido. */
 export async function extrairTextoPDF(buffer: Buffer): Promise<string> {
   // pdf-parse v2: classe PDFParse (a v1 exportava uma função — chamar assim quebrava toda leitura de PDF)
@@ -22,7 +24,8 @@ export async function extrairTextoPDF(buffer: Buffer): Promise<string> {
   const { PDFParse } = require("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
-    return (await parser.getText()).text as string;
+    // teto de páginas: extrato/fatura nunca chega perto; um PDF hostil com milhares não prende a função
+    return (await parser.getText({ first: MAX_PAGINAS_PDF })).text as string;
   } finally {
     await parser.destroy?.();
   }

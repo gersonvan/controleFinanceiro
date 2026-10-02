@@ -3,7 +3,7 @@ import { getSessionUserId } from "@/lib/session";
 import { detectarBancoPDF, parsePDF } from "@/lib/importacao/pdf";
 import { prisma } from "@/lib/db";
 import { escopoDoUsuario } from "@/lib/tenant";
-import { erro400, lerArquivo } from "@/lib/validacao";
+import { corpoGrandeDemais, erro400, lerArquivo } from "@/lib/validacao";
 import { ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 
@@ -11,6 +11,8 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const grande = corpoGrandeDemais(req);
+  if (grande) return grande;
   const formData = await req.formData();
   const arquivo = lerArquivo(formData);
   if (!arquivo.ok) return arquivo.resposta;

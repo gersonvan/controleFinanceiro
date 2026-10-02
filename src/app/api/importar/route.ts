@@ -8,7 +8,7 @@ import { extrairSaldoFinal } from "@/lib/importacao/saldo";
 import { atualizarSaldoConta } from "@/lib/reserva-dados";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
-import { erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
+import { corpoGrandeDemais, erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
 import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 
 const importacaoSchema = z.object({
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const grande = corpoGrandeDemais(req);
+  if (grande) return grande;
   const formData = await req.formData();
   const arquivo = lerArquivo(formData);
   if (!arquivo.ok) return arquivo.resposta;

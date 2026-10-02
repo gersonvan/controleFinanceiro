@@ -53,6 +53,16 @@ export function lerQuery(req: Request): Record<string, string> {
   return Object.fromEntries(new URL(req.url).searchParams);
 }
 
+/**
+ * Recusa pelo tamanho declarado, antes de ler o corpo: um upload enorme não chega
+ * a ocupar a memória (na Vercel a plataforma já corta acima de 4,5 MB; localmente não).
+ */
+export function corpoGrandeDemais(req: Request): NextResponse | null {
+  const declarado = Number(req.headers.get("content-length") ?? 0);
+  if (declarado <= TAMANHO_MAX_UPLOAD + 64 * 1024) return null; // folga para os campos do formulário
+  return NextResponse.json({ error: `Arquivo excede o limite de ${TAMANHO_MAX_UPLOAD / 1024 / 1024} MB` }, { status: 413 });
+}
+
 export function lerArquivo(formData: FormData, campo = "file"): Validacao<File> {
   const arquivo = formData.get(campo);
   if (!(arquivo instanceof File) || arquivo.size === 0) {

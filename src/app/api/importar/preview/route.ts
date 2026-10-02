@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/session";
 import { parseCSV } from "@/lib/importacao/tipos";
 import { z } from "zod";
-import { lerArquivo, validar } from "@/lib/validacao";
+import { corpoGrandeDemais, lerArquivo, validar } from "@/lib/validacao";
 import { decodificarTexto } from "@/lib/importacao/arquivo";
 
 const delimitadorSchema = z.string().min(1).max(2).nullable().default(",");
@@ -13,6 +13,8 @@ export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const grande = corpoGrandeDemais(req);
+  if (grande) return grande;
   const formData = await req.formData();
   const arquivo = lerArquivo(formData);
   if (!arquivo.ok) return arquivo.resposta;
