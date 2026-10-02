@@ -236,6 +236,26 @@ describe("fatura de cartão em OFX (Banco do Brasil e demais bancos)", () => {
     expect(detectarBancoOFX(conta).builtinKey).toBe("bb-corrente-ofx");
   });
 
+  it("parcela no formato do BB vira (NN/NN), que a Previsão reconhece", async () => {
+    const { marcarParcela } = await import("./ofx");
+    const { parcelaDe } = await import("../previsao");
+    expect(marcarParcela("LOJA FICTICIA     -PARC 02/12 BR")).toBe("LOJA FICTICIA (02/12) BR");
+    expect(marcarParcela("LOJA 3463 PARC 01/03 FORTALEZA   BR")).toBe("LOJA 3463 (01/03) FORTALEZA BR");
+    expect(marcarParcela("LOJA FICTICIA 05/05 SAO PAULO   BR")).toBe("LOJA FICTICIA (05/05) SAO PAULO BR");
+    expect(parcelaDe(marcarParcela("LOJA FICTICIA 04/05 SAO PAULO   BR"))).toMatchObject({ atual: 4, total: 5 });
+    // não inventa parcela: sem marcador, "parcela" 7/3 ou já no formato certo
+    expect(marcarParcela("LOJA FICTICIA     SAO PAULO     BR")).toBe("LOJA FICTICIA     SAO PAULO     BR");
+    expect(marcarParcela("LOJA 07/03 SAO PAULO BR")).toBe("LOJA 07/03 SAO PAULO BR");
+    expect(marcarParcela("Loja X - Parcela 3/4")).toBe("Loja X - Parcela 3/4");
+  });
+
+  it("extrato de conta do BB: pagamento da fatura, juros e conta de telefone", async () => {
+    const { mapearCategoria } = await import("../categorias");
+    expect(mapearCategoria("Pagto cartão crédito - ELO NANQUIM", "", "Saída")).toBe("Pagamento de Cartão de Crédito");
+    expect(mapearCategoria("Cobrança de Juros - Juros Saldo Devedor Conta", "", "Saída")).toBe("Taxas e Anuidades");
+    expect(mapearCategoria("Pagto conta telefone - VIVO CE", "", "Saída")).toBe("Contas de Consumo");
+  });
+
   it("crédito na fatura não é renda: pagamento da fatura e estorno", () => {
     const perfil: PerfilCompleto = { ...perfilCsv, formato: "ofx", conta: "BB Cartão", usaMesReferencia: true, builtin: "bb-cartao-ofx" };
     const itens = importar(fatura, "fatura.ofx", perfil, new Map(), new Date(2025, 10, 1));

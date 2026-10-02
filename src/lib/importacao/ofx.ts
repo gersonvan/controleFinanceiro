@@ -35,6 +35,18 @@ function extrairBlocos(texto: string): string[] {
   return partes.slice(1).map((p) => `<STMTTRN>${p.split(/<STMTTRN>/i)[0]}`);
 }
 
+// Fatura do BB escreve a parcela como "LOJA PARC 02/12 CIDADE BR" ou só "LOJA 05/05 CIDADE BR";
+// a Previsão reconhece "(02/12)". Só na fatura: no extrato de conta "NN/NN" costuma ser data.
+export function marcarParcela(descricao: string): string {
+  if (/\(\d{1,2}\/\d{1,2}\)|parcela \d/i.test(descricao)) return descricao;
+  const valida = (a: string, b: string) => +a >= 1 && +b >= 2 && +a <= +b;
+  const parc = descricao.match(/-?\s*\bPARC\.?\s*(\d{1,2})\/(\d{1,2})\b/i);
+  if (parc && valida(parc[1], parc[2])) return descricao.replace(parc[0], ` (${parc[1]}/${parc[2]})`).replace(/\s+/g, " ").trim();
+  const solta = descricao.match(/\s(\d{2})\/(\d{2})(?=\s)/);
+  if (solta && valida(solta[1], solta[2])) return descricao.replace(solta[0], ` (${solta[1]}/${solta[2]})`).replace(/\s+/g, " ").trim();
+  return descricao;
+}
+
 export function parseOFX(
   texto: string,
   perfil: PerfilConfig,
@@ -57,8 +69,9 @@ export function parseOFX(
     // NAME é o título; MEMO costuma trazer mais detalhe. Usa o mais informativo.
     const name = tag(bloco, "NAME");
     const memo = tag(bloco, "MEMO");
-    const descricao = (memo.length > name.length ? memo : name) || name || memo;
-    if (!descricao) continue;
+    const original = (memo.length > name.length ? memo : name) || name || memo;
+    if (!original) continue;
+    const descricao = fatura ? marcarParcela(original) : original;
 
     const v = perfil.inverterSinal ? -valor : valor;
     const tipo: "Entrada" | "Saída" = v >= 0 ? "Entrada" : "Saída";

@@ -291,7 +291,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     d.includes("pagamento de fatura boleto") ||
     d.includes("pgto fat cartao") ||
     d.includes("pagamento fatura cartao") ||
-    /^fatura (paga|itau)\b/.test(d) // extrato Itaú: "FATURA PAGA Itau Uniclass", "FATURA ITAU UNICLASS MC"
+    /^fatura (paga|itau)\b/.test(d) || // extrato Itaú: "FATURA PAGA Itau Uniclass", "FATURA ITAU UNICLASS MC"
+    /^pagto cart[aã]o (de )?cr[eé]dito\b/.test(d) // extrato BB: "Pagto cartão crédito - ELO NANQUIM"
   )
     return "Pagamento de Cartão de Crédito";
 
@@ -339,6 +340,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
   if (d.includes("enel") || d.includes("brisanet")) return "Contas de Consumo";
   // operadoras: "Pix enviado para TIM S A", "TIM SA", "CLARO S.A.", "TELEFONICA BRASIL" (Vivo)
   if (/\b(tim s\.? ?a|claro s\.? ?a|telefonica|vivo (fibra|s\.? ?a)|oi s\.? ?a)\b/.test(d)) return "Contas de Consumo";
+  // extrato BB: "Pagto conta telefone - VIVO CE", "Pagto conta luz", "Pagto conta água"
+  if (/^pagto conta (telefone|luz|energia|[aá]gua|g[aá]s)\b/.test(d)) return "Contas de Consumo";
   if (d.includes("his emp imobiliarios ltda")) return "Aluguel";
   if (/(caixa\W+habitac|habitacional|prestac[aã]o (do )?(im[oó]vel|apartamento|apto)|financiamento imobili)/.test(d)) return "Prestação de Imóvel";
   // compra/venda de imóvel: ITBI, registro, vistoria da Caixa, sinal/comissão do compra e venda
@@ -458,6 +461,7 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
     d.includes("anuidade diferenciada") ||
     d.includes("iof") ||
     d.includes("juros cheque esp") ||
+    d.includes("juros saldo devedor") || // BB: "Cobrança de Juros - Juros Saldo Devedor Conta"
     d.includes("por fatura atrasada") ||
     d.includes("encargos") ||
     d.includes("multa contratual") ||
