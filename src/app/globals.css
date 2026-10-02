@@ -3,6 +3,14 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  /* paleta usada pela Matriz (estilos inline) — sem elas a coluna fixa ficava transparente */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f8fafc;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-border-secondary: #cbd5e1;
+  --color-border-tertiary: #e2e8f0;
 }
 
 body {

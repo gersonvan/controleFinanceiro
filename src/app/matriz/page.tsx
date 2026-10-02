@@ -134,8 +134,9 @@ export default function MatrizPage() {
                 {data.internas.length > 0 && (
                   <tr>
                     <td colSpan={data.meses.length + 2} style={{ padding: 0, borderTop: "2px solid var(--color-border-secondary)" }}>
+                      {/* sticky: continua visível com a tabela rolada para o lado */}
                       <button onClick={() => setMostrarInternas((v) => !v)}
-                        className="w-full text-left px-4 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                        className="sticky left-0 text-left px-4 py-2 text-xs text-slate-500 hover:text-slate-700"
                         title="Pagamento de fatura, transferências entre suas contas, aplicações, compra e venda de bens: ficam fora das contas, como no dashboard">
                         <span className={`inline-block mr-1.5 transition-transform ${mostrarInternas ? "rotate-90" : ""}`}>▶</span>
                         Movimentações internas e aplicações — não são renda nem gasto ({data.internas.length})
@@ -185,7 +186,11 @@ function LinhaTotais({ rotulo, totais, media, meses, aberta, onToggle, nivel, gr
       className="hover:bg-slate-50/80 transition-colors"
       aria-expanded={aberta}
     >
-      <td style={{ ...tdCatStyle, paddingLeft: 14 + nivel * 20, fontWeight: grupo ? 600 : nivel ? 400 : 500 }}>
+      <td style={{
+        ...tdCatStyle, paddingLeft: 14 + nivel * 20, fontWeight: grupo ? 600 : nivel ? 400 : 500,
+        // a célula fixa precisa do mesmo fundo da linha: por baixo dela passam os valores ao rolar
+        background: aberta ? "var(--color-background-secondary)" : "var(--color-background-primary)",
+      }}>
         <span style={{
           display: "inline-block", fontSize: 10, marginRight: 6,
           transform: aberta ? "rotate(90deg)" : "none",
@@ -267,6 +272,7 @@ function LinhaCategoria({ linha, meses, aberta, onToggle, nivel = 0 }: {
           }}>
             <td style={{
               ...tdCatStyle,
+              background: "var(--color-background-secondary)",
               paddingLeft: 32 + nivel * 20,
               fontSize: 12,
               fontWeight: 400,
@@ -312,6 +318,7 @@ function LinhaCategoria({ linha, meses, aberta, onToggle, nivel = 0 }: {
 const thCatStyle: React.CSSProperties = {
   position: "sticky", left: 0, zIndex: 2,
   background: "var(--color-background-secondary)",
+  boxShadow: "4px 0 6px -4px rgba(15, 23, 42, 0.18)",
   minWidth: 200, textAlign: "left",
   fontSize: 11, fontWeight: 500,
   color: "var(--color-text-secondary)",
@@ -329,9 +336,12 @@ const thMesStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const sombraColunaFixa = "4px 0 6px -4px rgba(15, 23, 42, 0.18)"; // separa a coluna fixa dos valores que rolam
+
 const tdCatStyle: React.CSSProperties = {
   position: "sticky", left: 0, zIndex: 1,
   background: "var(--color-background-primary)",
+  boxShadow: sombraColunaFixa,
   fontWeight: 500, fontSize: 13,
   color: "var(--color-text-primary)",
   padding: "9px 14px",
