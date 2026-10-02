@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { CATEGORIAS_NEUTRAS } from "@/lib/categorias";
+import { CATEGORIAS_NEUTRAS, GRUPOS_CATEGORIAS } from "@/lib/categorias";
 import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { comValorLiquido } from "@/lib/reembolso";
 import { getSessionUserId } from "@/lib/session";
@@ -22,9 +22,18 @@ export interface MatrizLinha {
   descricoes: MatrizDescricao[];
 }
 
+/** Grupo (Moradia, Transporte…) com a soma das suas categorias; a Matriz abre por aqui. */
+export interface MatrizGrupo {
+  grupo: string;
+  totais: Record<string, number>;
+  media: number;
+  categorias: MatrizLinha[];
+}
+
 export interface MatrizData {
   meses: string[];
   linhas: MatrizLinha[];
+  grupos: MatrizGrupo[];
   /** Pagamento de fatura, transferências entre contas, aplicações…: não são renda nem gasto */
   internas: MatrizLinha[];
 }
@@ -69,6 +78,33 @@ function normalizarDescricao(descricao: string): string {
   d = d.trim().toUpperCase();
 
   return CANONICOS[d] ?? d;
+}
+
+// média dos meses com valor — a mesma regra para categoria e grupo
+function mediaDosMeses(totais: Record<string, number>, meses: string[]): number {
+  const vals = meses.map((m) => totais[m] || 0).filter((v) => v > 0);
+  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
+const GRUPO_DA_CATEGORIA = new Map(GRUPOS_CATEGORIAS.flatMap((g) => g.categorias.map((c): [string, string] => [c, g.grupo])));
+const ORDEM_CATEGORIA = new Map(GRUPOS_CATEGORIAS.flatMap((g) => g.categorias.map((c, i): [string, number] => [c, i])));
+const OUTROS = "Outros"; // categoria antiga, fora da lista atual
+
+/** Na ordem dos seletores (estável de um mês para o outro); categorias também. */
+function agruparPorGrupo(linhas: MatrizLinha[], meses: string[]): MatrizGrupo[] {
+  const porGrupo = new Map<string, MatrizLinha[]>();
+  for (const l of linhas) {
+    const g = GRUPO_DA_CATEGORIA.get(l.categoria) ?? OUTROS;
+    porGrupo.set(g, [...(porGrupo.get(g) ?? []), l]);
+  }
+  const ordem = [...GRUPOS_CATEGORIAS.map((g) => g.grupo), OUTROS];
+  return ordem.filter((g) => porGrupo.has(g)).map((grupo) => {
+    const categorias = porGrupo.get(grupo)!.sort((a, b) =>
+      (ORDEM_CATEGORIA.get(a.categoria) ?? 99) - (ORDEM_CATEGORIA.get(b.categoria) ?? 99) || a.categoria.localeCompare(b.categoria, "pt-BR"));
+    const totais: Record<string, number> = {};
+    for (const c of categorias) for (const [m, v] of Object.entries(c.totais)) totais[m] = (totais[m] || 0) + v;
+    return { grupo, totais, media: mediaDosMeses(totais, meses), categorias };
+  });
 }
 
 function sortMes(a: string, b: string): number {
@@ -124,17 +160,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const vals = meses.map((m) => totais[m] || 0).filter((v) => v > 0);
-    const media = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-
-    return { categoria, totais, media, descricoes };
+    return { categoria, totais, media: mediaDosMeses(totais, meses), descricoes };
   });
 
   linhas.sort((a, b) => a.categoria.localeCompare(b.categoria, "pt-BR"));
 
+  const principais = linhas.filter((l) => !ehInterna(l.categoria));
   return NextResponse.json({
     meses,
-    linhas: linhas.filter((l) => !ehInterna(l.categoria)),
+    linhas: principais,
+    grupos: agruparPorGrupo(principais, meses),
     internas: linhas.filter((l) => ehInterna(l.categoria)),
   } satisfies MatrizData);
 }

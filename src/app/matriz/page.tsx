@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { MatrizData, MatrizLinha } from "@/app/api/matriz/route";
+import type { MatrizData, MatrizGrupo, MatrizLinha } from "@/app/api/matriz/route";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -39,6 +39,8 @@ export default function MatrizPage() {
   const [dataInicio, setDataInicio] = useState(i);
   const [dataFim, setDataFim]       = useState(f);
   const [aberta, setAberta]         = useState<string | null>(null);
+  // a lista começa só com os grupos; cada grupo abre as suas categorias
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let ativo = true;
@@ -59,6 +61,12 @@ export default function MatrizPage() {
   }, [tipo, dataInicio, dataFim]);
 
   const toggle = (cat: string) => setAberta((prev) => (prev === cat ? null : cat));
+  const toggleGrupo = (g: string) => setGruposAbertos((prev) => {
+    const next = new Set(prev);
+    if (next.has(g)) next.delete(g); else next.add(g);
+    return next;
+  });
+  const todosAbertos = !!data && data.grupos.length > 0 && data.grupos.every((g) => gruposAbertos.has(g.grupo));
 
   return (
     <div className="space-y-4">
@@ -72,6 +80,12 @@ export default function MatrizPage() {
           </select>
           <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
           <input type="date" value={dataFim}    onChange={(e) => setDataFim(e.target.value)} />
+          {data && data.grupos.length > 0 && (
+            <button className="btn btn-secondary text-sm"
+              onClick={() => setGruposAbertos(todosAbertos ? new Set() : new Set(data.grupos.map((g) => g.grupo)))}>
+              {todosAbertos ? "Fechar todos" : "Abrir todos"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -106,13 +120,15 @@ export default function MatrizPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.linhas.map((linha) => (
-                  <LinhaCategoria
-                    key={linha.categoria}
-                    linha={linha}
+                {data.grupos.map((g) => (
+                  <LinhaGrupo
+                    key={g.grupo}
+                    grupo={g}
                     meses={data.meses}
-                    aberta={aberta === linha.categoria}
-                    onToggle={() => toggle(linha.categoria)}
+                    aberto={gruposAbertos.has(g.grupo)}
+                    onToggle={() => toggleGrupo(g.grupo)}
+                    categoriaAberta={aberta}
+                    onToggleCategoria={toggle}
                   />
                 ))}
                 {data.internas.length > 0 && (
@@ -145,53 +161,98 @@ export default function MatrizPage() {
   );
 }
 
+// ── Linha com totais por mês (grupo ou categoria), clicável para abrir ──────
+
+function LinhaTotais({ rotulo, totais, media, meses, aberta, onToggle, nivel, grupo = false }: {
+  rotulo: string;
+  totais: Record<string, number>;
+  media: number;
+  meses: string[];
+  aberta: boolean;
+  onToggle: () => void;
+  nivel: 0 | 1;
+  grupo?: boolean;
+}) {
+  const max = Math.max(...meses.map((m) => totais[m] || 0));
+  return (
+    <tr
+      onClick={onToggle}
+      style={{
+        cursor: "pointer",
+        borderBottom: "0.5px solid var(--color-border-tertiary)",
+        background: aberta ? "var(--color-background-secondary)" : undefined,
+      }}
+      className="hover:bg-slate-50/80 transition-colors"
+      aria-expanded={aberta}
+    >
+      <td style={{ ...tdCatStyle, paddingLeft: 14 + nivel * 20, fontWeight: grupo ? 600 : nivel ? 400 : 500 }}>
+        <span style={{
+          display: "inline-block", fontSize: 10, marginRight: 6,
+          transform: aberta ? "rotate(90deg)" : "none",
+          transition: "transform 0.15s", color: "var(--color-text-secondary)",
+        }}>▶</span>
+        {rotulo}
+      </td>
+      {meses.map((m) => {
+        const v = totais[m];
+        return (
+          <td key={m} style={{
+            ...tdValStyle,
+            fontWeight: grupo ? 600 : undefined,
+            background: v ? heatBg(v, max) : undefined,
+            color: v ? heatColor(v, max) : "var(--color-text-tertiary)",
+            fontStyle: v ? "normal" : "italic",
+          }}>
+            {v ? fmt(v) : "—"}
+          </td>
+        );
+      })}
+      <td style={{ ...tdMediaStyle, fontWeight: grupo ? 600 : 500 }}>
+        {fmt(media)}
+      </td>
+    </tr>
+  );
+}
+
+function LinhaGrupo({ grupo, meses, aberto, onToggle, categoriaAberta, onToggleCategoria }: {
+  grupo: MatrizGrupo;
+  meses: string[];
+  aberto: boolean;
+  onToggle: () => void;
+  categoriaAberta: string | null;
+  onToggleCategoria: (categoria: string) => void;
+}) {
+  return (
+    <>
+      <LinhaTotais rotulo={grupo.grupo} totais={grupo.totais} media={grupo.media} meses={meses}
+        aberta={aberto} onToggle={onToggle} nivel={0} grupo />
+      {aberto && grupo.categorias.map((linha) => (
+        <LinhaCategoria
+          key={linha.categoria}
+          linha={linha}
+          meses={meses}
+          aberta={categoriaAberta === linha.categoria}
+          onToggle={() => onToggleCategoria(linha.categoria)}
+          nivel={1}
+        />
+      ))}
+    </>
+  );
+}
+
 // ── Linha de categoria + sub-linhas expansíveis ────────────────────────────
 
-function LinhaCategoria({ linha, meses, aberta, onToggle }: {
+function LinhaCategoria({ linha, meses, aberta, onToggle, nivel = 0 }: {
   linha: MatrizLinha;
   meses: string[];
   aberta: boolean;
   onToggle: () => void;
+  nivel?: 0 | 1;
 }) {
-  const max = Math.max(...meses.map((m) => linha.totais[m] || 0));
-
   return (
     <>
-      {/* Linha principal — totais da categoria */}
-      <tr
-        onClick={onToggle}
-        style={{
-          cursor: "pointer",
-          borderBottom: "0.5px solid var(--color-border-tertiary)",
-          background: aberta ? "var(--color-background-secondary)" : undefined,
-        }}
-        className="hover:bg-slate-50/80 transition-colors"
-      >
-        <td style={tdCatStyle}>
-          <span style={{
-            display: "inline-block", fontSize: 10, marginRight: 6,
-            transform: aberta ? "rotate(90deg)" : "none",
-            transition: "transform 0.15s", color: "var(--color-text-secondary)",
-          }}>▶</span>
-          {linha.categoria}
-        </td>
-        {meses.map((m) => {
-          const v = linha.totais[m];
-          return (
-            <td key={m} style={{
-              ...tdValStyle,
-              background: v ? heatBg(v, max) : undefined,
-              color: v ? heatColor(v, max) : "var(--color-text-tertiary)",
-              fontStyle: v ? "normal" : "italic",
-            }}>
-              {v ? fmt(v) : "—"}
-            </td>
-          );
-        })}
-        <td style={{ ...tdMediaStyle }}>
-          {fmt(linha.media)}
-        </td>
-      </tr>
+      <LinhaTotais rotulo={linha.categoria} totais={linha.totais} media={linha.media} meses={meses}
+        aberta={aberta} onToggle={onToggle} nivel={nivel} />
 
       {/* Sub-linhas: uma por descrição única */}
       {aberta && linha.descricoes.map((d, idx) => {
@@ -206,7 +267,7 @@ function LinhaCategoria({ linha, meses, aberta, onToggle }: {
           }}>
             <td style={{
               ...tdCatStyle,
-              paddingLeft: 32,
+              paddingLeft: 32 + nivel * 20,
               fontSize: 12,
               fontWeight: 400,
               color: "var(--color-text-secondary)",
