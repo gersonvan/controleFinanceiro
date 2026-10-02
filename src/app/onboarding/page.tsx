@@ -81,7 +81,9 @@ export default function OnboardingPage() {
       body: JSON.stringify({ nome }),
     });
     await update({ onboardingCompleto: true });
-    router.push(destino);
+    // recarga completa: numa navegação do cliente o layout raiz (sem menu durante
+    // o onboarding) não é renderizado de novo, e o menu só apareceria após um F5
+    window.location.assign(destino);
   };
 
   const ofxPerfis = perfis.filter((p) => p.formato === "ofx");
