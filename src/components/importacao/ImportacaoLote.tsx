@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
+import DestinoConta from "./DestinoConta";
 
 export type StatusItem = "analisando" | "pronto" | "configurar" | "importando" | "importado" | "erro";
 
@@ -15,7 +16,8 @@ export interface ItemLote {
   status: StatusItem;
   analise?: AnaliseArquivo;
   mesRef: string; // "AAAA-MM" — só faturas
-  resultado?: { novos: number; duplicados: number; processados: number; reembolsosVinculados?: number; saldoConta?: { conta: string; saldo: number; atualizado: boolean } | null };
+  conta?: string | null; // destino; null = há mais de uma conta do mesmo banco e tipo e falta escolher
+  resultado?: { conta?: string; novos: number; duplicados: number; processados: number; reembolsosVinculados?: number; saldoConta?: { conta: string; saldo: number; atualizado: boolean } | null };
   erro?: string;
 }
 
@@ -30,6 +32,7 @@ interface Props {
   itens: ItemLote[];
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
+  onConta: (id: number, conta: string | null) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
   onAdicionar: (files: File[]) => void;
@@ -38,7 +41,7 @@ interface Props {
 }
 
 export default function ImportacaoLote({
-  itens, importando, onMesRef, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
+  itens, importando, onMesRef, onConta, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
 }: Props) {
   const [categorizacao, setCategorizacao] = useState<string>("");
   const [categorizando, setCategorizando] = useState(false);
@@ -46,6 +49,7 @@ export default function ImportacaoLote({
   const analisando = itens.some((i) => i.status === "analisando");
   const prontos = itens.filter((i) => i.status === "pronto");
   const faltaMes = prontos.filter((i) => i.analise?.perfil?.usaMesReferencia && !i.mesRef);
+  const faltaConta = prontos.filter((i) => i.conta === null);
   const importados = itens.filter((i) => i.status === "importado");
   const totalNovos = importados.reduce((acc, i) => acc + (i.resultado?.novos ?? 0), 0);
   const totalDuplicados = importados.reduce((acc, i) => acc + (i.resultado?.duplicados ?? 0), 0);
@@ -87,7 +91,7 @@ export default function ImportacaoLote({
 
         <ul className="divide-y divide-slate-100">
           {itens.map((item) => <Linha key={item.id} item={item} importando={importando}
-            onMesRef={onMesRef} onRemover={onRemover} onConfigurar={onConfigurar} />)}
+            onMesRef={onMesRef} onConta={onConta} onRemover={onRemover} onConfigurar={onConfigurar} />)}
         </ul>
       </div>
 
@@ -96,6 +100,11 @@ export default function ImportacaoLote({
           {faltaMes.length > 0 && (
             <p className="text-sm text-amber-700">
               Informe o mês de referência de {faltaMes.length === 1 ? "1 fatura" : `${faltaMes.length} faturas`} para importar.
+            </p>
+          )}
+          {faltaConta.length > 0 && (
+            <p className="text-sm text-amber-700">
+              Escolha a conta de {faltaConta.length === 1 ? "1 arquivo" : `${faltaConta.length} arquivos`} (você tem mais de uma conta desse banco).
             </p>
           )}
           {itens.some((i) => i.status === "configurar") && (
@@ -107,7 +116,7 @@ export default function ImportacaoLote({
             <button onClick={onRecomecar} disabled={importando} className="btn btn-secondary">Recomeçar</button>
             <button
               onClick={onImportarTodos}
-              disabled={importando || analisando || prontos.length === 0 || faltaMes.length > 0}
+              disabled={importando || analisando || prontos.length === 0 || faltaMes.length > 0 || faltaConta.length > 0}
               className="btn btn-primary"
             >
               {importando ? <><span className="spinner" /> Importando…</>
@@ -140,10 +149,11 @@ export default function ImportacaoLote({
   );
 }
 
-function Linha({ item, importando, onMesRef, onRemover, onConfigurar }: {
+function Linha({ item, importando, onMesRef, onConta, onRemover, onConfigurar }: {
   item: ItemLote;
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
+  onConta: (id: number, conta: string | null) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
 }) {
@@ -189,6 +199,10 @@ function Linha({ item, importando, onMesRef, onRemover, onConfigurar }: {
               ⚠️ {a.suspeitos} lançamento{a.suspeitos !== 1 ? "s" : ""} têm a mesma data e valor de outros já gravados, com outra descrição.
               Pode ser o mesmo extrato em outro formato (OFX × CSV) — se for, tire este arquivo da lista.
             </div>
+          )}
+
+          {a?.reconhecido && a.perfil && item.status === "pronto" && (
+            <DestinoConta compacto perfilId={a.perfil.id} valor={item.conta} onChange={(c) => onConta(item.id, c)} />
           )}
 
           {a?.reconhecido && a.perfil?.usaMesReferencia && item.status === "pronto" && (

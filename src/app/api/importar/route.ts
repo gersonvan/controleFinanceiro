@@ -10,11 +10,14 @@ import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { corpoGrandeDemais, erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
 import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
+import { bancoTipoDoPerfil, resolverConta } from "@/lib/contas";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
   // <input type="month"> envia "AAAA-MM"
   mesReferencia: opcional(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato AAAA-MM")),
+  // conta escolhida quando há mais de uma do mesmo banco e tipo (apelidos)
+  conta: opcional(z.string().trim().min(1).max(120)),
 });
 
 export async function POST(req: NextRequest) {
@@ -31,14 +34,23 @@ export async function POST(req: NextRequest) {
   const v = validar(importacaoSchema, {
     perfilId: formData.get("perfilId"),
     mesReferencia: formData.get("mesReferencia"),
+    conta: formData.get("conta"),
   });
   if (!v.ok) return v.resposta;
-  const { perfilId, mesReferencia: mesRefStr } = v.dados;
+  const { perfilId, mesReferencia: mesRefStr, conta: contaEscolhida } = v.dados;
 
   const perfil = await prisma.perfilImportacao.findFirst({
     where: escopoDoUsuario(userId, { id: perfilId }),
   });
   if (!perfil) return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 });
+
+  // A conta vem do banco + tipo do perfil (lib/bancos.ts), não de um nome no perfil
+  const { banco, tipo } = bancoTipoDoPerfil(perfil);
+  const destino = await resolverConta(userId, banco, tipo, contaEscolhida);
+  if (!destino.ok) {
+    return NextResponse.json({ error: "Escolha em qual conta importar", opcoes: destino.opcoes }, { status: 409 });
+  }
+  const perfilComConta = { ...perfil, conta: destino.nome };
 
   // Faturas exigem mês de referência informado no upload
   let mesReferenciaManual: Date | null = null;
@@ -69,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   let lancamentos;
   try {
-    lancamentos = importar(texto, fileName, perfil as PerfilCompleto, memoriaMap, mesReferenciaManual);
+    lancamentos = importar(texto, fileName, perfilComConta as PerfilCompleto, memoriaMap, mesReferenciaManual);
   } catch (e) {
     console.error("Erro ao processar arquivo na importação", e);
     return erro400("Não foi possível processar o arquivo com o perfil selecionado.");
@@ -106,12 +118,13 @@ export async function POST(req: NextRequest) {
   // Extrato de conta com saldo (C6, Bradesco, BB): atualiza a conta na Reserva
   let saldoConta: { conta: string; saldo: number; data: Date; atualizado: boolean } | null = null;
   const saldoFinal = perfil.formato !== "pdf" ? extrairSaldoFinal(texto) : null;
-  const contaDoExtrato = lancamentos[0]?.conta ?? perfil.conta;
+  const contaDoExtrato = destino.nome;
   if (saldoFinal && contaDoExtrato) {
     saldoConta = await atualizarSaldoConta(userId, contaDoExtrato, saldoFinal.saldo, saldoFinal.data);
   }
 
   return NextResponse.json({
+    conta: destino.nome,
     processados: lancamentos.length,
     novos: novos.length,
     duplicados: lancamentos.length - novos.length,

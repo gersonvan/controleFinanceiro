@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
+import DestinoConta from "@/components/importacao/DestinoConta";
 import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
@@ -76,6 +77,8 @@ export default function ImportarPage() {
   const [contaNovo, setContaNovo]     = useState("");
   const [salvarPerfil, setSalvarPerfil] = useState(true);
   const [mesRef, setMesRef]           = useState("");
+  // conta de destino (banco + tipo do perfil); null = há mais de uma e falta escolher
+  const [contaDestino, setContaDestino] = useState<string | null | undefined>(undefined);
 
   // PDF
   const [perfilPDF, setPerfilPDF]     = useState<Perfil | null>(null);
@@ -112,6 +115,7 @@ export default function ImportarPage() {
   }, []);
 
   const resetar = () => {
+    setContaDestino(undefined);
     setFase("upload");
     setArquivo(null);
     setPerfilOFX(null);
@@ -146,6 +150,7 @@ export default function ImportarPage() {
   }, []);
 
   const processarArquivo = useCallback(async (file: File) => {
+    setContaDestino(undefined); // o destino é decidido de novo para cada arquivo
     setArquivo(file);
     setFase("detectando");
 
@@ -268,12 +273,14 @@ export default function ImportarPage() {
 
   const importar = async (perfilId: number, mRef?: string) => {
     if (!arquivo) return;
+    if (contaDestino === null) return; // mais de uma conta do mesmo banco: falta escolher
     setFase("importando");
     setErroImport("");
     const form = new FormData();
     form.append("file", arquivo);
     form.append("perfilId", String(perfilId));
     if (mRef) form.append("mesReferencia", mRef);
+    if (contaDestino) form.append("conta", contaDestino);
     try {
       const res = await fetch("/api/importar", { method: "POST", body: form });
       const json = await res.json();
@@ -395,6 +402,7 @@ export default function ImportarPage() {
       form.append("file", item.file);
       form.append("perfilId", String(item.analise!.perfil!.id));
       if (item.analise!.perfil!.usaMesReferencia && item.mesRef) form.append("mesReferencia", item.mesRef);
+      if (item.conta) form.append("conta", item.conta);
       try {
         const res = await fetch("/api/importar", { method: "POST", body: form });
         const json = await res.json();
@@ -452,6 +460,7 @@ export default function ImportarPage() {
           itens={lote}
           importando={importandoLote}
           onMesRef={(id, mesRef) => atualizarItem(id, { mesRef })}
+          onConta={(id, conta) => atualizarItem(id, { conta })}
           onRemover={(id) => setLote((prev) => prev.filter((i) => i.id !== id))}
           onConfigurar={configurarDoLote}
           onAdicionar={(files) => void adicionarAoLote(files)}
@@ -493,11 +502,13 @@ export default function ImportarPage() {
             </div>
           )}
 
+          <DestinoConta perfilId={perfilOFX.id} valor={contaDestino} onChange={setContaDestino} />
+
           <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={perfilOFX.usaMesReferencia && !mesRef}
+              disabled={perfilOFX.usaMesReferencia && !mesRef || contaDestino === null}
               onClick={() => importar(perfilOFX.id, mesRef || undefined)}
             >
               📥 Importar agora
@@ -549,11 +560,13 @@ export default function ImportarPage() {
             </div>
           )}
 
+          <DestinoConta perfilId={perfilPDF.id} valor={contaDestino} onChange={setContaDestino} />
+
           <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={perfilPDF.usaMesReferencia && !mesRef}
+              disabled={perfilPDF.usaMesReferencia && !mesRef || contaDestino === null}
               onClick={() => importar(perfilPDF.id, perfilPDF.usaMesReferencia ? mesRef : undefined)}
             >
               📥 Importar {previewPDF.length > 0 ? `(~${previewPDF.length}+ transações)` : ""}
@@ -583,11 +596,13 @@ export default function ImportarPage() {
               <p className="text-xs text-slate-400 mt-1">O mês do vencimento: é nele que os gastos da fatura entram.</p>
             </div>
           )}
+          <DestinoConta perfilId={perfilCSV.id} valor={contaDestino} onChange={setContaDestino} />
+
           <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={perfilCSV.usaMesReferencia && !mesRef}
+              disabled={perfilCSV.usaMesReferencia && !mesRef || contaDestino === null}
               onClick={() => importar(perfilCSV.id, perfilCSV.usaMesReferencia ? mesRef : undefined)}
             >
               📥 Importar {perfilCSV.usaMesReferencia ? "fatura" : "extrato"}

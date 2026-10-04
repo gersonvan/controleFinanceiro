@@ -22,6 +22,7 @@ vi.mock("@/lib/db", () => {
       updateMany: mocks.updateMany,
     },
     reembolso: { findMany: mocks.reembolsoFindMany, groupBy: vi.fn().mockResolvedValue([]) },
+    conta: { findFirst: vi.fn().mockResolvedValue(null) }, // registro vazio: o nome é padronizado
     $transaction: (fn: (tx: unknown) => unknown) => fn(prisma),
   };
   return { prisma };
@@ -94,6 +95,7 @@ describe("API de lançamentos: isolamento de tenant", () => {
     expect(mocks.create).toHaveBeenCalledWith({
       data: {
         ...lancamentoValido,
+        conta: "Nubank · Débito", // "Nubank Conta" digitado vira o nome padrão (lib/bancos.ts)
         data: new Date("2026-09-01"),
         userId: "ana@example.com",
       },

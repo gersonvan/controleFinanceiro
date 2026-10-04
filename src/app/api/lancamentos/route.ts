@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { gastosDoPix, pixesDoGasto, recalcularPixes, recalcularReembolsados } from "@/lib/reembolso-dados";
 import { getSessionUserId } from "@/lib/session";
+import { padronizarConta } from "@/lib/contas";
 import { dadosAtualizaveisDoUsuario, dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { filtrosLancamentoSchema, montarWhereLancamentos } from "@/lib/filtros";
 import {
@@ -76,8 +77,9 @@ export async function POST(req: NextRequest) {
   const v = validar(criacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
 
+  const { conta } = await padronizarConta(userId, v.dados.conta); // "Carteira" → "Outro · Carteira"
   const lancamento = await prisma.lancamento.create({
-    data: dadosDoUsuario(userId, v.dados),
+    data: dadosDoUsuario(userId, { ...v.dados, conta }),
   });
   return NextResponse.json(lancamento, { status: 201 });
 }
@@ -107,7 +109,8 @@ export async function PATCH(req: NextRequest) {
 
   const v = validar(edicaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
-  const { id, ...data } = v.dados;
+  const { id, ...campos } = v.dados;
+  const data = campos.conta ? { ...campos, conta: (await padronizarConta(userId, campos.conta)).conta } : campos;
 
   const lancamento = await prisma.lancamento.updateMany({
     where: escopoDoUsuario(userId, { id }),

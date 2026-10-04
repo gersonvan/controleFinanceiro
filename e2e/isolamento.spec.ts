@@ -32,6 +32,12 @@ test("sem sessão, nenhuma rota de API entrega ou aceita dados", async ({ baseUR
 test("Bruno não lê nem altera os dados da Ana", async ({ page, browser }) => {
   const { ana } = semente();
   const alvo = ana.lancamentoIds[0];
+  // total da Ana agora (outros testes podem ter importado lançamentos para ela)
+  const contextoAntes = await browser.newContext();
+  const paginaAntes = await contextoAntes.newPage();
+  await entrar(paginaAntes, "Ana");
+  const totalAntes = (await (await paginaAntes.request.get("/api/lancamentos?limit=1")).json()).total;
+  await contextoAntes.close();
   await entrar(page, "Bruno");
   const api = page.request;
 
@@ -54,6 +60,6 @@ test("Bruno não lê nem altera os dados da Ana", async ({ page, browser }) => {
   expect(original).toBeTruthy();
   expect(original.descricao).not.toBe("ALTERADO PELO BRUNO");
   expect(original.categoria).not.toBe("Outras Entradas");
-  expect(daAna.total).toBe(ana.lancamentoIds.length);
+  expect(daAna.total).toBe(totalAntes);
   await contextoAna.close();
 });

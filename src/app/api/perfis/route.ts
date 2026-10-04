@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { padronizarConta } from "@/lib/contas";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 import { z } from "zod";
 import { idSchema, lerCorpo, lerQuery, validar } from "@/lib/validacao";
@@ -60,8 +61,9 @@ export async function POST(req: NextRequest) {
   const v = validar(criacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
 
+  // a conta sai do banco + tipo (lib/bancos.ts), mesmo que tenha chegado digitada
   const perfil = await prisma.perfilImportacao.create({
-    data: dadosDoUsuario(userId, { ...v.dados, builtin: null }),
+    data: dadosDoUsuario(userId, { ...v.dados, ...(await padronizarConta(userId, v.dados.conta)), builtin: null }),
   });
   return NextResponse.json(perfil, { status: 201 });
 }
@@ -86,7 +88,8 @@ export async function PATCH(req: NextRequest) {
 
   const v = validar(edicaoSchema, corpo);
   if (!v.ok) return v.resposta;
-  const { id, ...data } = v.dados;
+  const { id, ...campos } = v.dados;
+  const data = { ...campos, ...(await padronizarConta(userId, campos.conta)) };
 
   const perfil = await prisma.perfilImportacao.updateManyAndReturn({
     where: escopoDoUsuario(userId, { id, builtin: null }),
