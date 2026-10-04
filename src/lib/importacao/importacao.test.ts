@@ -325,21 +325,22 @@ describe("CSV do Nubank", () => {
   });
 
   it("fatura usa o mês informado, inverte o sinal e ignora o pagamento", () => {
-    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", usaMesReferencia: true, builtin: "nubank-credito" };
+    // a conta vem do perfil (lib/bancos.ts), não do leitor antigo
+    const perfil: PerfilCompleto = { ...perfilCsv, conta: "Nubank · Crédito", delimitador: ",", usaMesReferencia: true, builtin: "nubank-credito" };
     const itens = importar(fatura, "qualquer-nome.csv", perfil, new Map(), new Date(2026, 8, 1));
     expect(itens.map(({ descricao, valor }) => ({ descricao, valor }))).toEqual([
       { descricao: "Streaming XYZ", valor: -22.45 },
       { descricao: "Loja Y", valor: 15 },
     ]);
-    expect(itens.every((l) => l.mesReferencia.getMonth() === 8 && l.conta === "Nubank Crédito")).toBe(true);
+    expect(itens.every((l) => l.mesReferencia.getMonth() === 8 && l.conta === "Nubank · Crédito")).toBe(true);
   });
 
   it("conta lê data BR e valor com sinal", () => {
-    const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", builtin: "nubank-debito" };
+    const perfil: PerfilCompleto = { ...perfilCsv, conta: "Nubank · Débito", delimitador: ",", builtin: "nubank-debito" };
     const itens = importar(conta, "NU_x.csv", perfil, new Map(), null);
     expect(itens.map(({ descricao, valor, conta }) => ({ descricao, valor, conta }))).toEqual([
-      { descricao: "Pagamento de fatura", valor: -22.45, conta: "Nubank Débito" },
-      { descricao: "Transferência recebida pelo Pix - FULANO", valor: 68000, conta: "Nubank Débito" },
+      { descricao: "Pagamento de fatura", valor: -22.45, conta: "Nubank · Débito" },
+      { descricao: "Transferência recebida pelo Pix - FULANO", valor: 68000, conta: "Nubank · Débito" },
     ]);
   });
 });

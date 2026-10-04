@@ -5,9 +5,9 @@ import { entrar } from "./ajuda";
 
 test("contas sugeridas: em uso primeiro, desativadas fora", async ({ page }) => {
   await entrar(page, "Ana");
-  // desativa todos os perfis cuja conta é "Inter Cartão" (fatura em PDF e em OFX)
+  // desativa todos os perfis da conta "Inter · Crédito" (fatura em PDF e em OFX)
   const perfis = await (await page.request.get("/api/perfis?todos=true")).json();
-  for (const p of perfis.filter((x: { conta: string }) => x.conta === "Inter Cartão"))
+  for (const p of perfis.filter((x: { conta: string }) => x.conta === "Inter · Crédito"))
     await page.request.patch("/api/perfis", { data: { id: p.id, ativo: false } });
 
   await page.goto("/lancamentos");
@@ -15,7 +15,7 @@ test("contas sugeridas: em uso primeiro, desativadas fora", async ({ page }) => 
   const lista = page.locator("#contas-conhecidas option");
   await expect.poll(() => lista.count()).toBeGreaterThan(2); // as sugestões chegam depois de abrir
   const opcoes = await lista.evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  expect(opcoes.slice(0, 2)).toEqual(["Conta Teste", "Cartão Teste"]); // a semente tem mais lançamentos na Conta Teste
-  expect(opcoes).not.toContain("Inter Cartão");
+  expect(opcoes.slice(0, 2)).toEqual(["Nubank · Débito", "Nubank · Crédito"]); // a semente tem mais lançamentos no Débito
+  expect(opcoes).not.toContain("Inter · Crédito");
   expect(opcoes.length).toBe(new Set(opcoes).size); // sem repetição
 });

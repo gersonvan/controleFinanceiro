@@ -2,6 +2,7 @@
 // /api/perfis e análise de arquivos). Usados por builtinKey nos detectores.
 import { prisma } from "@/lib/db";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
+import { contaNativa } from "@/lib/bancos";
 
 // Perfis OFX nativos para os principais bancos brasileiros.
 // Todos usam o mesmo parser OFX — só diferem em nome/conta/inverterSinal.
@@ -122,10 +123,10 @@ export async function ensureBuiltinPerfis(userId: string) {
   // Conta nova recebe tudo ativo e escolhe no onboarding.
   const ativoPadrao = existingSet.size === 0;
   const toCreate = [
-    ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ativo: ativoPadrao, ...p })),
+    ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ativo: ativoPadrao, ...p, ...contaNativa(p.builtin) })),
     // usaMesReferencia só vem no perfil quando difere do padrão (extrato de conta)
-    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ativo: ativoPadrao, ...p, usaMesReferencia: p.usaMesReferencia ?? true })),
-    ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: ativoPadrao, ...p })),
+    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ativo: ativoPadrao, ...p, usaMesReferencia: p.usaMesReferencia ?? true, ...contaNativa(p.builtin) })),
+    ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: ativoPadrao, ...p, ...contaNativa(p.builtin) })),
   ];
   if (toCreate.length > 0) {
     // skipDuplicates: dois GETs concorrentes podem tentar criar o mesmo builtin;

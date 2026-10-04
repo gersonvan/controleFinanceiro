@@ -14,7 +14,9 @@ export async function GET() {
 
   const usos = await garantirContas(userId);
   const contas = await prisma.conta.findMany({ where: escopoDoUsuario(userId), orderBy: { nome: "asc" } });
-  return NextResponse.json(contas.map((c) => ({ id: c.id, nome: c.nome, tipo: c.tipo, lancamentos: usos.get(c.nome) ?? 0 })));
+  return NextResponse.json(contas.map((c) => ({
+    id: c.id, nome: c.nome, banco: c.banco, apelido: c.apelido, tipo: c.tipo, lancamentos: usos.get(c.nome) ?? 0,
+  })));
 }
 
 export async function PATCH(req: NextRequest) {

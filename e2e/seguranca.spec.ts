@@ -66,7 +66,7 @@ test("HTML/JavaScript numa descrição aparece como texto e não executa", async
   await entrar(page, "Ana");
   const cargas = [`<img src=x onerror="window.__xss=1">`, `"><script>window.__xss=2</script>`, `javascript:window.__xss=3`];
   for (const descricao of cargas)
-    expect((await page.request.post("/api/lancamentos", { data: { data: "2026-10-01", descricao, valor: -5, tipo: "Saída", conta: "Conta Teste", categoria: "Compras" } })).status()).toBe(201);
+    expect((await page.request.post("/api/lancamentos", { data: { data: "2026-10-01", descricao, valor: -5, tipo: "Saída", conta: "Nubank · Débito", categoria: "Compras" } })).status()).toBe(201);
   let dialogo = false;
   page.on("dialog", (d) => { dialogo = true; void d.dismiss(); });
   const semExecucao = async (p: Page) => expect(await p.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();

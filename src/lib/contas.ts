@@ -2,7 +2,8 @@
 // nos lançamentos ganha um registro com o tipo sugerido pelo nome.
 import { prisma } from "./db";
 import { dadosDoUsuario, escopoDoUsuario } from "./tenant";
-import { tipoSugerido, type TipoConta } from "./financas";
+import { type TipoConta } from "./financas";
+import { interpretarNomeAntigo } from "./bancos";
 
 export async function garantirContas(userId: string) {
   const [usadas, existentes] = await Promise.all([
@@ -13,7 +14,11 @@ export async function garantirContas(userId: string) {
   const novas = usadas.filter((u) => !conhecidas.has(u.conta));
   if (novas.length > 0) {
     await prisma.conta.createMany({
-      data: novas.map((u) => dadosDoUsuario(userId, { nome: u.conta, tipo: tipoSugerido(u.conta) })),
+      // banco, tipo e apelido lidos do nome (lib/bancos.ts); depois da migração os nomes já vêm no formato novo
+      data: novas.map((u) => {
+        const { banco, tipo, apelido } = interpretarNomeAntigo(u.conta);
+        return dadosDoUsuario(userId, { nome: u.conta, banco, tipo, apelido });
+      }),
       skipDuplicates: true,
     });
   }

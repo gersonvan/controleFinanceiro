@@ -40,7 +40,6 @@ interface Lancamento {
   valorReembolsado: number;
 }
 
-const CONTAS = ["C6 Crédito", "C6 Débito", "Nubank Crédito", "Nubank Débito"];
 
 /** Gasto: quanto foi devolvido por Pix. Pix de reembolso: quanto abateu e a sobra (que conta como entrada). */
 function NotaReembolso({ l }: { l: Lancamento }) {
@@ -79,6 +78,15 @@ function LancamentosContent() {
   const [total, setTotal]                     = useState(0);
   const [page, setPage]                       = useState(1);
   const [loading, setLoading]                 = useState(true);
+  // filtro de contas: as do usuário que têm lançamentos (antes era uma lista fixa)
+  const [contasFiltro, setContasFiltro]       = useState<string[]>([]);
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/contas").then((r) => (r.ok ? r.json() : [])).then((cs: { nome: string; lancamentos: number }[]) => {
+      if (ativo) setContasFiltro(cs.filter((c) => c.lancamentos > 0).map((c) => c.nome));
+    }).catch(() => {});
+    return () => { ativo = false; };
+  }, []);
   const [resumo, setResumo]                   = useState<ResumoFiltro | null>(null);
   const [editando, setEditando]               = useState<number | null>(null);
   const [categoriaEdit, setCategoriaEdit]     = useState("");
@@ -431,7 +439,7 @@ function LancamentosContent() {
           <input placeholder="Buscar descrição…" value={filtros.busca} onChange={(e) => setFiltro("busca", e.target.value)} />
           <select value={filtros.conta} onChange={(e) => setFiltro("conta", e.target.value)}>
             <option value="">Todas as contas</option>
-            {CONTAS.map((c) => <option key={c} value={c}>{c}</option>)}
+            {contasFiltro.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={filtros.categoria} onChange={(e) => setFiltro("categoria", e.target.value)}>
             <option value="">Todas as categorias</option>

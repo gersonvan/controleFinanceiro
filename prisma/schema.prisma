@@ -113,6 +113,8 @@ model PerfilImportacao {
   builtin       String?
 
   // Visibilidade na tela de importação (usuário ativa/desativa em Configurações)
+  banco         String?  // perfis nativos: derivado da chave; personalizados: escolhido pelo usuário
+  tipoConta     String?  // "corrente" | "cartao" — a conta é banco + tipo (lib/bancos.ts)
   ativo         Boolean  @default(true)
 
   createdAt     DateTime @default(now())
@@ -129,8 +131,10 @@ model PerfilImportacao {
 model Conta {
   id        Int      @id @default(autoincrement())
   userId    String
-  nome      String
-  tipo      String   @default("corrente") // "corrente" | "cartao"
+  nome      String   // gerado por lib/bancos.ts nomeDaConta (ex.: "Nubank · Crédito"); é o que os lançamentos guardam
+  banco     String   @default("outro") // id de BANCOS em lib/bancos.ts
+  apelido   String   @default("")      // distingue duas contas do mesmo banco e tipo; nome livre do banco "outro"
+  tipo      String   @default("corrente") // "corrente" (Débito) | "cartao" (Crédito)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

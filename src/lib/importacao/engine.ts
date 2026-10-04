@@ -75,11 +75,13 @@ function importarBruto(
     };
     const dataRows = rows.slice(linhasHeader[perfil.builtin] ?? 1);
 
+    // os leitores antigos têm o nome da conta fixo; vale o do perfil (lib/bancos.ts)
+    const comContaDoPerfil = (ls: LancamentoImportado[]) => ls.map((l) => ({ ...l, conta: perfil.conta }));
     switch (perfil.builtin) {
-      case "c6-credito":     return parseFaturaC6(dataRows, fileName, memoriaIA);
-      case "c6-debito":      return parseExtratoC6(dataRows, memoriaIA);
-      case "nubank-credito": return parseFaturaNubank(dataRows, fileName, memoriaIA, mesReferenciaManual);
-      case "nubank-debito":  return parseExtratoNubank(dataRows, memoriaIA);
+      case "c6-credito":     return comContaDoPerfil(parseFaturaC6(dataRows, fileName, memoriaIA));
+      case "c6-debito":      return comContaDoPerfil(parseExtratoC6(dataRows, memoriaIA));
+      case "nubank-credito": return comContaDoPerfil(parseFaturaNubank(dataRows, fileName, memoriaIA, mesReferenciaManual));
+      case "nubank-debito":  return comContaDoPerfil(parseExtratoNubank(dataRows, memoriaIA));
     }
   }
 
