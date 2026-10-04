@@ -23,16 +23,23 @@ export default function LancamentoForm({ aberto, onFechar, onSalvo }: Props) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
-  // Contas conhecidas = as dos perfis de importação do usuário; sempre dá para digitar outra.
+  // Sugestões de conta: primeiro as que têm lançamentos (das mais usadas para as
+  // menos), depois as dos bancos ativos em Configurações que ainda não têm nenhum.
+  // Perfis desativados não entram. Sempre dá para digitar outra.
   useEffect(() => {
     if (!aberto) return;
     let ativo = true;
-    fetch("/api/perfis?todos=true")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((perfis: { conta: string }[]) => {
+    Promise.all([
+      fetch("/api/contas").then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/perfis").then((r) => (r.ok ? r.json() : [])), // sem ?todos: só os ativos
+    ])
+      .then(([usadas, perfis]: [{ nome: string; lancamentos: number }[], { conta: string }[]]) => {
         if (!ativo) return;
-        const nomes = [...new Set(perfis.map((p) => p.conta))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-        setContas(nomes);
+        const emUso = usadas.filter((c) => c.lancamentos > 0).sort((a, b) => b.lancamentos - a.lancamentos).map((c) => c.nome);
+        const ativas = [...new Set(perfis.map((p) => p.conta))]
+          .filter((c) => !emUso.includes(c))
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+        setContas([...emUso, ...ativas]);
       })
       .catch(() => {});
     return () => { ativo = false; };

@@ -117,11 +117,15 @@ export async function ensureBuiltinPerfis(userId: string) {
   const missingPDF = BUILTIN_PDF_PERFIS.filter((p) => !existingSet.has(p.builtin));
   const missingCSV = BUILTIN_CSV_PERFIS.filter((p) => !existingSet.has(p.builtin));
 
+  // Banco novo no catálogo entra desativado para quem já tem perfis (já escolheu os
+  // seus no onboarding/Configurações) — senão aparece em listas como se fosse usado.
+  // Conta nova recebe tudo ativo e escolhe no onboarding.
+  const ativoPadrao = existingSet.size === 0;
   const toCreate = [
-    ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ...p })),
+    ...missingOFX.map((p) => dadosDoUsuario(userId, { ...OFX_DEFAULTS, ativo: ativoPadrao, ...p })),
     // usaMesReferencia só vem no perfil quando difere do padrão (extrato de conta)
-    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ...p, usaMesReferencia: p.usaMesReferencia ?? true })),
-    ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: true, ...p })),
+    ...missingPDF.map((p) => dadosDoUsuario(userId, { ...PDF_DEFAULTS, ativo: ativoPadrao, ...p, usaMesReferencia: p.usaMesReferencia ?? true })),
+    ...missingCSV.map((p) => dadosDoUsuario(userId, { formato: "csv" as const, ativo: ativoPadrao, ...p })),
   ];
   if (toCreate.length > 0) {
     // skipDuplicates: dois GETs concorrentes podem tentar criar o mesmo builtin;

@@ -180,19 +180,36 @@ export default function ImportarPage() {
       return;
     }
 
+    // Banco reconhecido mas desativado em Configurações: usa o perfil nativo (e o ativa,
+    // já que agora o usuário usa esse banco) em vez de pedir para criar um perfil novo.
+    const perfilNativo = async (builtin: string): Promise<Perfil | undefined> => {
+      const ativo = perfisAtivos.find((p) => p.builtin === builtin);
+      if (ativo) return ativo;
+      const todos: Perfil[] = await fetch("/api/perfis?todos=true").then((r) => (r.ok ? r.json() : []));
+      const inativo = todos.find((p) => p.builtin === builtin);
+      if (!inativo) return undefined;
+      await fetch("/api/perfis", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: inativo.id, ativo: true }),
+      });
+      const ativado = { ...inativo, ativo: true };
+      setPerfisAtivos((prev) => [...prev, ativado]);
+      return ativado;
+    };
+
     if (formato === "ofx") {
       const { builtinKey, orgName: org } = detectarBancoOFX(texto);
       setOrgName(org);
 
       if (builtinKey) {
-        const perfil = perfisAtivos.find((p) => p.builtin === builtinKey);
+        const perfil = await perfilNativo(builtinKey);
         if (perfil) {
           setPerfilOFX(perfil);
           if (perfil.usaMesReferencia) setMesRef(vencimentoNoNome(file.name) ?? "");
           setFase("confirmar_ofx");
           return;
         }
-        // builtin conhecido mas não está ativo → oferecer como novo
+        // banco conhecido sem perfil nativo → oferecer como novo
         const nomeDefault = builtinKey.replace(/-ofx$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
         setNomeNovo(nomeDefault);
       }
@@ -203,7 +220,7 @@ export default function ImportarPage() {
     // CSV
     const { builtinKey, nome } = detectarPerfilCSV(texto);
     if (builtinKey) {
-      const perfil = perfisAtivos.find((p) => p.builtin === builtinKey);
+      const perfil = await perfilNativo(builtinKey);
       if (perfil) {
         setPerfilCSV(perfil);
         setNomePerfil(nome);
