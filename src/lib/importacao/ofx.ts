@@ -41,9 +41,10 @@ export function marcarParcela(descricao: string): string {
   if (/\(\d{1,2}\/\d{1,2}\)|parcela \d/i.test(descricao)) return descricao;
   const valida = (a: string, b: string) => +a >= 1 && +b >= 2 && +a <= +b;
   const parc = descricao.match(/-?\s*\bPARC\.?\s*(\d{1,2})\/(\d{1,2})\b/i);
-  if (parc && valida(parc[1], parc[2])) return descricao.replace(parc[0], ` (${parc[1]}/${parc[2]})`).replace(/\s+/g, " ").trim();
+  // sem juntar espaços: a separação "LOJA   CIDADE   BR" é o que permite tirar a cidade da chave
+  if (parc && valida(parc[1], parc[2])) return descricao.replace(parc[0], ` (${parc[1]}/${parc[2]})`).trim();
   const solta = descricao.match(/\s(\d{2})\/(\d{2})(?=\s)/);
-  if (solta && valida(solta[1], solta[2])) return descricao.replace(solta[0], ` (${solta[1]}/${solta[2]})`).replace(/\s+/g, " ").trim();
+  if (solta && valida(solta[1], solta[2])) return descricao.replace(solta[0], ` (${solta[1]}/${solta[2]})`).trim();
   return descricao;
 }
 

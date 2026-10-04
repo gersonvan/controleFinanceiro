@@ -7,6 +7,9 @@ export default defineConfig({
   testDir: "e2e",
   globalSetup: "./e2e/preparar.ts", // zera o banco de testes e semeia antes de cada rodada
   fullyParallel: false,
+  // o servidor de teste roda em modo dev: a 1ª chamada a uma rota a compila, o que pode
+  // passar dos 5 s padrão com a máquina ocupada
+  expect: { timeout: 15_000 },
   workers: 1, // os testes compartilham o banco
   reporter: [["list"], ["html", { open: "never" }]],
   use: {

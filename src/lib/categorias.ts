@@ -182,8 +182,13 @@ const MESES_ABREV = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez";
  * 22 + 13) e os "Pix no Crédito - ", "Compra no débito - " e " - NuPay" do Nubank.
  */
 export function chaveMemoria(descricao: string): string {
-  // C6 primeiro (largura fixa); depois o ruído de meio de pagamento, "Data balanc.", LTDA…
-  return semRuido(descricao.replace(/^(.{22}) .{13} BRA\s*$/, "$1"))
+  // Cidade e país no fim das compras de cartão: C6 em largura fixa (loja 22 + cidade 13 + "BRA",
+  // vale mesmo quando o nome da loja ocupa os 22) e, em qualquer banco, "LOJA   CIDADE   BR"
+  // separados por 2+ espaços (BB). Depois o ruído de meio de pagamento, "Data balanc.", LTDA…
+  const semCidade = descricao
+    .replace(/^(.{22}) .{13} BRA?\s*$/, "$1")
+    .replace(/^(.*?\S)\s{2,}\S[^]*?\s{2,}BRA?\s*$/, "$1");
+  return semRuido(semCidade)
     .toLowerCase()
     .replace(/^(pix no cr[eé]dito|compra no d[eé]bito)\s+-\s+/, "")       // Nubank
     .replace(/\s+-\s+nupay\b/, " ")
@@ -282,7 +287,16 @@ export function categorizarComOrigem(
   const h = historico?.get(chaveHistorico(tipo, descricao, apelidos));
   if (h) return { categoria: h, origem: "historico" };
 
-  const categoria = ehNomeProprio(descricao, nomeCompleto) ? "Transferência entre Contas" : regras(d, categoriaOriginal, tipo);
+  // As regras olham a descrição como veio e, se nada casar, a descrição limpa: o BB escreve
+  // "Pix - Enviado - 04/09 12:36 FULANO" e "Pagamento de Boleto - X" (lib/estabelecimento.ts)
+  // (em entradas as regras nunca voltam vazias: "Outras Entradas" é o "nada casou")
+  const limpa = semRuido(descricao).toLowerCase();
+  const generica = tipo === "Entrada" ? categoriaOriginal || "Outras Entradas" : "";
+  const comoVeio = regras(d, categoriaOriginal, tipo);
+  const pelaLimpa = comoVeio === generica && limpa !== d ? regras(limpa, categoriaOriginal, tipo) : "";
+  const categoria = ehNomeProprio(descricao, nomeCompleto)
+    ? "Transferência entre Contas"
+    : pelaLimpa || comoVeio;
   return { categoria, origem: categoria ? "regra" : null };
 }
 

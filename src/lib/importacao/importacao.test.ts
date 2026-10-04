@@ -239,14 +239,34 @@ describe("fatura de cartão em OFX (Banco do Brasil e demais bancos)", () => {
   it("parcela no formato do BB vira (NN/NN), que a Previsão reconhece", async () => {
     const { marcarParcela } = await import("./ofx");
     const { parcelaDe } = await import("../previsao");
-    expect(marcarParcela("LOJA FICTICIA     -PARC 02/12 BR")).toBe("LOJA FICTICIA (02/12) BR");
-    expect(marcarParcela("LOJA 3463 PARC 01/03 FORTALEZA   BR")).toBe("LOJA 3463 (01/03) FORTALEZA BR");
-    expect(marcarParcela("LOJA FICTICIA 05/05 SAO PAULO   BR")).toBe("LOJA FICTICIA (05/05) SAO PAULO BR");
+    // os espaços ficam: a separação "LOJA   CIDADE   BR" é o que permite tirar a cidade da chave
+    expect(marcarParcela("LOJA FICTICIA     -PARC 02/12 BR")).toBe("LOJA FICTICIA      (02/12) BR");
+    expect(marcarParcela("LOJA 3463 PARC 01/03 FORTALEZA   BR")).toBe("LOJA 3463 (01/03) FORTALEZA   BR");
+    expect(marcarParcela("LOJA FICTICIA 05/05 SAO PAULO   BR")).toBe("LOJA FICTICIA (05/05) SAO PAULO   BR");
     expect(parcelaDe(marcarParcela("LOJA FICTICIA 04/05 SAO PAULO   BR"))).toMatchObject({ atual: 4, total: 5 });
     // não inventa parcela: sem marcador, "parcela" 7/3 ou já no formato certo
     expect(marcarParcela("LOJA FICTICIA     SAO PAULO     BR")).toBe("LOJA FICTICIA     SAO PAULO     BR");
     expect(marcarParcela("LOJA 07/03 SAO PAULO BR")).toBe("LOJA 07/03 SAO PAULO BR");
     expect(marcarParcela("Loja X - Parcela 3/4")).toBe("Loja X - Parcela 3/4");
+  });
+
+  it("compra no cartão do BB: a cidade sai da chave, com ou sem parcela, como no C6", async () => {
+    const { chaveMemoria } = await import("../categorias");
+    // (o "SA" final sai junto, pela limpeza de razão social)
+    expect(chaveMemoria("LOJAS FICTICIAS SA     SAO PAULO     BR")).toBe("lojas ficticias");
+    expect(chaveMemoria("LOJAS FICTICIAS SA     FORTALEZA     BR")).toBe("lojas ficticias");
+    expect(chaveMemoria("LOJA PARCELADA (02/12)    FORTALEZA     BR")).toBe("loja parcelada");
+    expect(chaveMemoria("MK ALDEOTA             FORTALEZA     BRA")).toBe("mk aldeota"); // C6 continua
+    expect(chaveMemoria("PADARIA  CENTRAL")).toBe("padaria central"); // 2 espaços sem país: não corta
+  });
+
+  it("Pix e boleto no formato do BB passam pelas regras (descrição limpa)", async () => {
+    const { mapearCategoria } = await import("../categorias");
+    expect(mapearCategoria("Pix - Enviado - 04/09 12:36 FULANO DE TAL", "", "Saída")).toBe("Transferência para Terceiros");
+    expect(mapearCategoria("Pix - Recebido - 05/09 10:00 FULANO DE TAL", "", "Entrada")).toBe("Transferência Recebida");
+    expect(mapearCategoria("Pagamento de Boleto - ENEL DISTRIBUICAO - Data balanc.: 03", "", "Saída")).toBe("Contas de Consumo");
+    // o texto original ainda vem primeiro: "TIM S A" casa antes de o "S A" ser limpo
+    expect(mapearCategoria("Pix enviado para TIM S A", "", "Saída")).toBe("Contas de Consumo");
   });
 
   it("extrato de conta do BB: pagamento da fatura, juros e conta de telefone", async () => {
