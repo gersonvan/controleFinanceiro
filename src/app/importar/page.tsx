@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
 import DestinoConta from "@/components/importacao/DestinoConta";
+import SeletorConta from "@/components/SeletorConta";
 import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
@@ -655,8 +656,8 @@ export default function ImportarPage() {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome do banco / conta</label>
-                  <input value={contaPDF} onChange={(e) => setContaPDF(e.target.value)} placeholder="Ex: Santander Cartão" className="w-full" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Conta</label>
+                  <SeletorConta tipoInicial="cartao" onChange={setContaPDF} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Mês de referência</label>
@@ -707,7 +708,7 @@ export default function ImportarPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Conta</label>
-              <input value={contaNovo} onChange={(e) => setContaNovo(e.target.value)} placeholder="Ex: Sicredi" className="w-full" />
+              <SeletorConta onChange={setContaNovo} />
             </div>
           </div>
 
@@ -898,7 +899,7 @@ export default function ImportarPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Conta</label>
-              <input value={contaPerfil} onChange={(e) => setContaPerfil(e.target.value)} placeholder="Ex: Nubank" className="w-full" />
+              <SeletorConta tipoInicial={usaMesRef ? "cartao" : "corrente"} onChange={setContaPerfil} />
             </div>
           </div>
 

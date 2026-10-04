@@ -1,4 +1,4 @@
-import ContasTipo from "@/components/ContasTipo";
+import ContasPorBanco from "@/components/ContasPorBanco";
 
 export default function ContasPage() {
   return (
@@ -6,10 +6,11 @@ export default function ContasPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Contas</h1>
         <p className="text-sm text-slate-500 mt-1">
-          O tipo de cada conta separa crédito de débito nos painéis e decide em que mês os gastos entram.
+          Cada conta é um banco + Débito ou Crédito. Extratos e faturas de qualquer formato (OFX, PDF, CSV) caem sempre
+          na conta certa. Crédito conta no mês da fatura; no Débito, cada saída vira Pix, boleto, débito ou encargos.
         </p>
       </div>
-      <ContasTipo />
+      <ContasPorBanco />
     </div>
   );
 }

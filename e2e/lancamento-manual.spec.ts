@@ -13,8 +13,9 @@ test("contas sugeridas: em uso primeiro, desativadas fora", async ({ page }) => 
   await page.goto("/lancamentos");
   await page.getByRole("button", { name: /Novo/ }).click();
   const lista = page.locator("#contas-conhecidas option");
-  await expect.poll(() => lista.count()).toBeGreaterThan(2); // as sugestões chegam depois de abrir
-  const opcoes = await lista.evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  await expect.poll(() => lista.count()).toBeGreaterThan(4); // as sugestões chegam depois de abrir
+  // (tira o "Escolha a conta…" e o "Outra conta…")
+  const opcoes = await lista.evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter((v) => v && v !== "__outra__"));
   expect(opcoes.slice(0, 2)).toEqual(["Nubank · Débito", "Nubank · Crédito"]); // a semente tem mais lançamentos no Débito
   expect(opcoes).not.toContain("Inter · Crédito");
   expect(opcoes.length).toBe(new Set(opcoes).size); // sem repetição

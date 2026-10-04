@@ -103,6 +103,8 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 
 **Regras e chaves no formato do BB (04/10)**: as regras de categoria tentam a descrição como veio e, se nada casar (em entradas, "Outras Entradas" conta como nada), a descrição limpa por `semRuido` — o BB escreve "Pix - Enviado - 04/09 12:36 FULANO" e "Pagamento de Boleto - X". A chave do estabelecimento tira a cidade das compras de cartão em qualquer banco quando vem separada por 2+ espaços e termina em "BR"/"BRA" (BB), além da largura fixa do C6; `marcarParcela` deixou de juntar espaços para não apagar essa separação. Vale para todo cliente do BB, não para um usuário. e2e: `expect.timeout` 15 s (servidor de teste em dev compila a rota na 1ª chamada); se a suíte ficar lenta, procure um `next-server` antigo preso na porta 3100 — o Playwright o reaproveita.
 
+**Contas por banco — etapa 3 (04/10)**: telas sem nome de conta digitado. `SeletorConta` (banco + Débito/Crédito + apelido; "Outro" pede nome) substitui o campo "Conta" na criação de perfil personalizado (OFX, PDF, CSV), na edição de perfil (Configurações › Importação) e no lançamento manual (lista das contas, das mais usadas para as menos, + "Outra conta…"). Configurações › Contas (`ContasPorBanco`, substitui `ContasTipo`): um cartão por banco, Débito/Crédito com contagem e formatos ativos, apelido, troca de tipo, criar e excluir. `PATCH /api/contas` aceita apelido/tipo e renomeia em cascata (lançamentos, reservas, perfis) numa transação; `DELETE` só exclui conta vazia.
+
 ## 6. Categorização (POST /api/categorizar e também na importação)
 
 Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + histórico carregados por `carregarMemoriaCategorizacao()` (`src/lib/memoria.ts`):

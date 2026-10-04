@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import NomeNosExtratos from "@/components/NomeNosExtratos";
+import SeletorConta from "@/components/SeletorConta";
 
 interface Perfil {
   id: number;
@@ -191,7 +192,11 @@ export default function ConfiguracoesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Campo texto="Nome do perfil" value={editando.nome} onChange={(v) => atualizarEdicao("nome", v)} />
-              <Campo texto="Conta" value={editando.conta} onChange={(v) => atualizarEdicao("conta", v)} />
+              <div className="text-sm text-slate-700 sm:col-span-2">Conta
+                <div className="mt-1">
+                  <SeletorConta key={editando.id} valorInicial={editando.conta} onChange={(v) => { if (v) atualizarEdicao("conta", v); }} />
+                </div>
+              </div>
               <label className="text-sm text-slate-700">Delimitador
                 <select value={editando.delimitador} onChange={(e) => atualizarEdicao("delimitador", e.target.value)} className="mt-1 w-full">
                   <option value=",">Vírgula (,)</option><option value=";">Ponto e vírgula (;)</option><option value={"\t"}>Tabulação</option>

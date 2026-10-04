@@ -3,6 +3,7 @@
 // Usa o POST /api/lancamentos (já validado no servidor).
 import { useEffect, useState } from "react";
 import CategoriaSelect from "@/components/CategoriaSelect";
+import SeletorConta from "@/components/SeletorConta";
 
 interface Props {
   aberto: boolean;
@@ -12,12 +13,15 @@ interface Props {
 
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 
+const OUTRA = "__outra__";
+
 export default function LancamentoForm({ aberto, onFechar, onSalvo }: Props) {
   const [data, setData] = useState(hojeISO);
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
   const [tipo, setTipo] = useState<"Entrada" | "Saída">("Saída");
   const [conta, setConta] = useState("");
+  const [outra, setOutra] = useState(false); // conta que ainda não existe (SeletorConta)
   const [contas, setContas] = useState<string[]>([]);
   const [categoria, setCategoria] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -120,20 +124,23 @@ export default function LancamentoForm({ aberto, onFechar, onSalvo }: Props) {
           <input type="text" value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Mercado da esquina" className="w-full" />
         </label>
 
-        <label className="text-sm text-slate-600 space-y-1 block">
+        <div className="text-sm text-slate-600 space-y-1">
           <span>Conta</span>
-          <input
-            type="text"
-            list="contas-conhecidas"
-            value={conta}
-            onChange={(e) => setConta(e.target.value)}
-            placeholder={contas[0] ?? "Ex.: Carteira, Nubank Conta"}
-            className="w-full"
-          />
-          <datalist id="contas-conhecidas">
-            {contas.map((c) => <option key={c} value={c} />)}
-          </datalist>
-        </label>
+          {/* contas do cadastro (das mais usadas para as menos); "Outra conta…" abre banco + Débito/Crédito */}
+          <select
+            aria-label="Conta" id="contas-conhecidas" className="w-full"
+            value={outra ? OUTRA : conta}
+            onChange={(e) => {
+              if (e.target.value === OUTRA) { setOutra(true); setConta(""); }
+              else { setOutra(false); setConta(e.target.value); }
+            }}
+          >
+            <option value="">Escolha a conta…</option>
+            {contas.map((c) => <option key={c} value={c}>{c}</option>)}
+            <option value={OUTRA}>Outra conta…</option>
+          </select>
+          {outra && <div className="pt-1"><SeletorConta onChange={setConta} /></div>}
+        </div>
 
         <label className="text-sm text-slate-600 space-y-1 block">
           <span>Categoria <span className="text-slate-400">(opcional)</span></span>
