@@ -1,3 +1,4 @@
+import { interpretarNomeAntigo } from "./bancos";
 // Cálculos dos painéis de finanças pessoais: meio de pagamento (crédito ×
 // débito), custo de dívida e ritmo do mês. Funções puras sobre lançamentos já
 // carregados — as rotas em /api/financas só buscam os dados e chamam estas.
@@ -19,9 +20,9 @@ export interface LancamentoFinancas {
 /** Aportes não são gasto: o dinheiro continua do usuário. */
 export const CATEGORIA_INVESTIMENTO = "Investimentos (Aportes)";
 
-/** Sugestão de tipo pelo nome da conta ("C6 Crédito", "Nubank Cartão" → cartão). */
+/** Tipo pelo nome, para conta que (ainda) não está no cadastro: "Nubank · Crédito" → cartão. */
 export function tipoSugerido(nomeConta: string): TipoConta {
-  return /cr[eé]dito|cart[aã]o/i.test(nomeConta) ? "cartao" : "corrente";
+  return interpretarNomeAntigo(nomeConta).tipo; // a mesma leitura do cadastro de contas
 }
 
 const ENCARGOS = /(juros|\biof\b|multa|encargo)/i;

@@ -8,6 +8,9 @@ import { BANCOS, nomeDaConta } from "@/lib/bancos";
 import { dadosDoUsuario } from "@/lib/tenant";
 import { erro400, idSchema, lerCorpo, lerQuery, validar } from "@/lib/validacao";
 
+/** O banco recusou por unicidade (P2002): mesmo nome, ou mesmo banco + tipo + apelido. */
+const contaRepetida = (e: unknown) => typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+
 const edicaoSchema = z.object({
   id: idSchema,
   tipo: z.enum(["corrente", "cartao"]).optional(),
@@ -51,13 +54,23 @@ export async function PATCH(req: NextRequest) {
   if (nome !== conta.nome && await prisma.conta.findFirst({ where: escopoDoUsuario(userId, { nome }) })) {
     return NextResponse.json({ error: `Já existe a conta "${nome}"` }, { status: 409 });
   }
-  await prisma.$transaction([
-    prisma.conta.updateMany({ where: escopoDoUsuario(userId, { id: conta.id }), data: { ...dados, nome } }),
-    prisma.lancamento.updateMany({ where: escopoDoUsuario(userId, { conta: conta.nome }), data: { conta: nome } }),
-    prisma.reserva.updateMany({ where: escopoDoUsuario(userId, { conta: conta.nome }), data: { conta: nome } }),
-    prisma.perfilImportacao.updateMany({ where: escopoDoUsuario(userId, { conta: conta.nome }), data: { conta: nome } }),
-  ]);
+  try {
+    await renomear(userId, conta.nome, conta.id, dados, nome);
+  } catch (e) {
+    if (contaRepetida(e)) return NextResponse.json({ error: `Já existe a conta "${nome}"` }, { status: 409 });
+    throw e;
+  }
   return NextResponse.json({ id: conta.id, nome });
+}
+
+// lançamentos, reservas e perfis acompanham o nome novo, tudo ou nada
+function renomear(userId: string, antigo: string, id: number, dados: { banco: string; tipo: "corrente" | "cartao"; apelido: string }, nome: string) {
+  return prisma.$transaction([
+    prisma.conta.updateMany({ where: escopoDoUsuario(userId, { id }), data: { ...dados, nome } }),
+    prisma.lancamento.updateMany({ where: escopoDoUsuario(userId, { conta: antigo }), data: { conta: nome } }),
+    prisma.reserva.updateMany({ where: escopoDoUsuario(userId, { conta: antigo }), data: { conta: nome } }),
+    prisma.perfilImportacao.updateMany({ where: escopoDoUsuario(userId, { conta: antigo }), data: { conta: nome } }),
+  ]);
 }
 
 // Exclui só conta vazia (sem lançamentos e sem reservas).
@@ -90,7 +103,12 @@ export async function POST(req: NextRequest) {
   const nome = nomeDaConta(v.dados);
   const existe = await prisma.conta.findFirst({ where: escopoDoUsuario(userId, { nome }) });
   if (existe) return NextResponse.json({ error: `A conta "${nome}" já existe — use um apelido diferente` }, { status: 409 });
-  const conta = await prisma.conta.create({ data: dadosDoUsuario(userId, { nome, ...v.dados }) });
-  return NextResponse.json({ id: conta.id, nome }, { status: 201 });
+  try {
+    const conta = await prisma.conta.create({ data: dadosDoUsuario(userId, { nome, ...v.dados }) });
+    return NextResponse.json({ id: conta.id, nome }, { status: 201 });
+  } catch (e) {
+    if (contaRepetida(e)) return NextResponse.json({ error: `A conta "${nome}" já existe — use um apelido diferente` }, { status: 409 });
+    throw e;
+  }
 }
 

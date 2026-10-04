@@ -704,7 +704,7 @@ export default function ImportarPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome do perfil</label>
-              <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} placeholder="Ex: Sicredi Corrente" className="w-full" />
+              <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} placeholder="Ex: Sicredi — extrato (OFX)" className="w-full" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Conta</label>
@@ -895,7 +895,7 @@ export default function ImportarPage() {
           <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome do perfil</label>
-              <input value={nomePerfil} onChange={(e) => setNomePerfil(e.target.value)} placeholder="Ex: Nubank Crédito" className="w-full" />
+              <input value={nomePerfil} onChange={(e) => setNomePerfil(e.target.value)} placeholder="Ex: Banco X — fatura (CSV)" className="w-full" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Conta</label>

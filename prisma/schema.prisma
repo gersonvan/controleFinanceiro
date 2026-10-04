@@ -139,6 +139,7 @@ model Conta {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, nome])
+  @@unique([userId, banco, tipo, apelido]) // uma conta por banco + Débito/Crédito + apelido
 }
 
 /// "Dividir": um Pix recebido (entrada, categoria Reembolso) abate um ou mais gastos.

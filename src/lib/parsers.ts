@@ -24,6 +24,7 @@ function parseDateBR(str: string): Date | null {
 
 export function parseFaturaC6(
   rows: string[][],
+  conta: string, // vem do perfil (lib/bancos.ts), ex.: "C6 · Crédito"
   fileName: string,
   memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
@@ -67,7 +68,7 @@ export function parseFaturaC6(
       categoria,
       valor,
       tipo,
-      conta: "C6 Crédito",
+      conta,
       mesReferencia,
       fonte: `Importado C6Crédito`,
     });
@@ -94,6 +95,7 @@ export function descricaoExtratoC6(titulo: string, detalhe: string): string {
 
 export function parseExtratoC6(
   rows: string[][],
+  conta: string,
   memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
@@ -135,7 +137,7 @@ export function parseExtratoC6(
       categoria,
       valor,
       tipo,
-      conta: "C6 Débito",
+      conta,
       mesReferencia,
       fonte: `Importado C6Débito`,
     });
@@ -145,6 +147,7 @@ export function parseExtratoC6(
 
 export function parseFaturaNubank(
   rows: string[][],
+  conta: string,
   fileName: string,
   memoriaIA: FonteMemoria,
   mesReferenciaManual: Date | null = null
@@ -192,7 +195,7 @@ export function parseFaturaNubank(
       categoria,
       valor,
       tipo,
-      conta: "Nubank Crédito",
+      conta,
       mesReferencia,
       fonte: `Importado NubankCrédito`,
     });
@@ -202,6 +205,7 @@ export function parseFaturaNubank(
 
 export function parseExtratoNubank(
   rows: string[][],
+  conta: string,
   memoriaIA: FonteMemoria
 ): LancamentoImportado[] {
   const lancamentos: LancamentoImportado[] = [];
@@ -230,7 +234,7 @@ export function parseExtratoNubank(
       categoria,
       valor,
       tipo,
-      conta: "Nubank Débito",
+      conta,
       mesReferencia,
       fonte: `Importado NubankDébito`,
     });

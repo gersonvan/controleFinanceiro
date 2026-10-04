@@ -76,4 +76,14 @@ describe("API de contas", () => {
     expect((await DELETE(req("DELETE", undefined, "?id=3"))).status).toBe(200);
     expect(mocks.conta.deleteMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", id: 3 } });
   });
+
+  it("a trava do banco (banco + tipo + apelido) vira 409, não erro interno", async () => {
+    mocks.conta.findFirst.mockResolvedValue(null);
+    mocks.conta.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    expect((await POST(req("POST", { banco: "nubank", tipo: "cartao", apelido: "x" }))).status).toBe(409);
+
+    mocks.conta.findFirst.mockResolvedValueOnce(NUBANK).mockResolvedValueOnce(null);
+    mocks.transaction.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    expect((await PATCH(req("PATCH", { id: 3, apelido: "y" }))).status).toBe(409);
+  });
 });

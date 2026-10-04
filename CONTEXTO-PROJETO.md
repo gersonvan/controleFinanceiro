@@ -105,6 +105,8 @@ Perfis nativos são criados automaticamente por usuário no primeiro GET `/api/p
 
 **Contas por banco — etapa 3 (04/10)**: telas sem nome de conta digitado. `SeletorConta` (banco + Débito/Crédito + apelido; "Outro" pede nome) substitui o campo "Conta" na criação de perfil personalizado (OFX, PDF, CSV), na edição de perfil (Configurações › Importação) e no lançamento manual (lista das contas, das mais usadas para as menos, + "Outra conta…"). Configurações › Contas (`ContasPorBanco`, substitui `ContasTipo`): um cartão por banco, Débito/Crédito com contagem e formatos ativos, apelido, troca de tipo, criar e excluir. `PATCH /api/contas` aceita apelido/tipo e renomeia em cascata (lançamentos, reservas, perfis) numa transação; `DELETE` só exclui conta vazia.
 
+**Contas por banco — etapa 4 (04/10)**: trava no banco `@@unique([userId, banco, tipo, apelido])` em `Conta` (migração `20261004150000_conta_unica_por_banco`, conferida antes em produção: nenhuma combinação repetida); `POST`/`PATCH /api/contas` tratam a recusa (P2002) como 409. Limpeza do nome livre: o catálogo de perfis nativos não tem mais nome de conta (sai de `contaNativa`), os leitores antigos de CSV do C6/Nubank recebem a conta do perfil (sem nomes fixos), e `tipoSugerido` (finanças) usa a mesma leitura de `lib/bancos.ts`. Continuam: `PerfilImportacao.conta` (cópia do nome, usada na tela de perfis) e `scripts/migrar-contas.ts` (idempotente; útil se aparecer nome fora do formato).
+
 ## 6. Categorização (POST /api/categorizar e também na importação)
 
 Ordem em `categorizarComOrigem()` (`src/lib/categorias.ts`), com Memória + histórico carregados por `carregarMemoriaCategorizacao()` (`src/lib/memoria.ts`):
