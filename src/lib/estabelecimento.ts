@@ -13,6 +13,9 @@
 export function semRuido(descricao: string): string {
   const d = descricao.trim()
     .replace(/^pagamento de boleto( efetuado)?\s*-\s*/i, "")                 // BB, Nubank
+    .replace(/^(pix no cr[eé]dito|compra no d[eé]bito)\s+-\s+/i, "")        // Nubank: "Compra no débito - DL *99 RIDE"
+    // intermediadora antes do nome: "DL*99 RIDE", "PG *99 RIDE", "MP *LOJA" (dLocal, PagSeguro, Mercado Pago…)
+    .replace(/^(dl|pg|mp|ec|pag|iz|sumup|pp|paypal)\s*\*\s*/i, "")  // o C6 grava até "DL          *99 RIDE"
     .replace(/^pix\s*-\s*enviado\s*-\s*/i, "Pix enviado para ")               // BB: "Pix - Enviado - 04/09 12:18 FULANO"
     .replace(/^pix\s*-\s*recebido\s*-\s*/i, "Pix recebido de ")
     .replace(/^(pix (enviado para|recebido de) )\d{1,2}\/\d{1,2}(\/\d{2,4})?\s+(\d{1,2}:\d{2}(:\d{2})?\s+)?/i, "$1")

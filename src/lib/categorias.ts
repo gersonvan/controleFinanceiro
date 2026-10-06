@@ -190,7 +190,6 @@ export function chaveMemoria(descricao: string): string {
     .replace(/^(.*?\S)\s{2,}\S[^]*?\s{2,}BRA?\s*$/, "$1");
   return semRuido(semCidade)
     .toLowerCase()
-    .replace(/^(pix no cr[eé]dito|compra no d[eé]bito)\s+-\s+/, "")       // Nubank
     .replace(/\s+-\s+nupay\b/, " ")
     .replace(new RegExp(`\\b\\d{1,2}(${MESES_ABREV})\\b`, "g"), " ")   // 25set
     .replace(/\b\d{1,2}h\d{2}(min)?\b/g, " ")                              // 13h37min

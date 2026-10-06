@@ -14,6 +14,12 @@ describe("nomeDoEstabelecimento", () => {
     ["TIM SA", "TIM"],
     ["Transferência enviada pelo Pix - LOJA X S/A", "LOJA X"],
     ["MERCADO FICTICIO", "MERCADO FICTICIO"],
+    ["DL *99 RIDE", "99 RIDE"],
+    ["DL*UBERRIDES", "UBERRIDES"],
+    ["PG *99 RIDE", "99 RIDE"],
+    ["DL          *99 RIDE", "99 RIDE"],
+    ["MP *ESTACIONAMENTO X", "ESTACIONAMENTO X"],
+    ["PG LOJA SEM ASTERISCO", "PG LOJA SEM ASTERISCO"], // "PG " sem "*" é parte do nome
   ])("%s → %s", (entrada, esperado) => expect(nomeDoEstabelecimento(entrada)).toBe(esperado));
 
   it("não fica vazio quando a descrição é só o prefixo", () => {

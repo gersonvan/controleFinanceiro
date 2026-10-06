@@ -4,7 +4,6 @@ import { CATEGORIAS_NEUTRAS, GRUPOS_CATEGORIAS, chaveMemoria } from "@/lib/categ
 import { carregarApelidos } from "@/lib/apelidos";
 import { CATEGORIA_INVESTIMENTO } from "@/lib/financas";
 import { comValorLiquido } from "@/lib/reembolso";
-import { nomeDoEstabelecimento } from "@/lib/estabelecimento";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { filtroPeriodo, filtrosLancamentoSchema } from "@/lib/filtros";
@@ -54,13 +53,17 @@ const CANONICOS: Record<string, string> = {
   "SEFAZ CEARA-DAE-COD": "SEFAZ CE DAE",
 };
 
+// Meio de pagamento no começo da chave: some na exibição ("Pix enviado para X" → "X")
+const PREFIXO_MEIO = /^(pix (enviado para|recebido de)|transfer[êe]ncia (enviada|recebida) pelo pix\s*-)\s*/;
+
 function normalizarDescricao(descricao: string): string {
   // Remove CNPJ e tudo depois (Nubank Pix: "VENDOR - 00.000.000/0000-00 - ...")
   let d = descricao;
   const cnpjIdx = d.search(/ - \d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
   if (cnpjIdx > 0) d = d.slice(0, cnpjIdx);
-  // sem meio de pagamento, data/hora, "Data balanc." do BB e LTDA/S.A. (lib/estabelecimento)
-  d = nomeDoEstabelecimento(d).toUpperCase();
+  // a mesma chave da Memória e do histórico (sem data, hora, parcela, cidade,
+  // intermediadora e ruído do banco): "99* POP 22SET 12H09MIN SP  BRA" → "99* POP"
+  d = chaveMemoria(d).replace(PREFIXO_MEIO, "").toUpperCase();
   return CANONICOS[d] ?? d;
 }
 
