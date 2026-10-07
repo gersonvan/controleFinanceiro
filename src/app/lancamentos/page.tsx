@@ -92,6 +92,8 @@ function LancamentosContent() {
   const [categoriaEdit, setCategoriaEdit]     = useState("");
   const [pessoaEdit, setPessoaEdit]           = useState("");
   const [categorizando, setCategorizando]     = useState(false);
+  // "+ Gemini" só aparece quando o servidor tem chave do Gemini
+  const [geminiDisponivel, setGeminiDisponivel] = useState(false);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg]               = useState("");
   const [limit, setLimit]                     = useState(50);
@@ -240,6 +242,15 @@ function LancamentosContent() {
     if (res.ok) showToast(`🧠 "${l.descricao.slice(0, 40)}…" salvo na Memória Local!`);
   };
 
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/categorizar")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (ativo) setGeminiDisponivel(!!json?.gemini); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
+
   const categorizarSemCategoria = async (usarGemini = false) => {
     setCategorizando(true);
     const res = await fetch("/api/categorizar", {
@@ -255,6 +266,8 @@ function LancamentosContent() {
     if (json.porHistorico > 0) partes.push(`🔁 ${json.porHistorico} pelo seu histórico`);
     if (json.porRegras > 0)    partes.push(`📏 ${json.porRegras} pelas regras`);
     if (json.porGemini > 0)    partes.push(`🤖 ${json.porGemini} pelo Gemini`);
+    if (json.gemini === "erro")      partes.push(`🤖 Gemini indisponível (${json.geminiErro ?? "erro"})`);
+    if (json.gemini === "sem-chave") partes.push("🤖 Gemini não configurado");
     if (json.semCategoria > 0) partes.push(`⚠️ ${json.semCategoria} sem categoria`);
     showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
   };
@@ -410,9 +423,11 @@ function LancamentosContent() {
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
             {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>
-          <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="+ Gemini para o que restar (lento)">
-            {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
-          </button>
+          {geminiDisponivel && (
+            <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="Categoriza também pelo Gemini o que a Memória e as regras não resolverem">
+              {categorizando ? <span className="spinner" /> : "🤖"} + Gemini
+            </button>
+          )}
         </div>
       </div>
 

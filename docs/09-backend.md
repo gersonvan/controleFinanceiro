@@ -81,13 +81,11 @@ O perfil `c6-cartao-csv` reconhece as colunas da fatura C6, usa `Valor (em R$)` 
 
 ### Integração com Gemini AI
 
-`src/app/api/categorizar/route.ts:119` — função `chamarGemini(descricao, categoriasStr, apiKey)`:
+`src/lib/gemini.ts` — função `categorizarComGemini(itens, categorias, { apiKey, modelo })`, chamada pela rota só para o que a Memória, o histórico e as regras não resolveram:
 
-- Endpoint: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent`
-- Formato: JSON com `systemInstruction` + prompt de descrição.
-- Resposta: `{ categoria_sugerida: string }` via `responseMimeType: "application/json"`.
-- `temperature: 0.0` para determinismo.
-- Delay de 1100ms entre chamadas para respeitar rate limit — `src/app/api/categorizar/route.ts:98`.
+- Endpoint: `https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent`, modelo padrão `gemini-3.1-flash-lite` (variável `GEMINI_MODEL` troca); chave no header `x-goog-api-key`.
+- Lotes de 50 lançamentos por pedido (até 200 por clique); resposta `[{ id, categoria }]` com `categoria` restrita por `enum` à lista `CATEGORIAS`; `temperature: 0`.
+- Timeout de 25 s por pedido. Um erro interrompe os lotes seguintes, mantém o que já voltou e é devolvido à tela (`gemini: "erro"`, `geminiErro`); sem chave, `gemini: "sem-chave"` e o botão nem aparece (`GET /api/categorizar` → `{ gemini: boolean }`).
 
 ## Normalização de descrições (Matriz)
 

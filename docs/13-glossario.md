@@ -35,7 +35,7 @@ Mínimo L2: 60 termos. Este glossário contém 75 termos do domínio do sistema 
 | 27 | **Fase 1 — Memória** | Fase de categorização por correspondência exata com regras da `MemoriaIA`. |
 | 28 | **Fase 2 — Regras manuais** | Fase de categorização por `mapearCategoria()` usando padrões de texto configurados em `src/lib/categorias.ts`. |
 | 29 | **Fase 3 — Gemini** | Fase opcional de categorização via Gemini AI para lançamentos sem correspondência nas fases anteriores. |
-| 30 | **Gemini AI** | Modelo de linguagem `gemini-2.0-flash-lite` da Google usado para classificar categorias de transações. |
+| 30 | **Gemini AI** | Modelo de linguagem da Google (padrão `gemini-3.1-flash-lite`, trocável por `GEMINI_MODEL`) usado no botão "+ Gemini" para classificar o que as regras não resolveram. |
 | 31 | **Dashboard** | Página `/` que exibe totais de entradas/saídas/saldo, gráfico por categoria e evolução mensal. |
 | 32 | **Matriz de gastos** | Página `/matriz` que exibe uma tabela categoria × mês com valores e drill-down por descrição normalizada. |
 | 33 | **Normalização de descrição** | Função que remove prefixos bancários, CNPJ e varia o texto para consolidar a mesma despesa sob um nome canônico. |

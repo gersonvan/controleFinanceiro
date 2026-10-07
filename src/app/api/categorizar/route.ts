@@ -6,10 +6,18 @@ import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { idSchema, lerCorpo, validar } from "@/lib/validacao";
+import { categorizarComGemini, geminiConfigurado } from "@/lib/gemini";
 
-// Cada chamada ao Gemini leva ~1,1 s (rate limit): sem teto uma única requisição
-// poderia rodar por minutos e estourar o timeout da função e a cota gratuita.
-const MAX_GEMINI_POR_REQUISICAO = 50;
+// O Gemini vai em lotes (lib/gemini.ts): teto por clique para caber no tempo da
+// função e na cota gratuita; o que sobrar fica para o próximo clique.
+const MAX_GEMINI_POR_REQUISICAO = 200;
+
+// Se o botão "+ Gemini" deve aparecer (há chave configurada no servidor).
+export async function GET() {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  return NextResponse.json({ gemini: geminiConfigurado() });
+}
 
 const categorizacaoSchema = z.object({
   ids: z.array(idSchema).max(1000).optional(),
@@ -37,7 +45,6 @@ export async function POST(req: NextRequest) {
   const porMemoria: { id: number; categoria: string }[] = [];
   const porHistorico: { id: number; categoria: string }[] = [];
   const porRegras:  { id: number; categoria: string }[] = [];
-  const semCategoria: number[] = [];
   const aindaSemCategoria: typeof lancamentos = [];
 
   // --- Fases 1 e 2: Memória → delivery → histórico → regras ---
@@ -75,33 +82,30 @@ export async function POST(req: NextRequest) {
   }
 
   // --- Fase 3: Gemini (só se solicitado explicitamente) ---
-  let categorizadosGemini = 0;
-
+  let porGemini = 0;
+  // "ok" | "sem-chave" | "erro": o botão avisa em vez de falhar calado
+  let gemini: string | undefined;
+  let geminiErro: string | undefined;
   if (usarGemini && aindaSemCategoria.length > 0) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      const categoriasStr = CATEGORIAS.join(", ");
-      for (const l of aindaSemCategoria.slice(0, MAX_GEMINI_POR_REQUISICAO)) {
-        try {
-          const catIA = await chamarGemini(l.descricao, categoriasStr, apiKey);
-          if (catIA && CATEGORIAS.includes(catIA as never)) {
-            await prisma.lancamento.updateMany({
-              where: escopoDoUsuario(userId, { id: l.id }),
-              data: { categoria: catIA },
-            });
-            categorizadosGemini++;
-            semCategoria.splice(semCategoria.indexOf(l.id), 1);
-          }
-          await sleep(1100);
-        } catch {
-          // ignora erro, deixa sem categoria
-        }
+    if (!apiKey) gemini = "sem-chave";
+    else {
+      const r = await categorizarComGemini(
+        aindaSemCategoria.slice(0, MAX_GEMINI_POR_REQUISICAO).map(({ id, descricao, tipo }) => ({ id, descricao, tipo })),
+        CATEGORIAS,
+        { apiKey, modelo: process.env.GEMINI_MODEL },
+      );
+      if (r.categorias.size > 0) {
+        await prisma.$transaction(
+          [...r.categorias].map(([id, categoria]) =>
+            prisma.lancamento.updateMany({ where: escopoDoUsuario(userId, { id }), data: { categoria } })
+          )
+        );
       }
+      porGemini = r.categorias.size;
+      gemini = r.erro ? "erro" : "ok";
+      if (r.erro) geminiErro = r.erro.message;
     }
-  }
-
-  for (const l of aindaSemCategoria) {
-    semCategoria.push(l.id);
   }
 
   return NextResponse.json({
@@ -109,50 +113,9 @@ export async function POST(req: NextRequest) {
     porMemoria: porMemoria.length,
     porHistorico: porHistorico.length,
     porRegras: porRegras.length,
-    porGemini: categorizadosGemini,
-    semCategoria: semCategoria.length - categorizadosGemini,
+    porGemini,
+    semCategoria: aindaSemCategoria.length - porGemini,
+    ...(gemini && { gemini }),
+    ...(geminiErro && { geminiErro }),
   });
-}
-
-async function chamarGemini(
-  descricao: string,
-  categoriasStr: string,
-  apiKey: string
-): Promise<string | null> {
-  // A chave vai no header, não na query string, para não parar em logs de proxy.
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
-
-  const payload = {
-    contents: [{ role: "user", parts: [{ text: `Descrição da transação: "${descricao}"` }] }],
-    systemInstruction: {
-      parts: [{
-        text: `Você é um assistente de finanças pessoais brasileiro. Analise a descrição de transação bancária e retorne UMA categoria da lista. Responda APENAS com o JSON.\n\nCategorias válidas: [${categoriasStr}]`,
-      }],
-    },
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: { categoria_sugerida: { type: "STRING" } },
-        required: ["categoria_sugerida"],
-      },
-      temperature: 0.0,
-    },
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) throw new Error(`Gemini error: ${res.status}`);
-  const data = await res.json();
-  const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!jsonText) return null;
-  return JSON.parse(jsonText).categoria_sugerida || null;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
