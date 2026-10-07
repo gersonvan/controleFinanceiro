@@ -91,6 +91,7 @@ test("corpo malformado e parâmetros inválidos dão 400, nunca 500", async ({ p
     ["POST", "/api/reservas"], ["PATCH", "/api/reservas"], ["POST", "/api/memoria-ia"], ["PATCH", "/api/perfis"],
     ["PATCH", "/api/contas"], ["PUT", "/api/planejamento"], ["PUT", "/api/reembolsos"], ["POST", "/api/apelidos"],
     ["PATCH", "/api/apelidos"], ["PATCH", "/api/perfil"], ["PATCH", "/api/previsao"], ["POST", "/api/categorizar"],
+    ["POST", "/api/desafios"], ["PATCH", "/api/desafios"],
   ];
   const ruins: string[] = [];
   for (const [metodo, rota] of comCorpo) {

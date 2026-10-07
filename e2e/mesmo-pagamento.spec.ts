@@ -15,9 +15,12 @@ test("variações de ruído do BB viram um grupo só na Revisão", async ({ page
 test("juntar dois nomes como mesmo pagamento leva a categoria de um para o outro", async ({ page }) => {
   await entrar(page, "Ana");
   await page.goto("/lancamentos");
-  // período: todos os meses (o padrão é o mês atual)
-  const limpar = page.getByRole("button", { name: "Limpar datas" });
-  if (await limpar.isVisible()) await limpar.click();
+  // período: todos os meses (o padrão é o mês atual); um clique antes da hidratação se perde
+  const inicio = page.locator("input[type=date]").first();
+  await expect(async () => {
+    await page.getByRole("button", { name: "Limpar datas" }).click();
+    await expect(inicio).toHaveValue("", { timeout: 1000 });
+  }).toPass();
   const juntar = async (busca: string, nome: string) => {
     await page.getByPlaceholder("Buscar descrição…").fill(busca);
     await expect(page.locator("table tbody tr").first()).toContainText(busca);

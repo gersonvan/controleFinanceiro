@@ -13,6 +13,7 @@ const ROTAS: [string, string][] = [
   ["GET", "/api/perfis"], ["POST", "/api/perfis"], ["PATCH", "/api/perfis"], ["DELETE", "/api/perfis"],
   ["GET", "/api/perfil"], ["PATCH", "/api/perfil"], ["PATCH", "/api/onboarding"], ["PATCH", "/api/previsao"],
   ["GET", "/api/reembolsos"], ["PUT", "/api/reembolsos"], ["GET", "/api/reembolsos/candidatos"], ["GET", "/api/reembolsos/parecidos"], ["POST", "/api/reembolsos/aplicar"],
+  ["GET", "/api/desafios"], ["POST", "/api/desafios"], ["PATCH", "/api/desafios"],
   ["GET", "/api/emprestimos"], ["GET", "/api/financas/meios"], ["GET", "/api/financas/ritmo"], ["GET", "/api/financas/divida"],
   ["POST", "/api/categorizar"], ["POST", "/api/importar"], ["POST", "/api/importar/analisar"], ["POST", "/api/importar/preview"], ["POST", "/api/importar/pdf-preview"],
 ];

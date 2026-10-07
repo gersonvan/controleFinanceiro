@@ -189,3 +189,25 @@ model Apelido {
   @@unique([userId, chave])
   @@index([userId])
 }
+
+/// Desafio aceito (src/lib/desafios.ts): um modelo do catálogo com a meta, o
+/// período e o normal do usuário no aceite; resultado e economia quando fecha.
+model Desafio {
+  id          Int       @id @default(autoincrement())
+  userId      String
+  modelo      String    // "zero-encargos" | "sobra" | "teto-categoria" | "semana-sem-delivery"
+  categoria   String?   // alvo dos desafios de gasto
+  meta        Float     // gasto/encargos: máximo; sobra: mínimo
+  referencia  Float     // média dos 6 meses anteriores, no tamanho do período
+  inicio      DateTime
+  fim         DateTime
+  status      String    @default("ativo") // "ativo" | "cumprido" | "nao_cumprido" | "abandonado"
+  resultado   Float?
+  economia    Float?    // referência − resultado (≥ 0); null na sobra
+  parcial     Boolean   @default(false)   // fechado sem todos os extratos do período
+  encerradoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+}

@@ -38,6 +38,20 @@ export default function Dashboard() {
   const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
   const [reserva, setReserva] = useState<{ emConta: number; disponivel: number; bloqueado: number; total: number; geral: number } | null>(null);
   const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number }; totalLancamentos: number } | null>(null);
+  const [desafios, setDesafios] = useState<{
+    economiaAcumulada: number;
+    emCurso: { titulo: string; estado: string; medida: string; meta: number; resultado: number | null }[];
+    sugestoes: { titulo: string; motivo: string }[];
+  } | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/desafios")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (ativo && json) setDesafios(json); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
 
   useEffect(() => {
     if (fotografiaFeita !== true) return;
@@ -151,6 +165,33 @@ export default function Dashboard() {
             </div>
           </div>
           <span className="text-sm text-blue-600">Ver reserva →</span>
+        </Link>
+      )}
+
+      {desafios && (desafios.emCurso.length > 0 || desafios.sugestoes.length > 0 || desafios.economiaAcumulada > 0) && (
+        <Link href="/desafios" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors" data-card="desafios">
+          <div className="min-w-0">
+            <div className="text-sm text-slate-500">
+              🎯 Desafios
+              {desafios.emCurso.length > 0 && <> · {desafios.emCurso.length} em andamento</>}
+              {desafios.economiaAcumulada > 0 && <> · economia acumulada <span className="font-semibold text-emerald-700">{fmt(desafios.economiaAcumulada)}</span></>}
+            </div>
+            <div className="text-slate-800 mt-0.5">
+              {desafios.emCurso.length > 0 ? (() => {
+                const d = desafios.emCurso[0];
+                const r = d.resultado ?? 0;
+                const situacao = d.estado === "agendado" ? "começa em breve"
+                  : d.estado === "aguardando" ? "aguardando extrato"
+                  : d.medida === "sobra" ? (r >= 0 ? `sobra de ${fmt(r)} até agora` : `${fmt(-r)} no vermelho até agora`)
+                  : d.meta > 0 ? `${fmt(r)} de ${fmt(d.meta)}`
+                  : r > 0 ? `${fmt(r)} até agora` : "nada até agora";
+                return <><span className="font-semibold">{d.titulo}</span> · {situacao}</>;
+              })() : desafios.sugestoes.length > 0 ? (
+                <>Sugerido: <span className="font-semibold">{desafios.sugestoes[0].titulo}</span> · <span className="text-slate-500">{desafios.sugestoes[0].motivo}</span></>
+              ) : "Nenhum desafio em andamento"}
+            </div>
+          </div>
+          <span className="text-sm text-blue-600">Ver desafios →</span>
         </Link>
       )}
 

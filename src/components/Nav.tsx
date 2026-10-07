@@ -14,6 +14,7 @@ type EntradaMenu = ItemMenu | GrupoMenu;
 const menu: EntradaMenu[] = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/planejamento", label: "Planejamento", icon: "📸" },
+  { href: "/desafios", label: "Desafios", icon: "🎯" },
   { href: "/importar", label: "Importar Lançamentos", icon: "📂" },
   { href: "/lancamentos", label: "Lançamentos", icon: "📋", filhos: [
     { href: "/lancamentos/revisar", label: "Revisar categorias" },

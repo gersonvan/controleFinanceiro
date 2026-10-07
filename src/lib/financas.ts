@@ -26,6 +26,12 @@ export function tipoSugerido(nomeConta: string): TipoConta {
 }
 
 const ENCARGOS = /(juros|\biof\b|multa|encargo)/i;
+
+/** Juros, IOF, multa ou encargo cobrado pelo banco. IOF de compra no exterior não é dívida. */
+export function ehEncargo(descricao: string): boolean {
+  const d = descricao.trim();
+  return ENCARGOS.test(d) && !/exterior/i.test(d);
+}
 const PIX = /\bpix\b/i;
 // Compra no débito: Nubank escreve; no C6 a linha é a loja ("… FORTALEZA BRA"),
 // TAG de estacionamento e corridas por app
@@ -129,7 +135,7 @@ export function custoDivida(lancamentos: LancamentoFinancas[], meses: string[]) 
   const origens = new Map<string, { origem: string; conta: string; total: number; meses: Set<string> }>();
   for (const l of lancamentos) {
     const d = l.descricao.trim();
-    if (!ENCARGOS.test(d) || /exterior/i.test(d)) continue;
+    if (!ehEncargo(d)) continue;
     const mes = mesCompetencia(l);
     const alvo = porMes.get(mes);
     if (!alvo) continue;
