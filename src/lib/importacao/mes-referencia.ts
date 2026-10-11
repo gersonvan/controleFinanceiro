@@ -11,7 +11,8 @@
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export function vencimentoNoTexto(texto: string): string | null {
-  const m = texto.match(/vencimento[^\d\n]{0,40}(\d{2})\/(\d{2})\/(\d{2,4})/i);
+  // a data pode vir na linha de baixo ("Data de vencimento\n05/10/2026", Nomad)
+  const m = texto.match(/vencimento[^\d\n]{0,40}\n?[^\d\n]{0,10}(\d{2})\/(\d{2})\/(\d{2,4})/i);
   if (!m) return null;
   const mes = parseInt(m[2]);
   let ano = parseInt(m[3]);

@@ -53,6 +53,7 @@ const BUILTIN_PDF_PERFIS: { builtin: string; nome: string; inverterSinal: boolea
   { builtin: "itau-extrato-pdf",    nome: "Itaú — Extrato da Conta",  inverterSinal: false, usaMesReferencia: false },
   { builtin: "bradesco-cartao-pdf", nome: "Bradesco — Fatura Cartão", inverterSinal: false },
   { builtin: "inter-cartao-pdf",    nome: "Inter — Fatura Cartão",    inverterSinal: false },
+  { builtin: "nomad-cartao-pdf",    nome: "Nomad — Fatura Cartão",    inverterSinal: false },
 ];
 
 const PDF_DEFAULTS = {

@@ -6,6 +6,7 @@ import { escopoDoUsuario } from "@/lib/tenant";
 import { corpoGrandeDemais, erro400, lerArquivo } from "@/lib/validacao";
 import { ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
+import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -54,9 +55,12 @@ export async function POST(req: NextRequest) {
 
   const memoriaIA = new Map<string, string>();
   let preview: Array<{ data: string; descricao: string; valor: number }> = [];
+  let mesReferenciaSugerido: string | null = null;
 
   try {
     const lancamentos = parsePDF(texto, perfilTemp, memoriaIA, null);
+    // fatura: o vencimento do texto ou do nome do arquivo (o mesmo do modo de vários arquivos)
+    if (perfil?.usaMesReferencia) mesReferenciaSugerido = sugerirMesReferencia(lancamentos.map((l) => l.data), texto, file.name);
     preview = lancamentos.slice(0, 10).map((l) => ({
       data: l.data.toLocaleDateString("pt-BR", { timeZone: "UTC" }), // datas gravadas à meia-noite UTC
       descricao: l.descricao,
@@ -72,6 +76,7 @@ export async function POST(req: NextRequest) {
     perfilId,
     perfil,
     preview,
+    mesReferenciaSugerido,
     total: preview.length,
   });
 }

@@ -174,6 +174,7 @@ export default function ImportarPage() {
       }
       setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
       setPreviewPDF(json.preview ?? []);
+      setMesRef(json.mesReferenciaSugerido ?? vencimentoNoNome(file.name) ?? "");
 
       if (json.perfilId) {
         // o perfil pode ter acabado de ser criado (banco novo): usa o que a API devolveu

@@ -181,6 +181,7 @@ Os padrões de regex do nosso `pdf.ts` foram derivados deste projeto.
 | Itaú | `itau-cartao-pdf` | ✅ Implementado | banksheet + adaptação |
 | Bradesco | `bradesco-cartao-pdf` | ✅ Implementado | banksheet + adaptação |
 | Inter | `inter-cartao-pdf` | ✅ Implementado | banksheet + adaptação |
+| Nomad (emitido pela Afinz) | `nomad-cartao-pdf` | ✅ Implementado | fatura real de 10/2026 |
 | Porto Seguro | `porto-seguro-cartao-pdf` | 🔲 A adicionar | banksheet disponível |
 | Santander | — | 🔲 A adicionar | precisa de arquivo real |
 | Banco do Brasil | — | 🔲 A adicionar | precisa de arquivo real |

@@ -762,3 +762,55 @@ describe("Itaú (PDF)", () => {
     expect(ls.every((l) => l.mesReferencia.toISOString().startsWith("2026-01-01"))).toBe(true);
   });
 });
+
+describe("fatura Nomad (PDF)", () => {
+  // Layout da fatura do cartão Nomad (emitido pela Afinz), pdf-parse v2 — dados fictícios
+  const fatura = [
+    "Outras formas de pagar sua fatura",
+    "Pagamento mínimo do período:",
+    "R$ 50,00",
+    "Valor de entrada: R$ 120,00 +",
+    "1x R$ 120,00",
+    "Resumo da sua fatura",
+    "Fulana De Tal **** **** **** 0001",
+    "Saldo da fatura anterior R$ 6,83",
+    "Pagamentos efetuados -R$ 6,83",
+    "Despesas e créditos do mês R$ 253,29",
+    "Extrato Referente ao mês de Setembro de 2026",
+    "Cartão - Fulana De Tal **** **** **** 0002",
+    "Data Descrição Valor",
+    "28/08/2026 GOL LINHAEREAS S.A. Rio BR R$ 90,00",
+    "29/08/2026 CAPSULA SHOP SAO PAULO (01/04) R$ 69,94",
+    "19/09/2026 DISTRIBUIDORA DE ALIME FORTALEZA BR R$ 57,83",
+    "19/09/2026 DISTRIBUIDORA DE ALIME FORTALEZA BR -R$ 57,83",
+    "21/09/2026 PAGUE MENOS 0019 CE BR R$ 1.089,50",
+    "22/09/2026 IOF SOBRE TRANSACAO INTERNACIONAL R$ 3,85",
+    "Cartão - Fulana De Tal **** **** **** 0001",
+    "Data Descrição Valor",
+    "01/09/2026 PAGAMENTO DE FATURA - CNAB -R$ 6,83",
+    "Taxas Taxa ao mês (%) Taxa ao ano (%) CET ao mês (%)",
+    "Rotativo 13,99 391,90 14,79 423,16 13,99",
+    "28/09/2026 0928023711 FT N 28/09/2026",
+    "000 01 R$",
+    "(11) 4200-0204 - support@nomadglobal.com",
+  ].join("\n");
+
+  it("é reconhecida antes do Itaú (boleto 341) e do Inter (\"internacional\")", () => {
+    expect(detectarBancoPDF(fatura)).toEqual({ builtinKey: "nomad-cartao-pdf", bancoNome: "Nomad — Fatura do Cartão" });
+  });
+
+  it("compras viram gasto, estorno vira crédito; pagamento da fatura anterior, resumo e boleto ficam de fora", async () => {
+    const { parsePDF } = await import("./pdf");
+    const ls = parsePDF(fatura, { conta: "Nomad · Crédito", builtin: "nomad-cartao-pdf" } as Parameters<typeof parsePDF>[1], new Map(), new Date(2026, 9, 1));
+    expect(ls.map((l) => [l.descricao, l.valor])).toEqual([
+      ["GOL LINHAEREAS S.A. Rio BR", -90],
+      ["CAPSULA SHOP SAO PAULO (01/04)", -69.94],
+      ["DISTRIBUIDORA DE ALIME FORTALEZA BR", -57.83],
+      ["DISTRIBUIDORA DE ALIME FORTALEZA BR", 57.83],
+      ["PAGUE MENOS 0019 CE BR", -1089.5],
+      ["IOF SOBRE TRANSACAO INTERNACIONAL", -3.85],
+    ]);
+    expect(ls[0].data).toEqual(new Date(2026, 7, 28));
+    expect(ls.every((l) => l.mesReferencia.getTime() === new Date(2026, 9, 1).getTime() && l.fonte === "Importado Nomad (PDF)")).toBe(true);
+  });
+});

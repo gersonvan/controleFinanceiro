@@ -20,6 +20,7 @@ describe("sugerirMesReferencia", () => {
     const texto = "Resumo da fatura\nVencimento: 10/11/2026\nTotal R$ 1.234,56";
     expect(sugerirMesReferencia([dia("2026-10-28")], texto)).toBe("2026-11");
     expect(vencimentoNoTexto("Data de vencimento 05/01/27")).toBe("2027-01");
+    expect(vencimentoNoTexto("Data de vencimento\n05/10/2026\nMês de referência: Setembro")).toBe("2026-10"); // Nomad
   });
 
   it("sem datas e sem vencimento não sugere", () => {

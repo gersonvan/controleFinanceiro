@@ -36,10 +36,14 @@ export type BancoPDF =
   | "itau-extrato-pdf"
   | "bradesco-cartao-pdf"
   | "inter-cartao-pdf"
+  | "nomad-cartao-pdf"
   | "sofisa-extrato-pdf";
 
 export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; bancoNome: string } {
   const t = texto.toLowerCase();
+  // Nomad antes dos outros: o boleto é do Itaú (341) e o texto tem "internacional"/"internet" (o Inter casava)
+  if (t.includes("nomadglobal") || t.includes("nomad tecnologia") || t.includes("fatura nomad"))
+    return { builtinKey: "nomad-cartao-pdf", bancoNome: "Nomad — Fatura do Cartão" };
   if (t.includes("banco sofisa") || t.includes("sofisadireto") || t.includes("sofisa direto")) {
     // comprovante de aplicação/resgate repete o que já está no extrato — não importar
     if (t.includes("comprovante de") || !t.includes("extrato do per"))
@@ -81,6 +85,7 @@ export function parsePDF(
     case "itau-extrato-pdf":     return parseItauExtrato(texto, perfil, memoriaIA);
     case "bradesco-cartao-pdf":  return parseBradesco(texto, perfil, memoriaIA, mesReferenciaManual);
     case "inter-cartao-pdf":     return parseInter(texto, perfil, memoriaIA, mesReferenciaManual);
+    case "nomad-cartao-pdf":     return parseNomad(texto, perfil, memoriaIA, mesReferenciaManual);
     case "sofisa-extrato-pdf":   return parseSofisa(texto, perfil, memoriaIA);
     default:                     return parseGenerico(texto, perfil, memoriaIA, mesReferenciaManual);
   }
@@ -374,6 +379,42 @@ function parseInter(
         pendente.descricao += " " + linha;
       }
     }
+  }
+  return result;
+}
+
+// ─── Nomad Cartão (emitido pela Afinz) ───────────────────────────────────────
+// Formato: "28/08/2026 GOL LINHAEREAS S.A. Rio BR R$ 90,00"; estorno/crédito com
+// "-R$ 57,83"; parcela no fim da descrição "(01/04)". Cada cartão (titular,
+// virtual, adicional) tem a sua seção, todas com o mesmo formato. "PAGAMENTO DE
+// FATURA" é a quitação da fatura anterior — sai pela conta — e fica de fora. O
+// resumo, as ofertas de parcelamento e o boleto não têm o formato "data … R$ valor".
+
+export function parseNomad(
+  texto: string, perfil: PerfilPDF,
+  memoriaIA: FonteMemoria, manual: Date | null
+): LancamentoImportado[] {
+  const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
+  const result: LancamentoImportado[] = [];
+  const RE = /^(\d{2})\/(\d{2})\/(\d{4})\s+(.+?)\s+(-)?R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/;
+
+  for (const linha of linhas) {
+    const m = linha.match(RE);
+    if (!m) continue;
+    const descricao = m[4].trim();
+    if (/^pagamento de fatura/i.test(descricao)) continue;
+    const raw = parseBR(m[6]);
+    if (isNaN(raw) || raw === 0) continue;
+
+    const v = m[5] ? raw : -raw;
+    const tipo: "Entrada" | "Saída" = v >= 0 ? "Entrada" : "Saída";
+    const data = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+    result.push({
+      data, descricao, categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      valor: v, tipo, conta: perfil.conta,
+      mesReferencia: mesRef(data, manual),
+      fonte: "Importado Nomad (PDF)",
+    });
   }
   return result;
 }

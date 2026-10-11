@@ -174,6 +174,7 @@ describe("medição", () => {
     const ls = [
       l({ data: "2026-10-02", valor: -12.5, descricao: "IOF ADICIONAL" }),
       l({ data: "2026-10-02", valor: -30, descricao: "IOF COMPRA NO EXTERIOR" }), // não é dívida
+      l({ data: "2026-10-03", valor: -3.85, descricao: "IOF SOBRE TRANSACAO INTERNACIONAL" }), // nem esta (fatura Nomad)
       l({ data: "2026-10-09", valor: -40, descricao: "Juros de mora" }),
       l({ data: "2026-10-10", valor: 40, descricao: "Estorno juros de mora" }),
     ];

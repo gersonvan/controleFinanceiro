@@ -27,10 +27,10 @@ export function tipoSugerido(nomeConta: string): TipoConta {
 
 const ENCARGOS = /(juros|\biof\b|multa|encargo)/i;
 
-/** Juros, IOF, multa ou encargo cobrado pelo banco. IOF de compra no exterior não é dívida. */
+/** Juros, IOF, multa ou encargo cobrado pelo banco. IOF de compra no exterior ("internacional") não é dívida. */
 export function ehEncargo(descricao: string): boolean {
   const d = descricao.trim();
-  return ENCARGOS.test(d) && !/exterior/i.test(d);
+  return ENCARGOS.test(d) && !/exterior|internacional/i.test(d);
 }
 const PIX = /\bpix\b/i;
 // Compra no débito: Nubank escreve; no C6 a linha é a loja ("… FORTALEZA BRA"),
