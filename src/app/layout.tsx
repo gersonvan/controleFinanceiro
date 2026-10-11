@@ -4,7 +4,7 @@ import Nav from "@/components/Nav";
 import { auth } from "@/auth";
 
 export const metadata: Metadata = {
-  title: "Controle Financeiro",
+  title: "Prumo",
   description: "Sistema de controle financeiro pessoal",
 };
 

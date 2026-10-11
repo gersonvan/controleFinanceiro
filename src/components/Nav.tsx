@@ -127,7 +127,7 @@ export default function Nav({ user }: { user?: Session["user"] }) {
       {/* Desktop */}
       <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
         <div className="p-4 border-b border-slate-200">
-          <div className="flex items-center gap-2 text-lg font-bold text-slate-800"><Wallet size={20} aria-hidden className="text-blue-600" />FinanceiroWeb</div>
+          <div className="flex items-center gap-2 text-lg font-bold text-slate-800"><Wallet size={20} aria-hidden className="text-blue-600" />Prumo</div>
           <div className="text-xs text-slate-500 mt-0.5">Controle Financeiro</div>
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">{itens}</nav>
@@ -137,7 +137,7 @@ export default function Nav({ user }: { user?: Session["user"] }) {
       {/* Celular */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-20 bg-white text-slate-800 border-b border-slate-200">
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/" className="flex items-center gap-2 font-bold" onClick={() => setAberto(false)}><Wallet size={20} aria-hidden className="text-blue-600" />FinanceiroWeb</Link>
+          <Link href="/" className="flex items-center gap-2 font-bold" onClick={() => setAberto(false)}><Wallet size={20} aria-hidden className="text-blue-600" />Prumo</Link>
           <button
             onClick={() => setAberto((v) => !v)}
             aria-label={aberto ? "Fechar menu" : "Abrir menu"}

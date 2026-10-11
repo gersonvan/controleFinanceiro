@@ -102,7 +102,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
       <div className="flex justify-between items-center px-4 sm:px-8 py-4 bg-white border-b border-slate-200">
-        <span className="font-semibold text-slate-700">Controle Financeiro</span>
+        <span className="font-semibold text-slate-700">Prumo</span>
         {session?.user && (
           <div className="flex items-center gap-2">
             {session.user.image && (
@@ -174,7 +174,7 @@ export default function OnboardingPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
               <div className="text-4xl mb-4">👋</div>
               <h1 className="text-2xl font-bold text-slate-800 mb-1">
-                Bem-vindo ao Controle Financeiro!
+                Bem-vindo ao Prumo!
               </h1>
               <p className="text-slate-500 mb-6">
                 Vamos configurar sua conta em alguns passos rápidos.

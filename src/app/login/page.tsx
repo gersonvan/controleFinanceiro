@@ -8,7 +8,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-sm text-center space-y-6">
         <div>
           <div className="text-4xl mb-3">💰</div>
-          <h1 className="text-xl font-bold text-slate-800">FinanceiroWeb</h1>
+          <h1 className="text-xl font-bold text-slate-800">Prumo</h1>
           <p className="text-sm text-slate-500 mt-1">Controle Financeiro Pessoal</p>
         </div>
 
