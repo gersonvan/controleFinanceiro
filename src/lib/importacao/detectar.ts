@@ -1,7 +1,7 @@
 // Detecção automática de formato e banco a partir do conteúdo do arquivo.
 // Usado na tela de Importação para dispensar escolha manual do perfil.
 
-export type Papel = "" | "data" | "descricao" | "parcela" | "valor" | "entrada" | "saida";
+export type Papel = "" | "data" | "descricao" | "complemento" | "parcela" | "valor" | "entrada" | "saida";
 
 const normalizar = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -109,57 +109,136 @@ export function detectarBancoOFX(texto: string): { builtinKey: string | null; or
   return { builtinKey: banco ? `${banco}-corrente-ofx` : null, orgName: org || fid || "Banco não identificado" };
 }
 
-// Heurística para pré-preencher papéis das colunas num CSV.
-// Analisa as linhas de dados (após linhasPular) e classifica cada coluna.
+const PADROES_DATA = [
+  /^\d{1,2}\/\d{1,2}\/\d{2,4}$/,
+  /^\d{4}-\d{2}-\d{2}/,
+  /^\d{1,2}-\d{1,2}-\d{2,4}$/,
+  /^\d{2}\.\d{2}\.\d{4}$/,
+];
+const pareceData = (v: string) => PADROES_DATA.some((p) => p.test(v.trim()));
+const pareceNumero = (v: string) => /^-?[\d.,]+$/.test(v.replace(/[R$\s%]/g, "").replace(/^\((.+)\)$/, "-$1"));
+
+/** Cabeçalho: a última linha pulada com ao menos duas células preenchidas (ou a primeira linha de dados). */
+function cabecalho(linhas: string[][], linhasPular: number): string[] {
+  for (let i = Math.min(linhasPular, linhas.length) - 1; i >= 0; i--) {
+    if (linhas[i].filter((c) => c.trim()).length >= 2) return linhas[i];
+  }
+  return linhas[Math.min(linhasPular, Math.max(linhas.length - 1, 0))] ?? [];
+}
+
+// Heurística para pré-preencher papéis das colunas num CSV: o nome da coluna
+// manda quando diz algo ("Crédito", "Débito", "Saldo", "Detalhes"…); senão,
+// o conteúdo (datas, números, texto mais longo).
 export function sugerirPapeis(linhas: string[][], linhasPular: number): Papel[] {
   const dados = linhas.slice(linhasPular);
   const numCols = Math.max(...linhas.map((r) => r.length), 0);
   const papeis: Papel[] = new Array(numCols).fill("") as Papel[];
   if (dados.length === 0) return papeis;
 
-  const datePatterns = [
-    /^\d{1,2}\/\d{1,2}\/\d{2,4}$/,
-    /^\d{4}-\d{2}-\d{2}/,
-    /^\d{1,2}-\d{1,2}-\d{2,4}$/,
-    /^\d{2}\.\d{2}\.\d{4}$/,
-  ];
-  const header = linhas[Math.min(linhasPular, Math.max(linhas.length - 1, 0))] ?? [];
+  const header = cabecalho(linhas, linhasPular).map((h) => normalizar(h ?? "").trim());
   const numericCol: number[] = [];
   let bestDescCol = -1;
   let bestDescAvg = 0;
+  let descPeloNome = -1;
+  let complemento = -1;
+  let entrada = -1, saida = -1;
 
   for (let col = 0; col < numCols; col++) {
-    if ((header[col] ?? "").trim().toLowerCase().includes("parcela")) {
-      papeis[col] = "parcela";
-      continue;
-    }
+    const nome = header[col] ?? "";
+    if (nome.includes("parcela")) { papeis[col] = "parcela"; continue; }
+    if (/saldo|^doc|docto|documento|n[°ºo]\.? ?doc/.test(nome)) continue; // não é dado do lançamento
+
     const vals = dados.map((r) => (r[col] || "").trim()).filter(Boolean);
     if (vals.length === 0) continue;
 
-    const dateScore = vals.filter((v) => datePatterns.some((p) => p.test(v))).length / vals.length;
-    const cleaned = vals.map((v) => v.replace(/[R$\s%]/g, "").replace(/^\((.+)\)$/, "-$1"));
-    const numScore = cleaned.filter((v) => /^-?[\d.,]+$/.test(v)).length / vals.length;
+    const dateScore = vals.filter(pareceData).length / vals.length;
+    const numScore = vals.filter(pareceNumero).length / vals.length;
     const avgLen = vals.reduce((s, v) => s + v.length, 0) / vals.length;
 
     if (dateScore > 0.6 && !papeis.includes("data")) {
       papeis[col] = "data";
     } else if (numScore > 0.6) {
-      numericCol.push(col);
-    } else if (avgLen > bestDescAvg && avgLen > 5) {
-      bestDescAvg = avgLen;
-      bestDescCol = col;
+      if (/credito|entrada/.test(nome) && entrada < 0) entrada = col;
+      else if (/debito|saida/.test(nome) && saida < 0) saida = col;
+      else numericCol.push(col);
+    } else if (/detalh|complement|favorecid|benefici|estabelec|observa/.test(nome)) {
+      if (complemento < 0) complemento = col;
+    } else {
+      if (/histor|descri|lancamento|memo/.test(nome) && descPeloNome < 0) descPeloNome = col;
+      if (avgLen > bestDescAvg && avgLen > 5) { bestDescAvg = avgLen; bestDescCol = col; }
     }
   }
 
-  // 2 colunas numéricas → provavelmente Entrada/Saída separadas
-  if (numericCol.length >= 2) {
+  if (entrada >= 0 || saida >= 0) {
+    if (entrada >= 0) papeis[entrada] = "entrada";
+    if (saida >= 0) papeis[saida] = "saida";
+  } else if (numericCol.length >= 2) {
+    // 2 colunas numéricas → provavelmente Entrada/Saída separadas
     papeis[numericCol[0]] = "entrada";
     papeis[numericCol[1]] = "saida";
   } else if (numericCol.length === 1) {
     papeis[numericCol[0]] = "valor";
   }
 
-  if (bestDescCol >= 0) papeis[bestDescCol] = "descricao";
+  const desc = descPeloNome >= 0 ? descPeloNome : bestDescCol;
+  if (desc >= 0) papeis[desc] = "descricao";
+  if (complemento >= 0 && complemento !== desc) papeis[complemento] = "complemento";
 
   return papeis;
+}
+
+export interface ColunasPerfil {
+  colData: number | null;
+  colDescricao: number | null;
+  colComplemento: number | null;
+  colParcela: number | null;
+  colValor: number | null;
+  colEntrada: number | null;
+  colSaida: number | null;
+  modoValor: "unica" | "separadas";
+}
+
+/** Papéis escolhidos na tela → colunas do perfil. */
+export function colunasDosPapeis(papeis: Papel[]): ColunasPerfil {
+  const idx = (p: Papel) => { const i = papeis.indexOf(p); return i < 0 ? null : i; };
+  const separadas = papeis.includes("entrada") || papeis.includes("saida");
+  return {
+    colData: idx("data"), colDescricao: idx("descricao"), colComplemento: idx("complemento"), colParcela: idx("parcela"),
+    colValor: separadas ? null : idx("valor"), colEntrada: idx("entrada"), colSaida: idx("saida"),
+    modoValor: separadas ? "separadas" : "unica",
+  };
+}
+
+/** Colunas de um perfil salvo → papéis na tela (para editar com um arquivo de exemplo). */
+export function papeisDoPerfil(p: Partial<ColunasPerfil>, nColunas: number): Papel[] {
+  const papeis: Papel[] = new Array(nColunas).fill("") as Papel[];
+  const separadas = p.modoValor === "separadas";
+  const pares: [keyof ColunasPerfil, Papel, boolean][] = [
+    ["colData", "data", true], ["colDescricao", "descricao", true], ["colComplemento", "complemento", true],
+    ["colParcela", "parcela", true], ["colValor", "valor", !separadas], ["colEntrada", "entrada", separadas], ["colSaida", "saida", separadas],
+  ];
+  for (const [campo, papel, vale] of pares) {
+    const i = p[campo];
+    if (vale && typeof i === "number" && i >= 0 && i < nColunas) papeis[i] = papel;
+  }
+  return papeis;
+}
+
+/**
+ * O arquivo traz a descrição em duas linhas? Linhas sem data, com texto e sem
+ * valor, logo abaixo de um lançamento (o nome de quem recebeu o Pix, p. ex.).
+ */
+export function sugerirJuntarLinhas(linhas: string[][], linhasPular: number, papeis: Papel[]): boolean {
+  const colData = papeis.indexOf("data");
+  if (colData < 0) return false;
+  const colsValor = papeis.map((p, i) => (p === "valor" || p === "entrada" || p === "saida" ? i : -1)).filter((i) => i >= 0);
+  let datadas = 0, continuacoes = 0, anteriorDatada = false;
+  for (const r of linhas.slice(linhasPular)) {
+    if (pareceData(r[colData] ?? "")) { datadas++; anteriorDatada = true; continue; }
+    const texto = r.some((c) => c.trim() && !pareceNumero(c.trim()));
+    const valor = colsValor.some((i) => (r[i] ?? "").trim() !== "" && pareceNumero((r[i] ?? "").trim()));
+    if (anteriorDatada && texto && !valor) continuacoes++;
+    anteriorDatada = false;
+  }
+  return continuacoes >= 2 && continuacoes >= datadas * 0.2;
 }

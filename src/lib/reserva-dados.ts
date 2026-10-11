@@ -14,13 +14,15 @@ export async function atualizarSaldoConta(userId: string, conta: string, saldo: 
       where: escopoDoUsuario(userId, { id: existente.id }),
       data: { saldoInformado: saldo, dataSaldo: data, observacao: "Saldo lido do extrato importado." },
     });
-  } else {
-    await prisma.reserva.create({
-      data: dadosDoUsuario(userId, {
-        nome: conta, tipo: "conta", bloqueada: false, saldoInformado: saldo, dataSaldo: data,
-        conta, filtroDescricao: null, observacao: "Saldo lido do extrato importado.",
-      }),
-    });
+    // o que havia antes: para "desfazer importação" voltar ao saldo anterior
+    const anterior = { saldo: existente.saldoInformado, data: existente.dataSaldo.toISOString(), observacao: existente.observacao };
+    return { conta, saldo, data, atualizado: true, desfazer: { reservaId: existente.id, anterior } };
   }
-  return { conta, saldo, data, atualizado: true };
+  const criada = await prisma.reserva.create({
+    data: dadosDoUsuario(userId, {
+      nome: conta, tipo: "conta", bloqueada: false, saldoInformado: saldo, dataSaldo: data,
+      conta, filtroDescricao: null, observacao: "Saldo lido do extrato importado.",
+    }),
+  });
+  return { conta, saldo, data, atualizado: true, desfazer: { reservaId: criada.id, anterior: null } };
 }

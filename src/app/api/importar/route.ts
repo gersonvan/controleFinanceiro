@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
 import { importar, PerfilCompleto } from "@/lib/importacao/engine";
@@ -11,6 +12,7 @@ import { z } from "zod";
 import { corpoGrandeDemais, erro400, idSchema, lerArquivo, opcional, validar } from "@/lib/validacao";
 import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { bancoTipoDoPerfil, resolverConta } from "@/lib/contas";
+import type { SaldoDaImportacao } from "@/lib/importacoes";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
@@ -96,21 +98,31 @@ export async function POST(req: NextRequest) {
   const novos = lancamentos.filter((l) => !existingKeys.has(chaveLancamento(l)));
 
   let reembolsosVinculados = 0;
+  let importacaoId: number | null = null;
   if (novos.length > 0) {
-    const criados = await prisma.lancamento.createManyAndReturn({
-      data: novos.map((l) => dadosDoUsuario(userId, {
-        data: l.data,
-        descricao: l.descricao,
-        categoria: l.categoria || null,
-        valor: l.valor,
-        tipo: l.tipo,
-        conta: l.conta,
-        status: "Paga",
-        fonte: l.fonte,
-        mesReferencia: l.mesReferencia,
-      })),
-      select: { id: true, valor: true },
+    // a importação fica registrada com os lançamentos que criou: dá para desfazer
+    const { importacao, criados } = await prisma.$transaction(async (tx) => {
+      const importacao = await tx.importacao.create({
+        data: dadosDoUsuario(userId, { perfil: perfil.nome, conta: destino.nome, arquivo: file.name.slice(0, 200) }),
+      });
+      const criados = await tx.lancamento.createManyAndReturn({
+        data: novos.map((l) => dadosDoUsuario(userId, {
+          data: l.data,
+          descricao: l.descricao,
+          categoria: l.categoria || null,
+          valor: l.valor,
+          tipo: l.tipo,
+          conta: l.conta,
+          status: "Paga",
+          fonte: l.fonte,
+          mesReferencia: l.mesReferencia,
+          importacaoId: importacao.id,
+        })),
+        select: { id: true, valor: true },
+      });
+      return { importacao, criados };
     });
+    importacaoId = importacao.id;
     // Pix que seguem um padrão de reembolso aprendido ("Maria → TIM") já entram divididos
     reembolsosVinculados = await aplicarPadroes(userId, criados.filter((c) => c.valor > 0).map((c) => c.id));
   }
@@ -120,7 +132,12 @@ export async function POST(req: NextRequest) {
   const saldoFinal = perfil.formato !== "pdf" ? extrairSaldoFinal(texto) : null;
   const contaDoExtrato = destino.nome;
   if (saldoFinal && contaDoExtrato) {
-    saldoConta = await atualizarSaldoConta(userId, contaDoExtrato, saldoFinal.saldo, saldoFinal.data);
+    const { desfazer, ...publico } = await atualizarSaldoConta(userId, contaDoExtrato, saldoFinal.saldo, saldoFinal.data);
+    saldoConta = publico;
+    if (importacaoId !== null && desfazer) {
+      const saldo: SaldoDaImportacao = { ...desfazer, gravado: { saldo: publico.saldo, data: publico.data.toISOString() } };
+      await prisma.importacao.updateMany({ where: escopoDoUsuario(userId, { id: importacaoId }), data: { saldo: saldo as unknown as Prisma.InputJsonValue } });
+    }
   }
 
   return NextResponse.json({
@@ -130,5 +147,6 @@ export async function POST(req: NextRequest) {
     duplicados: lancamentos.length - novos.length,
     reembolsosVinculados,
     saldoConta,
+    importacaoId,
   });
 }

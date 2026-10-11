@@ -22,6 +22,8 @@ const mapeamentoSchema = z.object({
   colValor: colunaSchema,
   colEntrada: colunaSchema,
   colSaida: colunaSchema,
+  colComplemento: colunaSchema,
+  juntarLinhasSemData: z.boolean().default(false),
   inverterSinal: z.boolean().default(false),
   usaMesReferencia: z.boolean().default(false),
 });

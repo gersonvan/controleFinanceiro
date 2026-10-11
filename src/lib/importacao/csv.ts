@@ -8,6 +8,14 @@ import {
   parseValor,
 } from "./tipos";
 
+/** Junta descrição e complemento sem repetir o que já está lá. */
+function juntar(a: string, b: string): string {
+  if (!a || !b) return a || b;
+  return a.toLowerCase().includes(b.toLowerCase()) ? a : `${a} - ${b}`;
+}
+
+const SO_NUMERO = /^[-+]?[\d.,\s]+$/;
+
 export function parseCSVGenerico(
   texto: string,
   perfil: PerfilConfig,
@@ -16,20 +24,33 @@ export function parseCSVGenerico(
 ): LancamentoImportado[] {
   const linhas = parseCSV(texto, perfil.delimitador);
   const dataRows = linhas.slice(perfil.linhasPular);
-  const lancamentos: LancamentoImportado[] = [];
+  const lancamentos: Omit<LancamentoImportado, "categoria">[] = [];
+  const celula = (row: string[], col: number | null | undefined) => (col != null ? row[col] ?? "" : "").trim();
+  const colunasDeValor = [perfil.colValor, perfil.colEntrada, perfil.colSaida];
+  const temValor = (row: string[]) => colunasDeValor.some((c) => { const v = parseValor(celula(row, c)); return !isNaN(v) && v !== 0; });
+  // lançamento que uma linha sem data pode completar (zera em linha vazia, de total ou de outra seção)
+  let ultimo: { descricao: string; parcela: string } | null = null;
+  let ultimoIdx = -1;
 
   for (const row of dataRows) {
     // Data
     if (perfil.colData == null) continue;
     const data = parseDataFlexivel(row[perfil.colData] ?? "", perfil.formatoData);
-    if (!data) continue;
+    if (!data) {
+      const texto = [celula(row, perfil.colDescricao), celula(row, perfil.colComplemento)].filter(Boolean).join(" ")
+        || row.map((c) => c.trim()).filter((c) => c && !SO_NUMERO.test(c)).join(" ");
+      if (perfil.juntarLinhasSemData && ultimo && texto && !temValor(row)) {
+        ultimo.descricao = juntar(ultimo.descricao, texto);
+        lancamentos[ultimoIdx].descricao = comParcela(ultimo.descricao, ultimo.parcela);
+      } else ultimo = null;
+      continue;
+    }
+    ultimo = null;
 
-    // Descrição
-    const descricaoBase = (perfil.colDescricao != null ? row[perfil.colDescricao] : "")?.trim() || "";
-    const parcela = (perfil.colParcela != null ? row[perfil.colParcela] : "")?.trim() || "";
-    const descricao = parcela && parcela.toLowerCase() !== "única"
-      ? `${descricaoBase} (${parcela})`
-      : descricaoBase;
+    // Descrição: a coluna principal e, se houver, o complemento
+    const descricaoBase = juntar(celula(row, perfil.colDescricao), celula(row, perfil.colComplemento));
+    const parcela = celula(row, perfil.colParcela);
+    const descricao = comParcela(descricaoBase, parcela);
     if (!descricao) continue;
 
     // Valor (modo única coluna ou colunas separadas de entrada/saída)
@@ -48,8 +69,6 @@ export function parseCSVGenerico(
     }
 
     const tipo: "Entrada" | "Saída" = valor >= 0 ? "Entrada" : "Saída";
-    const categoria = mapearCategoria(descricao, "", tipo, memoriaIA);
-
     const mesReferencia = perfil.usaMesReferencia && mesReferenciaManual
       ? mesReferenciaManual
       : new Date(data.getFullYear(), data.getMonth(), 1);
@@ -57,14 +76,20 @@ export function parseCSVGenerico(
     lancamentos.push({
       data,
       descricao,
-      categoria,
       valor,
       tipo,
       conta: perfil.conta,
       mesReferencia,
       fonte: `Importado ${perfil.nome}`,
     });
+    ultimo = { descricao: descricaoBase, parcela };
+    ultimoIdx = lancamentos.length - 1;
   }
 
-  return lancamentos;
+  // a categoria só depois da descrição completa (o complemento pode vir na linha de baixo)
+  return lancamentos.map((l) => ({ ...l, categoria: mapearCategoria(l.descricao, "", l.tipo, memoriaIA) }));
+}
+
+function comParcela(descricao: string, parcela: string): string {
+  return parcela && parcela.toLowerCase() !== "única" ? `${descricao} (${parcela})` : descricao;
 }

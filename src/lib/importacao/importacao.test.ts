@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseCSVGenerico } from "./csv";
-import { detectarBancoOFX, detectarFormato, detectarPerfilCSV, sugerirPapeis } from "./detectar";
+import {
+  colunasDosPapeis, detectarBancoOFX, detectarFormato, detectarPerfilCSV, papeisDoPerfil, sugerirJuntarLinhas, sugerirPapeis,
+} from "./detectar";
 import { importar, type PerfilCompleto } from "./engine";
 import { detectarBancoPDF } from "./pdf";
 import { parseOFX } from "./ofx";
@@ -45,6 +47,46 @@ describe("utilitários de importação", () => {
       ["01/01/2026", "Mercado Central", "-120,00"],
       ["02/01/2026", "Farmácia", "-45,00"],
     ], 1)).toEqual(["data", "descricao", "valor"]);
+  });
+
+  it("o nome da coluna manda: Crédito/Débito, sem Docto. e Saldo; Detalhes é complemento", () => {
+    const bradesco = [
+      ["Extrato de: Ag: 1 | Conta: 2", "", "", "", "", ""],
+      ["Data", "Histórico", "Docto.", "Crédito (R$)", "Débito (R$)", "Saldo (R$)"],
+      ["25/09/2026", "PIX ENVIADO", "821336", " ", "200,00", "1.845,25"],
+      ["26/09/2026", "DEP DINHEIRO ATM", "6906750", "1.900,00", " ", "3.745,25"],
+    ];
+    expect(sugerirPapeis(bradesco, 2)).toEqual(["data", "descricao", "", "entrada", "saida", ""]);
+
+    const bb = [
+      ["Data", "Lançamento", "Detalhes", "N° documento", "Valor", "Tipo Lançamento"],
+      ["20/07/2026", "Transferência recebida", "18/07 22:43 FULANO DE TAL", "602925400006945", "170,79", "Entrada"],
+      ["21/07/2026", "Pix - Enviado", "21/07 10:00 CICLANO", "1", "-50,00", "Saída"],
+    ];
+    expect(sugerirPapeis(bb, 1)).toEqual(["data", "descricao", "complemento", "", "valor", ""]);
+  });
+
+  it("papéis ↔ colunas do perfil, ida e volta", () => {
+    const papeis = ["data", "descricao", "complemento", "", "entrada", "saida"] as const;
+    const colunas = colunasDosPapeis([...papeis]);
+    expect(colunas).toEqual({ colData: 0, colDescricao: 1, colComplemento: 2, colParcela: null, colValor: null, colEntrada: 4, colSaida: 5, modoValor: "separadas" });
+    expect(papeisDoPerfil(colunas, 6)).toEqual([...papeis]);
+    // coluna de valor guardada num perfil de colunas separadas não aparece
+    expect(papeisDoPerfil({ ...colunas, colValor: 3 }, 6)).toEqual([...papeis]);
+  });
+
+  it("percebe a descrição em duas linhas (linha sem data, com texto e sem valor)", () => {
+    const linhas = [
+      ["Data", "Histórico", "Docto.", "Crédito (R$)", "Débito (R$)", "Saldo (R$)"],
+      ["25/09/2026", "PIX ENVIADO", "1", "", "200,00", "1.845,25"],
+      ["", "DES: FULANO 25/09", "", "", "", ""],
+      ["26/09/2026", "PIX ENVIADO", "2", "", "50,00", "1.795,25"],
+      ["", "DES: CICLANO 26/09", "", "", "", ""],
+      ["", "", "Total", "0,00", "250,00", "1.795,25"],
+    ];
+    const papeis = sugerirPapeis(linhas, 1);
+    expect(sugerirJuntarLinhas(linhas, 1, papeis)).toBe(true);
+    expect(sugerirJuntarLinhas(linhas.filter((l) => !l[1].startsWith("DES")), 1, papeis)).toBe(false);
   });
 
   it("reconhece o layout CSV de fatura do C6", () => {
@@ -100,6 +142,44 @@ describe("parser CSV genérico", () => {
       { descricao: "GRAN EDUCACAO (5/12)", valor: -54.9, tipo: "Saída", mesReferencia: new Date(2026, 7, 1) },
       { descricao: "Estorno Tarifa", valor: 98, tipo: "Entrada", mesReferencia: new Date(2026, 7, 1) },
     ]);
+  });
+
+  it("coluna de complemento entra na descrição (\"Lançamento\" + \"Detalhes\")", () => {
+    const itens = parseCSVGenerico(
+      [
+        '"Data","Lançamento","Detalhes","N° documento","Valor"',
+        '"20/07/2026","Transferência recebida","18/07 22:43 FULANO DE TAL","6029","170,79"',
+        '"21/07/2026","Pix - Enviado","Pix - Enviado","1","-50,00"', // complemento repetido não duplica
+        '"22/07/2026","Tarifa pacote","","2","-35,00"',
+      ].join("\n"),
+      { ...perfilCsv, delimitador: ",", colDescricao: 1, colComplemento: 2, colValor: 4 },
+      new Map(),
+      null
+    );
+    expect(itens.map((i) => i.descricao)).toEqual(["Transferência recebida - 18/07 22:43 FULANO DE TAL", "Pix - Enviado", "Tarifa pacote"]);
+  });
+
+  it("linha sem data logo abaixo completa a descrição (e só quando o perfil pede)", () => {
+    const texto = [
+      "Data;Histórico;Docto.;Crédito (R$);Débito (R$);Saldo (R$)",
+      "25/09/2026;PIX ENVIADO;821336; ;200,00;1.845,25",
+      ";DES: FULANO DE TAL 25/09;;;;",
+      "26/09/2026;COMPRA CARTAO;1; ;30,00;1.815,25",
+      ";DROGASIL 2460;;;;",
+      ";;;;;",
+      "Últimos Lancamentos;;;;;",
+      ";;Total;0,00;230,00;1.815,25;",
+    ].join("\n");
+    const bradesco = { ...perfilCsv, linhasPular: 1, colDescricao: 1, colValor: null, colEntrada: 3, colSaida: 4, modoValor: "separadas" as const };
+
+    const juntando = parseCSVGenerico(texto, { ...bradesco, juntarLinhasSemData: true }, new Map(), null);
+    expect(juntando.map(({ descricao, valor, categoria }) => ({ descricao, valor, categoria }))).toEqual([
+      { descricao: "PIX ENVIADO - DES: FULANO DE TAL 25/09", valor: -200, categoria: expect.any(String) },
+      // a categoria vem da descrição completa
+      { descricao: "COMPRA CARTAO - DROGASIL 2460", valor: -30, categoria: "Farmácia" },
+    ]);
+
+    expect(parseCSVGenerico(texto, bradesco, new Map(), null).map((i) => i.descricao)).toEqual(["PIX ENVIADO", "COMPRA CARTAO"]);
   });
 });
 
@@ -455,6 +535,27 @@ describe("categorização: chave do estabelecimento, histórico e regras", () =>
     expect(h.has(chaveHistorico("Saída", "LOJA Y"))).toBe(false);
     expect(h.has(chaveHistorico("Saída", "Pix enviado para FULANO"))).toBe(false);
     expect(h.has(chaveHistorico("Saída", "Pix recebido de FULANO"))).toBe(false); // entrada e saída separadas
+  });
+
+  it("descrição que só diz o tipo da transação não ensina o histórico", async () => {
+    const { montarHistorico, chaveHistorico, descricaoGenerica } = await import("../categorias");
+    for (const d of ["PIX ENVIADO", "PIX QR CODE DINAMICO", "PAGTO ELETRON  COBRANCA", "DEP DINHEIRO ATM", "TRANSF SALDO C/SAL P/CC", "TED 237 0001", "Pagamento de boleto"])
+      expect(descricaoGenerica(d), d).toBe(true);
+    for (const d of ["CREDITO DE SALARIO", "Pix enviado para FULANO", "PAGTO COBRANCA ESCOLA X", "DROGASIL 2460", "Tarifa bancária"])
+      expect(descricaoGenerica(d), d).toBe(false);
+
+    const linhas = [
+      { descricao: "PIX ENVIADO", tipo: "Saída", categoria: "Presentes", n: 4 },
+      { descricao: "PAGTO ELETRON COBRANCA", tipo: "Saída", categoria: "Empresa (PJ)", n: 2 },
+      { descricao: "CREDITO DE SALARIO", tipo: "Entrada", categoria: "Salário", n: 1 },
+    ];
+    const h = montarHistorico(linhas);
+    expect(h.has(chaveHistorico("Saída", "PIX ENVIADO"))).toBe(false);
+    expect(h.has(chaveHistorico("Saída", "PAGTO ELETRON COBRANCA"))).toBe(false);
+    expect(h.get(chaveHistorico("Entrada", "CREDITO DE SALARIO"))).toBe("Salário");
+    // juntada pelo usuário num "mesmo pagamento", vale
+    const apelidos = new Map([["pagto eletron cobranca", "Escola"]]);
+    expect(montarHistorico(linhas, apelidos).get(chaveHistorico("Saída", "PAGTO ELETRON COBRANCA", apelidos))).toBe("Empresa (PJ)");
   });
 
   it("ordem: Memória → delivery → histórico → regras", async () => {

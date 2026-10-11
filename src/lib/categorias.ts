@@ -233,6 +233,32 @@ export function chaveAgrupada(descricao: string, apelidos?: Map<string, string>)
 export const chaveHistorico = (tipo: string, descricao: string, apelidos?: Map<string, string>) =>
   `${tipo}|${chaveAgrupada(descricao, apelidos)}`;
 
+// Palavras que só dizem o tipo da transação ou o canal, sem quem recebeu ou o
+// que foi comprado ("PIX ENVIADO", "PIX QR CODE DINAMICO", "PAGTO ELETRON
+// COBRANCA", "DEP DINHEIRO ATM", "TRANSF SALDO C/SAL P/CC"). Números (documento,
+// agência) também não dizem nada.
+const SO_TIPO_DE_TRANSACAO = new Set([
+  "pix", "ted", "doc", "qr", "code", "qrcode", "estatico", "dinamico",
+  "enviado", "enviada", "envio", "recebido", "recebida", "recebimento",
+  "pagto", "pgto", "pag", "pagamento", "pagamentos", "eletron", "eletronico", "cobranca", "boleto", "boletos", "titulo",
+  "transf", "transferencia", "transferencias", "saldo", "deposito", "dep", "dinheiro", "atm", "saque",
+  "compra", "compras", "cartao", "debito", "credito", "agendado", "agendamento", "online", "internet",
+  "conta", "corrente", "cc", "sal", "banco", "de", "da", "do", "das", "dos", "em", "para", "p", "c",
+]);
+
+/**
+ * A descrição só diz o tipo da transação? Então a categoria que o usuário deu a
+ * uma delas não vale para as outras: "PIX ENVIADO" de um presente não faz de
+ * todo Pix enviado um presente. Fica fora do histórico.
+ */
+export function descricaoGenerica(descricao: string): boolean {
+  return chaveMemoria(descricao)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((p) => p && !/^\d+$/.test(p))
+    .every((p) => SO_TIPO_DE_TRANSACAO.has(p));
+}
+
 /**
  * Histórico → categoria por estabelecimento: vale quando a mesma chave recebeu
  * a mesma categoria em pelo menos 75% das vezes (entrada e saída separadas).
@@ -245,6 +271,8 @@ export function montarHistorico(
   for (const l of linhas) {
     if (!l.categoria) continue;
     const chave = chaveHistorico(l.tipo, l.descricao, apelidos);
+    // genérica não ensina nada — a não ser que o usuário a tenha juntado num "mesmo pagamento"
+    if (!chave.startsWith(`${l.tipo}|≈`) && descricaoGenerica(l.descricao)) continue;
     if (chave.length - l.tipo.length - 1 < 4) continue; // chave curta demais para dizer algo
     const cats = porChave.get(chave) ?? new Map<string, number>();
     cats.set(l.categoria, (cats.get(l.categoria) ?? 0) + (l.n ?? 1));

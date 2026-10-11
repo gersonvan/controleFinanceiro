@@ -24,6 +24,9 @@ model Lancamento {
   valorReembolsado Float  @default(0)
   reembolsosRecebidos Reembolso[] @relation("GastoReembolsado")
   reembolsosFeitos    Reembolso[] @relation("PixDeReembolso")
+  /// Importação de arquivo que criou o lançamento (para desfazer); null = manual ou anterior a 10/2026
+  importacaoId  Int?
+  importacao    Importacao? @relation(fields: [importacaoId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([data])
@@ -34,6 +37,7 @@ model Lancamento {
   @@index([userId, mesReferencia])
   @@index([userId, categoria])
   @@index([userId, pessoa])
+  @@index([importacaoId])
 }
 
 // Perfil do usuário — criado no primeiro login, controla onboarding e nome exibido.
@@ -105,6 +109,10 @@ model PerfilImportacao {
   colEntrada    Int?     // modoValor = "separadas"
   colSaida      Int?     // modoValor = "separadas"
   inverterSinal Boolean  @default(false)  // faturas de cartão: positivo = saída
+  // Descrição completa: coluna que complementa a descrição (ex.: "Detalhes") e
+  // linhas sem data logo abaixo do lançamento que trazem o resto dela
+  colComplemento      Int?
+  juntarLinhasSemData Boolean @default(false)
 
   // Mês de referência: faturas pedem ao usuário no upload; extratos usam a data
   usaMesReferencia Boolean @default(false)
@@ -210,4 +218,19 @@ model Desafio {
   updatedAt   DateTime  @updatedAt
 
   @@index([userId, status])
+}
+
+/// Uma importação de arquivo: agrupa os lançamentos que ela criou, para o
+/// usuário poder desfazer (src/lib/importacoes.ts).
+model Importacao {
+  id          Int          @id @default(autoincrement())
+  userId      String
+  perfil      String       // nome do perfil usado
+  conta       String
+  arquivo     String
+  saldo       Json?        // saldo da conta que ela gravou na Reserva: { reservaId, anterior: {saldo, data} | null, gravado: {saldo, data} }
+  createdAt   DateTime     @default(now())
+  lancamentos Lancamento[]
+
+  @@index([userId, createdAt])
 }

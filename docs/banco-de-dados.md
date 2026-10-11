@@ -76,6 +76,8 @@ erDiagram
 | `UserProfile` | `UserProfile` | `userId` (e-mail Google) | `prisma/schema.prisma:UserProfile` |
 | `MemoriaIA` | `MemoriaIA` | `id` (auto-incremento) | `prisma/schema.prisma:MemoriaIA` |
 | `PerfilImportacao` | `PerfilImportacao` | `id` (auto-incremento) | `prisma/schema.prisma:PerfilImportacao` |
+| `Importacao` | `Importacao` | `id` (auto-incremento) | `prisma/schema.prisma:Importacao` |
+| `Desafio` | `Desafio` | `id` (auto-incremento) | `prisma/schema.prisma:Desafio` |
 
 ### Campos notáveis
 
@@ -83,11 +85,16 @@ erDiagram
 - `mesReferencia`: data de competência do lançamento (nullable); quando presente, é usado no lugar de `data` para cálculos de período — `src/app/api/dashboard/route.ts:193`.
 - `categoria`: nullable; ausência indica que o lançamento ainda não foi categorizado.
 - `pessoa`: texto livre para rastrear terceiros em operações de empréstimo.
+- `importacaoId`: importação de arquivo que criou o lançamento (`null` em lançamento manual ou anterior a 10/2026); `ON DELETE SET NULL`.
+
+**`Importacao`**:
+- Uma por arquivo importado que criou lançamentos: perfil, conta, nome do arquivo e, em `saldo` (JSON), o que ela mudou no saldo da conta na Reserva. "Desfazer" (`DELETE /api/importacoes`) apaga os lançamentos dela, recalcula reembolsos ligados a lançamentos de fora e volta o saldo se ninguém o mudou depois — `src/lib/importacoes.ts`.
 
 **`PerfilImportacao`**:
 - `builtin`: chave string identificando perfis nativos pré-configurados (ex: `"nubank-corrente-ofx"`); `null` para perfis personalizados.
 - `ativo`: controla se o perfil aparece na lista de importação (soft delete funcional).
 - `usaMesReferencia`: quando `true`, os lançamentos importados recebem `mesReferencia` (padrão em faturas de cartão).
+- `colComplemento` / `juntarLinhasSemData`: descrição completa nos CSV — uma segunda coluna que completa a descrição ("Detalhes" do BB) e linhas sem data logo abaixo do lançamento com o resto dela (`src/lib/importacao/csv.ts`).
 
 **`MemoriaIA`**:
 - Restrição `@@unique([descricao, userId])`: garante uma única regra por descrição exata por usuário — `prisma/schema.prisma:MemoriaIA`.

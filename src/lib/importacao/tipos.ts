@@ -30,6 +30,11 @@ export interface PerfilConfig {
   colEntrada: number | null;
   colSaida: number | null;
   inverterSinal: boolean;
+  // Descrição completa: coluna que complementa a descrição ("Detalhes" do BB:
+  // "Transferência recebida" + "FULANO") e linhas sem data logo abaixo de um
+  // lançamento que trazem o resto da descrição.
+  colComplemento?: number | null;
+  juntarLinhasSemData?: boolean;
 
   usaMesReferencia: boolean;
 }

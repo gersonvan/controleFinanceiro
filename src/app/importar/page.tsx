@@ -1,13 +1,17 @@
 "use client";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
 import DestinoConta from "@/components/importacao/DestinoConta";
 import SeletorConta from "@/components/SeletorConta";
 import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
+import ImportacoesRecentes, { desfazer } from "@/components/importacao/ImportacoesRecentes";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
-import { detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
+import { colunasDosPapeis, detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirJuntarLinhas, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
+import MapeamentoColunas from "@/components/importacao/MapeamentoColunas";
+import PreviaLancamentos from "@/components/importacao/PreviaLancamentos";
+import type { PerfilConfig } from "@/lib/importacao/tipos";
 
 interface Perfil {
   id: number;
@@ -25,6 +29,7 @@ interface Resultado {
   duplicados: number;
   reembolsosVinculados?: number;
   saldoConta?: { conta: string; saldo: number; data: string; atualizado: boolean } | null;
+  importacaoId?: number | null;
   erro?: string;
 }
 
@@ -48,15 +53,6 @@ const DELIMITADORES = [
   { v: "\\t", label: "Tabulação" },
 ];
 const FORMATOS_DATA = ["DD/MM/AAAA", "AAAA-MM-DD", "DD-MM-AAAA", "MM/DD/AAAA"];
-const PAPEL_OPTS: { v: Papel; label: string }[] = [
-  { v: "",          label: "— ignorar —" },
-  { v: "data",      label: "📅 Data" },
-  { v: "descricao", label: "📝 Descrição" },
-  { v: "parcela",    label: "🔢 Parcela" },
-  { v: "valor",     label: "💰 Valor (única)" },
-  { v: "entrada",   label: "⬆ Entrada" },
-  { v: "saida",     label: "⬇ Saída" },
-];
 
 // Mesma decodificação do servidor. Ler tudo como Latin-1 estragava "Cartão"
 // nos CSV do C6 e a fatura deixava de ser reconhecida.
@@ -98,10 +94,13 @@ export default function ImportarPage() {
   const [usaMesRef, setUsaMesRef]     = useState(false);
   const [nomePerfil, setNomePerfil]   = useState("");
   const [contaPerfil, setContaPerfil] = useState("");
+  const [textoCSV, setTextoCSV]       = useState(""); // arquivo inteiro: prévia dos lançamentos
+  const [juntarLinhas, setJuntarLinhas] = useState(false);
 
   // resultado
   const [resultado, setResultado]     = useState<Resultado | null>(null);
   const [erroImport, setErroImport]   = useState("");
+  const [desfeita, setDesfeita]       = useState("");
 
   // lote (vários arquivos)
   const [lote, setLote]               = useState<ItemLote[]>([]);
@@ -131,10 +130,13 @@ export default function ImportarPage() {
     setContaPDF("");
     setPreview([]);
     setPapeis([]);
+    setTextoCSV("");
+    setJuntarLinhas(false);
     setNomePerfil("");
     setContaPerfil("");
     setResultado(null);
     setErroImport("");
+    setDesfeita("");
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -144,10 +146,8 @@ export default function ImportarPage() {
     form.append("delimitador", delim);
     const res = await fetch("/api/importar/preview", { method: "POST", body: form });
     const json = await res.json();
-    if (json.linhas) {
-      setPreview(json.linhas);
-      setPapeis(sugerirPapeis(json.linhas, pular));
-    }
+    setTextoCSV(await lerArquivo(file));
+    if (json.linhas) aplicarAmostra(json.linhas, pular);
   }, []);
 
   const processarArquivo = useCallback(async (file: File) => {
@@ -236,6 +236,7 @@ export default function ImportarPage() {
       }
     }
 
+    setTextoCSV(texto);
     const csvPerfis = perfisAtivos.filter((p) => p.formato === "csv");
     if (csvPerfis.length > 0) {
       // Carrega preview em paralelo enquanto aguarda escolha
@@ -245,10 +246,7 @@ export default function ImportarPage() {
       fetch("/api/importar/preview", { method: "POST", body: form })
         .then((r) => r.json())
         .then((j) => {
-          if (j.linhas) {
-            setPreview(j.linhas);
-            setPapeis(sugerirPapeis(j.linhas, linhasPular));
-          }
+          if (j.linhas) aplicarAmostra(j.linhas, linhasPular);
         });
       setFase("selecionar_csv");
     } else {
@@ -257,20 +255,19 @@ export default function ImportarPage() {
     }
   }, [carregarPreviewCSV, perfisAtivos, delimitador, linhasPular]);
 
-  const setPapel = (col: number, papel: Papel) => {
-    setPapeis((prev) => {
-      const novo = [...prev];
-      if (papel && ["data", "descricao", "parcela", "valor"].includes(papel)) {
-        novo.forEach((p, i) => { if (p === papel) novo[i] = ""; });
-      }
-      novo[col] = papel;
-      return novo;
-    });
-  };
+  // amostra nova: sugere os papéis e se a descrição vem em duas linhas
+  function aplicarAmostra(linhas: string[][], pular: number) {
+    const sugeridos = sugerirPapeis(linhas, pular);
+    setPreview(linhas);
+    setPapeis(sugeridos);
+    setJuntarLinhas(sugerirJuntarLinhas(linhas, pular, sugeridos));
+  }
 
-  const idxDe = (p: Papel) => { const i = papeis.indexOf(p); return i < 0 ? null : i; };
-  const modoValor: "unica" | "separadas" =
-    papeis.includes("entrada") || papeis.includes("saida") ? "separadas" : "unica";
+  const colunas = colunasDosPapeis(papeis);
+  const perfilEmEdicao: PerfilConfig = useMemo(() => ({
+    nome: "novo", conta: "", formato: "csv", delimitador, linhasPular, formatoData,
+    ...colunasDosPapeis(papeis), inverterSinal, usaMesReferencia: false, juntarLinhasSemData: juntarLinhas,
+  }), [delimitador, linhasPular, formatoData, papeis, inverterSinal, juntarLinhas]);
 
   const importar = async (perfilId: number, mRef?: string) => {
     if (!arquivo) return;
@@ -327,14 +324,11 @@ export default function ImportarPage() {
 
   const importarCSVNovo = async () => {
     if (!nomePerfil || !contaPerfil) return;
-    if (idxDe("data") == null || idxDe("descricao") == null) return;
+    if (colunas.colData == null || colunas.colDescricao == null) return;
     setFase("importando");
     const body = {
       nome: nomePerfil, conta: contaPerfil, formato: "csv",
-      delimitador, linhasPular, formatoData, modoValor,
-      colData: idxDe("data"), colDescricao: idxDe("descricao"), colValor: idxDe("valor"),
-      colParcela: idxDe("parcela"),
-      colEntrada: idxDe("entrada"), colSaida: idxDe("saida"),
+      delimitador, linhasPular, formatoData, ...colunas, juntarLinhasSemData: juntarLinhas,
       inverterSinal, usaMesReferencia: usaMesRef,
     };
     const res = await fetch("/api/perfis", {
@@ -452,6 +446,7 @@ export default function ImportarPage() {
         <>
           <DropZone onFiles={receberArquivos} inputRef={inputRef} />
           <ComoBaixarExtrato />
+          <ImportacoesRecentes />
         </>
       )}
 
@@ -815,7 +810,7 @@ export default function ImportarPage() {
                 onChange={(e) => {
                   const n = parseInt(e.target.value) || 0;
                   setLinhasPular(n);
-                  if (preview.length > 0) setPapeis(sugerirPapeis(preview, n));
+                  if (preview.length > 0) aplicarAmostra(preview, n);
                 }}
                 className="w-full"
               />
@@ -857,37 +852,12 @@ export default function ImportarPage() {
               <div className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
                 💡 Sugestão automática aplicada — ajuste se necessário.
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr>
-                      {papeis.map((p, col) => (
-                        <th key={col} style={{ padding: 6, borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
-                          <select value={p} onChange={(e) => setPapel(col, e.target.value as Papel)}
-                            style={{ fontSize: 11, padding: "2px 4px" }}>
-                            {PAPEL_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                          </select>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.map((linha, li) => (
-                      <tr key={li} style={{ opacity: li < linhasPular ? 0.35 : 1, background: li < linhasPular ? "#fef2f2" : undefined }}>
-                        {papeis.map((_, col) => (
-                          <td key={col} style={{ padding: "4px 6px", borderBottom: "0.5px solid #f1f5f9", whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}
-                            title={linha[col]}>
-                            {linha[col] ?? ""}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="text-xs text-slate-400 p-2 bg-slate-50">
-                  Linhas em vermelho serão ignoradas (cabeçalho).
-                </div>
-              </div>
+              <MapeamentoColunas linhas={preview} linhasPular={linhasPular} papeis={papeis} onPapeis={setPapeis} />
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={juntarLinhas} onChange={(e) => setJuntarLinhas(e.target.checked)} />
+                Linhas sem data completam a descrição da linha de cima
+              </label>
+              {textoCSV && <PreviaLancamentos texto={textoCSV} perfil={perfilEmEdicao} />}
             </>
           )}
 
@@ -905,7 +875,7 @@ export default function ImportarPage() {
 
           <button
             className="btn btn-primary w-full justify-center"
-            disabled={!nomePerfil || !contaPerfil || idxDe("data") == null || idxDe("descricao") == null || (usaMesRef && !mesRef)}
+            disabled={!nomePerfil || !contaPerfil || colunas.colData == null || colunas.colDescricao == null || (usaMesRef && !mesRef)}
             onClick={importarCSVNovo}
           >
             💾 Salvar perfil e importar
@@ -952,6 +922,16 @@ export default function ImportarPage() {
                 <div className="text-slate-500">{resultado.duplicados} duplicadas ignoradas</div>
               )}
               <div className="text-slate-500">{resultado.processados} processadas no total</div>
+              {resultado.importacaoId && !desfeita && (
+                <button className="mt-2 text-xs text-slate-500 underline hover:text-red-600"
+                  onClick={async () => {
+                    const msg = await desfazer({ id: resultado.importacaoId!, arquivo: arquivo?.name ?? "arquivo", lancamentos: resultado.novos });
+                    if (msg) setDesfeita(msg);
+                  }}>
+                  Importou errado? Desfazer esta importação
+                </button>
+              )}
+              {desfeita && <div className="mt-2 text-slate-700" role="status">{desfeita}</div>}
             </div>
           )}
           {loteAtual !== null ? (
