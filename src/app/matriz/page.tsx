@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { MatrizData, MatrizGrupo, MatrizLinha } from "@/app/api/matriz/route";
 
 const fmt = (v: number) =>
@@ -14,21 +15,36 @@ function ultimos12() {
   return { i: toISO(ini), f: toISO(fim) };
 }
 
-function heatBg(valor: number, max: number): string {
-  if (!valor || !max) return "";
-  const r = valor / max;
-  if (r < 0.25) return "#EAF3DE";
-  if (r < 0.5)  return "#C0DD97";
-  if (r < 0.75) return "#97C459";
-  return "#639922";
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+// "12/2025" → "dez/25"; qualquer outro formato passa como veio
+function rotuloMes(m: string): string {
+  const [mm, aaaa] = m.split("/");
+  const n = Number(mm);
+  return n >= 1 && n <= 12 && aaaa?.length === 4 ? `${MESES[n - 1]}/${aaaa.slice(2)}` : m;
 }
-function heatColor(valor: number, max: number): string {
-  if (!valor || !max) return "var(--color-text-primary)";
-  const r = valor / max;
-  if (r < 0.25) return "#3B6D11";
-  if (r < 0.5)  return "#27500A";
-  return "#173404";
+
+// ── Destaque: só o que foge do normal da própria linha ─────────────────────
+// Fundo neutro por padrão. Um mês ganha cor quando passa da média da linha
+// (a mesma média da coluna Média: meses com valor) por LIMIAR_1 ou LIMIAR_2.
+// Linhas com poucos meses não têm "normal" para comparar e ficam sem cor.
+const LIMIAR_1 = 1.25;
+const LIMIAR_2 = 1.5;
+const MIN_MESES_COM_VALOR = 3;
+
+type Tom = "gasto" | "entrada";
+const CLASSES_TOM: Record<Tom, [string, string]> = {
+  gasto:   ["bg-amber-100 text-amber-900",     "bg-amber-200 text-amber-900"],
+  entrada: ["bg-emerald-100 text-emerald-900", "bg-emerald-200 text-emerald-900"],
+};
+
+function classeDestaque(v: number | undefined, media: number, mesesComValor: number, tom: Tom | null): string {
+  if (!tom || !v || !media || mesesComValor < MIN_MESES_COM_VALOR) return "";
+  if (v >= media * LIMIAR_2) return CLASSES_TOM[tom][1];
+  if (v >= media * LIMIAR_1) return CLASSES_TOM[tom][0];
+  return "";
 }
+
+const pct = (l: number) => `+${Math.round((l - 1) * 100)}%`;
 
 export default function MatrizPage() {
   const { i, f } = ultimos12();
@@ -67,19 +83,20 @@ export default function MatrizPage() {
     return next;
   });
   const todosAbertos = !!data && data.grupos.length > 0 && data.grupos.every((g) => gruposAbertos.has(g.grupo));
+  const tons: Tom[] = tipo === "Saída" ? ["gasto"] : tipo === "Entrada" ? ["entrada"] : ["gasto", "entrada"];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Matriz de Categorias</h1>
         <div className="flex gap-2 items-center flex-wrap">
-          <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo">
             <option value="Saída">Saídas</option>
             <option value="Entrada">Entradas</option>
             <option value="">Todas</option>
           </select>
-          <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-          <input type="date" value={dataFim}    onChange={(e) => setDataFim(e.target.value)} />
+          <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} aria-label="Início" />
+          <input type="date" value={dataFim}    onChange={(e) => setDataFim(e.target.value)} aria-label="Fim" />
           {data && data.grupos.length > 0 && (
             <button className="btn btn-secondary text-sm"
               onClick={() => setGruposAbertos(todosAbertos ? new Set() : new Set(data.grupos.map((g) => g.grupo)))}>
@@ -89,34 +106,37 @@ export default function MatrizPage() {
         </div>
       </div>
 
-      {/* Legenda */}
-      <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-xs text-slate-500">
-        <span>Intensidade relativa ao maior valor da linha:</span>
-        {[["#EAF3DE","#3B6D11","baixo"],["#C0DD97","#27500A","médio"],["#97C459","#173404","alto"],["#639922","#173404","máximo"]].map(([bg, color, label]) => (
-          <span key={label} className="flex items-center gap-1">
-            <span style={{ background: bg, color, fontSize: 11, padding: "1px 7px", borderRadius: 4, fontWeight: 500 }}>{label}</span>
+      {/* Legenda: uma linha */}
+      <p className="flex items-center gap-x-2 gap-y-1 flex-wrap text-xs text-slate-500">
+        <span>Em destaque, os meses acima da média da própria linha:</span>
+        {tons.map((t) => (
+          <span key={t} className="inline-flex items-center gap-1">
+            {tons.length > 1 && <span>{t === "gasto" ? "gastos" : "entradas"}</span>}
+            <span className={`rounded px-1.5 py-px font-medium ${CLASSES_TOM[t][0]}`}>{pct(LIMIAR_1)}</span>
+            <span className={`rounded px-1.5 py-px font-medium ${CLASSES_TOM[t][1]}`}>{pct(LIMIAR_2)}</span>
           </span>
         ))}
-        <span className="flex items-center gap-1 text-slate-300">
-          <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 4, border: "1px dashed #cbd5e1", color: "#94a3b8" }}>ausente</span>
-        </span>
-      </div>
+        <span className="text-slate-400">· linhas com {MIN_MESES_COM_VALOR} meses ou mais com valor</span>
+      </p>
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>
       ) : !data || (data.linhas.length === 0 && data.internas.length === 0) ? (
-        <div className="card text-center text-slate-400 py-12">Nenhum dado encontrado para o período.</div>
+        <div className="card text-center text-slate-500 py-12">Nenhum dado encontrado para o período.</div>
       ) : (
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
+            {/* display/overflow inline: no celular o globals.css transforma <table> em bloco com rolagem
+                própria, e a coluna fixa passaria a grudar na tabela em vez de na div que rola */}
+            <table style={{ display: "table", overflow: "visible", borderCollapse: "separate", borderSpacing: 0, width: "max-content", minWidth: "100%" }}>
               <thead>
-                <tr style={{ borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
-                  <th style={thCatStyle}>Categoria</th>
+                <tr>
+                  <th className={`${COL_CAT} bg-slate-50 z-[3]`} style={{ ...thBase, textAlign: "left" }}>Categoria</th>
+                  <th className={`${COL_MEDIA} bg-slate-50 md:z-[3]`} style={thBase}>Média</th>
+                  <th className={`${COL_TOTAL} bg-slate-50 md:z-[3]`} style={thBase}>Total</th>
                   {data.meses.map((m) => (
-                    <th key={m} style={thMesStyle}>{m}</th>
+                    <th key={m} title={m} style={thBase}>{rotuloMes(m)}</th>
                   ))}
-                  <th style={{ ...thMesStyle, borderLeft: "2px solid var(--color-border-secondary)" }}>Média</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,12 +153,12 @@ export default function MatrizPage() {
                 ))}
                 {data.internas.length > 0 && (
                   <tr>
-                    <td colSpan={data.meses.length + 2} style={{ padding: 0, borderTop: "2px solid var(--color-border-secondary)" }}>
+                    <td colSpan={data.meses.length + 3} style={{ padding: 0, borderTop: "1px solid #e2e8f0" }}>
                       {/* sticky: continua visível com a tabela rolada para o lado */}
-                      <button onClick={() => setMostrarInternas((v) => !v)}
-                        className="sticky left-0 text-left px-4 py-2 text-xs text-slate-500 hover:text-slate-700"
+                      <button onClick={() => setMostrarInternas((v) => !v)} aria-expanded={mostrarInternas}
+                        className="sticky left-0 flex items-center gap-1.5 text-left px-4 py-2.5 text-xs text-slate-500 hover:text-slate-700"
                         title="Pagamento de fatura, transferências entre suas contas, aplicações, compra e venda de bens: ficam fora das contas, como no dashboard">
-                        <span className={`inline-block mr-1.5 transition-transform ${mostrarInternas ? "rotate-90" : ""}`}>▶</span>
+                        <Seta aberta={mostrarInternas} />
                         Movimentações internas e aplicações — não são renda nem gasto ({data.internas.length})
                       </button>
                     </td>
@@ -151,6 +171,7 @@ export default function MatrizPage() {
                     meses={data.meses}
                     aberta={aberta === `interna|${linha.categoria}`}
                     onToggle={() => toggle(`interna|${linha.categoria}`)}
+                    tom={null}
                   />
                 ))}
               </tbody>
@@ -162,9 +183,21 @@ export default function MatrizPage() {
   );
 }
 
+function Seta({ aberta }: { aberta: boolean }) {
+  return (
+    <ChevronRight size={14} aria-hidden
+      className={`shrink-0 text-slate-400 transition-transform ${aberta ? "rotate-90" : ""}`} />
+  );
+}
+
+const soma = (totais: Record<string, number>, meses: string[]) =>
+  meses.reduce((a, m) => a + (totais[m] || 0), 0);
+const mesesComValor = (totais: Record<string, number>, meses: string[]) =>
+  meses.filter((m) => (totais[m] || 0) > 0).length;
+
 // ── Linha com totais por mês (grupo ou categoria), clicável para abrir ──────
 
-function LinhaTotais({ rotulo, totais, media, meses, aberta, onToggle, nivel, grupo = false }: {
+function LinhaTotais({ rotulo, totais, media, meses, aberta, onToggle, nivel, tom, grupo = false }: {
   rotulo: string;
   totais: Record<string, number>;
   media: number;
@@ -172,49 +205,38 @@ function LinhaTotais({ rotulo, totais, media, meses, aberta, onToggle, nivel, gr
   aberta: boolean;
   onToggle: () => void;
   nivel: 0 | 1;
+  tom: Tom | null;
   grupo?: boolean;
 }) {
-  const max = Math.max(...meses.map((m) => totais[m] || 0));
+  const n = mesesComValor(totais, meses);
+  const total = soma(totais, meses);
+  // a célula fixa precisa de fundo próprio: por baixo dela passam os valores ao rolar
+  const fundoFixo = aberta ? "bg-slate-50" : "bg-white group-hover:bg-slate-50";
+  const peso = grupo ? 600 : 400;
   return (
-    <tr
-      onClick={onToggle}
-      style={{
-        cursor: "pointer",
-        borderBottom: "0.5px solid var(--color-border-tertiary)",
-        background: aberta ? "var(--color-background-secondary)" : undefined,
-      }}
-      className="hover:bg-slate-50/80 transition-colors"
-      aria-expanded={aberta}
-    >
-      <td style={{
-        ...tdCatStyle, paddingLeft: 14 + nivel * 20, fontWeight: grupo ? 600 : nivel ? 400 : 500,
-        // a célula fixa precisa do mesmo fundo da linha: por baixo dela passam os valores ao rolar
-        background: aberta ? "var(--color-background-secondary)" : "var(--color-background-primary)",
-      }}>
-        <span style={{
-          display: "inline-block", fontSize: 10, marginRight: 6,
-          transform: aberta ? "rotate(90deg)" : "none",
-          transition: "transform 0.15s", color: "var(--color-text-secondary)",
-        }}>▶</span>
-        {rotulo}
+    <tr onClick={onToggle} className={`group cursor-pointer ${aberta ? "bg-slate-50" : ""}`} aria-expanded={aberta}>
+      <td className={`${COL_CAT} ${fundoFixo} text-slate-800`}
+        style={{ ...tdBase, textAlign: "left", fontWeight: peso, paddingLeft: 12 + nivel * 22 }}>
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Seta aberta={aberta} />
+          <span className="truncate" title={rotulo}>{rotulo}</span>
+        </span>
+      </td>
+      <td className={`${COL_MEDIA} ${fundoFixo} text-slate-800`} style={{ ...tdBase, fontWeight: peso }}>
+        {media ? fmt(media) : ""}
+      </td>
+      <td className={`${COL_TOTAL} ${fundoFixo} text-slate-500`} style={{ ...tdBase, fontWeight: peso }}>
+        {total ? fmt(total) : ""}
       </td>
       {meses.map((m) => {
         const v = totais[m];
         return (
-          <td key={m} style={{
-            ...tdValStyle,
-            fontWeight: grupo ? 600 : undefined,
-            background: v ? heatBg(v, max) : undefined,
-            color: v ? heatColor(v, max) : "var(--color-text-tertiary)",
-            fontStyle: v ? "normal" : "italic",
-          }}>
-            {v ? fmt(v) : "—"}
+          <td key={m} className={`${classeDestaque(v, media, n, tom) || "text-slate-700"}`}
+            style={{ ...tdBase, fontWeight: grupo ? 500 : 400 }}>
+            {v ? fmt(v) : ""}
           </td>
         );
       })}
-      <td style={{ ...tdMediaStyle, fontWeight: grupo ? 600 : 500 }}>
-        {fmt(media)}
-      </td>
     </tr>
   );
 }
@@ -227,10 +249,11 @@ function LinhaGrupo({ grupo, meses, aberto, onToggle, categoriaAberta, onToggleC
   categoriaAberta: string | null;
   onToggleCategoria: (categoria: string) => void;
 }) {
+  const tom: Tom = grupo.grupo === "Entradas" ? "entrada" : "gasto";
   return (
     <>
       <LinhaTotais rotulo={grupo.grupo} totais={grupo.totais} media={grupo.media} meses={meses}
-        aberta={aberto} onToggle={onToggle} nivel={0} grupo />
+        aberta={aberto} onToggle={onToggle} nivel={0} tom={tom} grupo />
       {aberto && grupo.categorias.map((linha) => (
         <LinhaCategoria
           key={linha.categoria}
@@ -239,73 +262,53 @@ function LinhaGrupo({ grupo, meses, aberto, onToggle, categoriaAberta, onToggleC
           aberta={categoriaAberta === linha.categoria}
           onToggle={() => onToggleCategoria(linha.categoria)}
           nivel={1}
+          tom={tom}
         />
       ))}
     </>
   );
 }
 
-// ── Linha de categoria + sub-linhas expansíveis ────────────────────────────
+// ── Linha de categoria + sub-linhas (uma por descrição) ────────────────────
 
-function LinhaCategoria({ linha, meses, aberta, onToggle, nivel = 0 }: {
+function LinhaCategoria({ linha, meses, aberta, onToggle, tom, nivel = 0 }: {
   linha: MatrizLinha;
   meses: string[];
   aberta: boolean;
   onToggle: () => void;
+  tom: Tom | null;
   nivel?: 0 | 1;
 }) {
   return (
     <>
       <LinhaTotais rotulo={linha.categoria} totais={linha.totais} media={linha.media} meses={meses}
-        aberta={aberta} onToggle={onToggle} nivel={nivel} />
+        aberta={aberta} onToggle={onToggle} nivel={nivel} tom={tom} />
 
-      {/* Sub-linhas: uma por descrição única */}
-      {aberta && linha.descricoes.map((d, idx) => {
-        const descMax = Math.max(...meses.map((m) => d.porMes[m] || 0));
-        const isLast  = idx === linha.descricoes.length - 1;
+      {aberta && linha.descricoes.map((d) => {
+        const n = mesesComValor(d.porMes, meses);
+        const total = soma(d.porMes, meses);
+        const media = n ? total / n : 0; // a mesma regra da API: média dos meses com valor
         return (
-          <tr key={d.descricao} style={{
-            borderBottom: isLast
-              ? "2px solid var(--color-border-secondary)"
-              : "0.5px solid var(--color-border-tertiary)",
-            background: "var(--color-background-secondary)",
-          }}>
-            <td style={{
-              ...tdCatStyle,
-              background: "var(--color-background-secondary)",
-              paddingLeft: 32 + nivel * 20,
-              fontSize: 12,
-              fontWeight: 400,
-              color: "var(--color-text-secondary)",
-              maxWidth: 240,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }} title={d.descricao}>
-              {d.descricao}
+          <tr key={d.descricao} className="bg-slate-50">
+            <td className={`${COL_CAT} bg-slate-50 text-slate-500`}
+              style={{ ...tdBase, ...tdDesc, textAlign: "left", paddingLeft: 34 + nivel * 22 }}>
+              <span className="block truncate" title={d.descricao}>{d.descricao}</span>
+            </td>
+            <td className={`${COL_MEDIA} bg-slate-50 text-slate-600`} style={{ ...tdBase, ...tdDesc }}>
+              {media ? fmt(media) : ""}
+            </td>
+            <td className={`${COL_TOTAL} bg-slate-50 text-slate-500`} style={{ ...tdBase, ...tdDesc }}>
+              {total ? fmt(total) : ""}
             </td>
             {meses.map((m) => {
               const v = d.porMes[m];
               return (
-                <td key={m} style={{
-                  ...tdValStyle,
-                  fontSize: 12,
-                  background: v ? heatBg(v, descMax) + "99" : undefined,
-                  color: v ? heatColor(v, descMax) : "var(--color-text-tertiary)",
-                  fontStyle: v ? "normal" : "italic",
-                  opacity: v ? 1 : 0.5,
-                }}>
-                  {v ? fmt(v) : "—"}
+                <td key={m} className={classeDestaque(v, media, n, tom) || "text-slate-600"}
+                  style={{ ...tdBase, ...tdDesc }}>
+                  {v ? fmt(v) : ""}
                 </td>
               );
             })}
-            <td style={{ ...tdMediaStyle, fontSize: 12, color: "var(--color-text-secondary)" }}>
-              {(() => {
-                const vals = Object.values(d.porMes).filter((v) => v > 0);
-                const med  = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                return med ? fmt(med) : "—";
-              })()}
-            </td>
           </tr>
         );
       })}
@@ -313,54 +316,34 @@ function LinhaCategoria({ linha, meses, aberta, onToggle, nivel = 0 }: {
   );
 }
 
-// ── Estilos inline reutilizáveis ───────────────────────────────────────────
+// ── Colunas fixas e estilos ────────────────────────────────────────────────
+// Categoria fica sempre presa à esquerda; Média e Total também, a partir do
+// desktop (no celular, três colunas fixas tomariam a tela inteira).
+const SOMBRA_FIXA = "shadow-[4px_0_6px_-4px_rgba(15,23,42,0.18)]";
+const COL_CAT   = `sticky left-0 z-[1] w-[160px] min-w-[160px] max-w-[160px] md:w-[240px] md:min-w-[240px] md:max-w-[240px] ${SOMBRA_FIXA} md:shadow-none`;
+const COL_MEDIA = "md:sticky md:left-[240px] md:z-[1] min-w-[120px]";
+// classes escritas por extenso: o Tailwind só gera o que encontra literal no código
+const COL_TOTAL = "md:sticky md:left-[360px] md:z-[1] min-w-[130px] md:shadow-[4px_0_6px_-4px_rgba(15,23,42,0.18)] border-r border-slate-200";
 
-const thCatStyle: React.CSSProperties = {
-  position: "sticky", left: 0, zIndex: 2,
-  background: "var(--color-background-secondary)",
-  boxShadow: "4px 0 6px -4px rgba(15, 23, 42, 0.18)",
-  minWidth: 200, textAlign: "left",
-  fontSize: 11, fontWeight: 500,
-  color: "var(--color-text-secondary)",
-  textTransform: "uppercase", letterSpacing: "0.04em",
+// Estilos inline: as regras globais de table/th/td (globals.css) ficam fora das
+// camadas do Tailwind e venceriam as classes de padding e tamanho.
+const thBase: React.CSSProperties = {
+  textAlign: "right",
+  fontSize: 11, fontWeight: 600,
+  letterSpacing: "0.05em", textTransform: "uppercase",
+  color: "#64748b",
+  padding: "10px 14px",
+  borderBottom: "1px solid #e2e8f0",
+  whiteSpace: "nowrap",
+};
+
+const tdBase: React.CSSProperties = {
+  textAlign: "right",
+  fontSize: 13,
   padding: "9px 14px",
-  borderRight: "0.5px solid var(--color-border-tertiary)",
-};
-
-const thMesStyle: React.CSSProperties = {
-  minWidth: 100, textAlign: "right",
-  fontSize: 11, fontWeight: 500,
-  color: "var(--color-text-secondary)",
-  padding: "9px 10px",
-  borderLeft: "0.5px solid var(--color-border-tertiary)",
+  borderBottom: "1px solid #f1f5f9",
   whiteSpace: "nowrap",
+  fontVariantNumeric: "tabular-nums",
 };
 
-const sombraColunaFixa = "4px 0 6px -4px rgba(15, 23, 42, 0.18)"; // separa a coluna fixa dos valores que rolam
-
-const tdCatStyle: React.CSSProperties = {
-  position: "sticky", left: 0, zIndex: 1,
-  background: "var(--color-background-primary)",
-  boxShadow: sombraColunaFixa,
-  fontWeight: 500, fontSize: 13,
-  color: "var(--color-text-primary)",
-  padding: "9px 14px",
-  borderRight: "0.5px solid var(--color-border-tertiary)",
-  whiteSpace: "nowrap",
-};
-
-const tdValStyle: React.CSSProperties = {
-  textAlign: "right", fontSize: 12,
-  padding: "8px 10px",
-  borderLeft: "0.5px solid var(--color-border-tertiary)",
-  whiteSpace: "nowrap",
-  transition: "background 0.2s",
-};
-
-const tdMediaStyle: React.CSSProperties = {
-  textAlign: "right", fontSize: 13, fontWeight: 500,
-  padding: "9px 12px",
-  borderLeft: "2px solid var(--color-border-secondary)",
-  whiteSpace: "nowrap",
-  color: "var(--color-text-primary)",
-};
+const tdDesc: React.CSSProperties = { fontSize: 12, paddingTop: 7, paddingBottom: 7 };

@@ -5,7 +5,7 @@ import { entrar } from "./ajuda";
 test("começa pelos grupos e abre categorias e lançamentos", async ({ page }) => {
   await entrar(page, "Ana");
   await page.goto("/matriz");
-  // 1ª célula: "▶" + nome (grupo/categoria) ou só o nome (lançamento)
+  // 1ª célula: nome do grupo/categoria (a seta é ícone, sem texto) ou do lançamento; "▶" opcional por compatibilidade
   const linha = (texto: string) =>
     page.locator("tbody tr").filter({ has: page.locator("td:first-child", { hasText: new RegExp(`^(▶\\s*)?${texto}$`) }) });
 
