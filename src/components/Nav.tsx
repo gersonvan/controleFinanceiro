@@ -5,9 +5,11 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
+import { SeletorEspaco } from "@/components/Espaco";
+import type { OpcaoEspaco } from "@/lib/espaco";
 import {
   Brain, Camera, ChevronRight, FileDown, FileUp, Grid3x3, Handshake, Landmark, LayoutDashboard,
-  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Target, TrendingUp, Wallet, Wrench, X,
+  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Share2, Target, TrendingUp, Wallet, Wrench, X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +37,7 @@ const menu: EntradaMenu[] = [
     { href: "/configuracoes/importacao", label: "Importação", icon: FileDown },
     { href: "/configuracoes/memoria", label: "Memória Local", icon: Brain },
     { href: "/configuracoes/mesmo-pagamento", label: "Mesmo pagamento", icon: Link2 },
+    { href: "/configuracoes/compartilhar", label: "Compartilhar", icon: Share2 },
   ] },
 ];
 
@@ -45,7 +48,7 @@ const ativoEm = (href: string, pathname: string) =>
 // Desktop (md+): barra lateral fixa. Celular: barra superior com menu que
 // abre/fecha; o menu fecha ao navegar. Grupos abrem e fecham; o grupo da
 // página atual já vem aberto.
-export default function Nav({ user }: { user?: Session["user"] }) {
+export default function Nav({ user, espacos = [], atual = "" }: { user?: Session["user"]; espacos?: OpcaoEspaco[]; atual?: string }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
@@ -130,7 +133,8 @@ export default function Nav({ user }: { user?: Session["user"] }) {
           <div className="flex items-center gap-2 text-lg font-bold text-slate-800"><Wallet size={20} aria-hidden className="text-blue-600" />Prumo</div>
           <div className="text-xs text-slate-500 mt-0.5">Controle Financeiro</div>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">{itens}</nav>
+        <div className="pt-3"><SeletorEspaco opcoes={espacos} atual={atual} /></div>
+        <nav className="flex-1 p-3 pt-0 space-y-0.5 overflow-y-auto">{itens}</nav>
         {usuario}
       </aside>
 
@@ -149,7 +153,8 @@ export default function Nav({ user }: { user?: Session["user"] }) {
         </div>
         {aberto && (
           <div className="border-t border-slate-200 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
-            <nav className="p-3 space-y-0.5">{itens}</nav>
+            <div className="pt-3"><SeletorEspaco opcoes={espacos} atual={atual} /></div>
+            <nav className="p-3 pt-0 space-y-0.5">{itens}</nav>
             {usuario}
           </div>
         )}

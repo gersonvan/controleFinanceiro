@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUserId } from "@/lib/session";
+import { getUsuarioLogado } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { lerCorpo, validar } from "@/lib/validacao";
 
 const onboardingSchema = z.object({ nome: z.string().trim().max(100).default("") });
 
+// O onboarding é da pessoa logada, não das finanças abertas.
 export async function PATCH(req: NextRequest) {
-  const userId = await getSessionUserId();
+  const userId = await getUsuarioLogado();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const v = validar(onboardingSchema, await lerCorpo(req));

@@ -1,4 +1,5 @@
 "use client";
+import { useEspaco } from "@/components/Espaco";
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CATEGORIAS_EMPRESTIMO } from "@/lib/categorias";
@@ -72,6 +73,7 @@ export default function LancamentosPage() {
 
 function LancamentosContent() {
   const searchParams = useSearchParams();
+  const somenteVer = useEspaco().papel === "ver"; // finanças de outra pessoa, só visualização
   const initMes = mesAtual();
 
   const [lancamentos, setLancamentos]         = useState<Lancamento[]>([]);
@@ -447,7 +449,7 @@ function LancamentosContent() {
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        {!somenteVer && <div className="flex gap-2">
           <button className="btn btn-primary" onClick={() => setNovoAberto(true)}>+ Novo</button>
           <Link href="/lancamentos/revisar" className="btn btn-secondary" title="Categorizar em grupo os sem categoria e os Pix genéricos">🔎 Revisar</Link>
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
@@ -458,7 +460,7 @@ function LancamentosContent() {
               {categorizando ? <span className="spinner" /> : "✨"} Inteligente
             </button>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Filtros */}

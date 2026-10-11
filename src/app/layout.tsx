@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import { auth } from "@/auth";
+import { contextoDaSessao, espacosDoUsuario } from "@/lib/espaco";
+import { AvisoEspaco, EspacoProvider } from "@/components/Espaco";
 
 export const metadata: Metadata = {
   title: "Prumo",
@@ -22,11 +24,21 @@ export default async function RootLayout({
     );
   }
 
+  // de quem são as finanças abertas (lib/espaco.ts) e quais a pessoa pode abrir
+  const contexto = await contextoDaSessao();
+  const espacos = contexto ? await espacosDoUsuario(contexto.usuario) : [];
+  const atual = espacos.find((e) => e.dono === contexto?.dono);
+
   return (
     <html lang="pt-BR" className="h-full">
       <body className="min-h-full flex">
-        <Nav user={session.user} />
-        <main className="flex-1 md:ml-56 pt-18 md:pt-6 p-4 md:p-6 min-h-screen min-w-0">{children}</main>
+        <Nav user={session.user} espacos={espacos} atual={contexto?.dono ?? ""} />
+        <main className="flex-1 md:ml-56 pt-18 md:pt-6 p-4 md:p-6 min-h-screen min-w-0">
+          <EspacoProvider papel={contexto?.papel ?? "dono"} nome={atual?.nome ?? ""}>
+            {contexto && atual && <AvisoEspaco nome={atual.nome} papel={contexto.papel} meu={contexto.usuario} />}
+            {children}
+          </EspacoProvider>
+        </main>
       </body>
     </html>
   );

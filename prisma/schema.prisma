@@ -234,3 +234,18 @@ model Importacao {
 
   @@index([userId, createdAt])
 }
+
+/// Finanças compartilhadas (src/lib/espaco.ts): o dono (donoUserId) deixa outra
+/// pessoa (membroEmail) ver ou ajudar. Quem foi convidado alterna entre as
+/// próprias finanças e as do dono; a permissão é conferida a cada requisição.
+model Acesso {
+  id          Int      @id @default(autoincrement())
+  donoUserId  String
+  membroEmail String
+  papel       String   // "ver" | "ajudar"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([donoUserId, membroEmail])
+  @@index([membroEmail])
+}

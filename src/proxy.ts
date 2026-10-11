@@ -29,6 +29,8 @@ export default auth((req) => {
   const csp = montarCSP(nonce);
   const cabecalhos = new Headers(req.headers);
   cabecalhos.set("x-nonce", nonce);
+  // o método real, para lib/espaco.ts barrar alteração de quem só vê (sobrescreve o que o cliente mandar)
+  cabecalhos.set("x-metodo", req.method);
   cabecalhos.set("Content-Security-Policy", csp);
   const resposta = NextResponse.next({ request: { headers: cabecalhos } });
   resposta.headers.set("Content-Security-Policy", csp);

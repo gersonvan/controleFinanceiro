@@ -78,6 +78,7 @@ erDiagram
 | `PerfilImportacao` | `PerfilImportacao` | `id` (auto-incremento) | `prisma/schema.prisma:PerfilImportacao` |
 | `Importacao` | `Importacao` | `id` (auto-incremento) | `prisma/schema.prisma:Importacao` |
 | `Desafio` | `Desafio` | `id` (auto-incremento) | `prisma/schema.prisma:Desafio` |
+| `Acesso` | `Acesso` | `id` (auto-incremento); único por (donoUserId, membroEmail) | `prisma/schema.prisma:Acesso` |
 
 ### Campos notáveis
 

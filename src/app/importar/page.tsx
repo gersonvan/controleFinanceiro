@@ -1,4 +1,5 @@
 "use client";
+import { useEspaco } from "@/components/Espaco";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import ComoBaixarExtrato from "@/components/ComoBaixarExtrato";
 import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
@@ -61,7 +62,21 @@ async function lerArquivo(file: File): Promise<string> {
   return decodificarBytes(await file.arrayBuffer());
 }
 
+// Quem só vê as finanças de outra pessoa não importa (o servidor recusa de qualquer jeito).
 export default function ImportarPage() {
+  const { papel, nome } = useEspaco();
+  if (papel === "ver") {
+    return (
+      <div className="max-w-3xl space-y-6">
+        <h1 className="text-2xl font-bold text-slate-800">Importar Extratos</h1>
+        <div className="card text-sm text-slate-600">Você está só vendo as finanças de {nome}. Importar fica com quem pode ajudar.</div>
+      </div>
+    );
+  }
+  return <ImportarConteudo />;
+}
+
+function ImportarConteudo() {
   const [perfisAtivos, setPerfisAtivos] = useState<Perfil[]>([]);
   const [fase, setFase] = useState<Fase>("upload");
 
