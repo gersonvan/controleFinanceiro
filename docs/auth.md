@@ -110,7 +110,7 @@ Não há papéis (roles) diferenciados entre usuários autorizados; todos têm a
 
 - `AUTH_SECRET`: variável de ambiente; nunca commitada no repositório.
 - `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`: variáveis de ambiente.
-- `GEMINI_API_KEY`: variável de ambiente.
+- `ANTHROPIC_API_KEY`: variável de ambiente (categorização inteligente).
 - `DATABASE_URL`: variável de ambiente com credenciais de banco; transmitida via conexão TLS para o Neon.
 - Nenhum segredo é logado ou exposto em respostas de API.
 

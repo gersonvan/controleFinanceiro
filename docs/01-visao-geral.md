@@ -11,7 +11,7 @@ Centralizar o registro, categorização e análise de lançamentos financeiros p
 ### Dentro do escopo
 
 - Importação de extratos nos formatos CSV, OFX e PDF — `src/lib/importacao/engine.ts:21`
-- Categorização automática por regras de texto, memória de IA e Gemini — `src/lib/categorias.ts:115`, `src/app/api/categorizar/route.ts:7`
+- Categorização automática por Memória Local, histórico e regras de texto, mais sugestões da IA (Claude) revisadas pelo usuário — `src/lib/categorias.ts`, `src/app/api/categorizar/route.ts`
 - Dashboard com totais de entradas, saídas e saldo por período — `src/app/api/dashboard/route.ts:173`
 - Matriz de gastos por categoria e descrição normalizada — `src/app/api/matriz/route.ts:517`
 - Previsão de despesas fixas e parcelamentos — `src/app/api/previsao/route.ts:825`
@@ -37,14 +37,14 @@ Centralizar o registro, categorização e análise de lançamentos financeiros p
 |---|---|---|---|---|
 | Usuário final | Humano | Importa extratos, categoriza e analisa lançamentos | Interface gráfica web (Next.js App Router) | `src/components/Nav.tsx:1` |
 | Google OAuth | Sistema | Provedor de identidade | Protocolo OAuth 2.0 / OIDC via NextAuth | `src/auth.ts:14` |
-| Gemini AI | Sistema | Classificador de categorias por linguagem natural | REST HTTP via `fetch` | `src/app/api/categorizar/route.ts:119` |
+| Claude API (Anthropic) | Sistema | Sugere categorias para o que as regras não resolveram | SDK `@anthropic-ai/sdk` | `src/lib/categorizacao-inteligente.ts` |
 | Neon PostgreSQL | Sistema | Persistência relacional | Driver `pg` com adaptador Prisma | `src/lib/db.ts:1` |
 
 ## Proposta de valor
 
 - **Usuário final**: elimina o trabalho manual de copiar e categorizar lançamentos de múltiplos extratos, oferecendo importação em lote com detecção automática de banco e categorização por IA.
 - **Google OAuth**: delega autenticação segura sem gerenciar senhas, garantindo acesso somente a e-mails autorizados.
-- **Gemini AI**: enriquece a categorização automática de descrições que não correspondem às regras manuais cadastradas.
+- **Claude API**: sugere categorias (gravadas só após revisão) para descrições que não correspondem à Memória, ao histórico nem às regras.
 
 ## Visão de alto nível
 
@@ -52,7 +52,7 @@ Centralizar o registro, categorização e análise de lançamentos financeiros p
 flowchart LR
     U([Usuário])
     G([Google OAuth])
-    GEM([Gemini AI])
+    GEM([Claude API])
     DB[(Neon PostgreSQL)]
     APP[financeiro-web\nNext.js 16]
 
@@ -76,6 +76,6 @@ flowchart LR
 10. [./11-infraestrutura-e-deployment.md](./11-infraestrutura-e-deployment.md) — Deploy e infraestrutura
 11. [./auth.md](./auth.md) — Autenticação e autorização
 12. [./banco-de-dados.md](./banco-de-dados.md) — Modelo de persistência e migrações
-13. [./integracoes-externas.md](./integracoes-externas.md) — Google OAuth e Gemini AI
+13. [./integracoes-externas.md](./integracoes-externas.md) — Google OAuth e Claude API
 14. [./multi-tenancy.md](./multi-tenancy.md) — Isolamento de dados por usuário
 15. [./13-glossario.md](./13-glossario.md) — Glossário com 60+ termos do domínio

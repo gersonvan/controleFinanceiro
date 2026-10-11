@@ -31,11 +31,11 @@ Mínimo L2: 60 termos. Este glossário contém 75 termos do domínio do sistema 
 | 23 | **Modo de valor** (`modoValor`) | Define se o valor da transação está em coluna única (`"unica"`) ou em colunas separadas de entrada e saída (`"separadas"`). |
 | 24 | **Inverter sinal** (`inverterSinal`) | Flag que indica se o sinal do valor deve ser invertido (para bancos que registram débitos como positivos). |
 | 25 | **Usa mês de referência** (`usaMesReferencia`) | Flag que indica se os lançamentos do perfil devem ter `mesReferencia` preenchido (padrão em faturas de cartão). |
-| 26 | **Categorização automática** | Processo em três fases: Memória da IA → Regras de texto → Gemini AI. Executado via `POST /api/categorizar`. |
+| 26 | **Categorização automática** | Memória Local → delivery → histórico → regras de texto, gravando direto; no botão "✨ Inteligente", sugestões da IA para o que sobrar, gravadas só após revisão. Executado via `POST /api/categorizar`. |
 | 27 | **Fase 1 — Memória** | Fase de categorização por correspondência exata com regras da `MemoriaIA`. |
 | 28 | **Fase 2 — Regras manuais** | Fase de categorização por `mapearCategoria()` usando padrões de texto configurados em `src/lib/categorias.ts`. |
-| 29 | **Fase 3 — Gemini** | Fase opcional de categorização via Gemini AI para lançamentos sem correspondência nas fases anteriores. |
-| 30 | **Gemini AI** | Modelo de linguagem da Google (padrão `gemini-3.1-flash-lite`, trocável por `GEMINI_MODEL`) usado no botão "✨ Inteligente" (categorização inteligente) para classificar o que as regras não resolveram. |
+| 29 | **Categorização inteligente** | Fase opcional (botão "✨ Inteligente"): o Claude sugere categorias para o que as fases anteriores não resolveram; o usuário revisa e aplica (`PUT /api/categorizar`). |
+| 30 | **Claude (Haiku)** | Modelo de linguagem da Anthropic (padrão `claude-haiku-5-5`, trocável por `IA_MODELO`) usado na categorização inteligente. Substituiu o Google Gemini em 10/2026. |
 | 31 | **Dashboard** | Página `/` que exibe totais de entradas/saídas/saldo, gráfico por categoria e evolução mensal. |
 | 32 | **Matriz de gastos** | Página `/matriz` que exibe uma tabela categoria × mês com valores e drill-down por descrição normalizada. |
 | 33 | **Normalização de descrição** | Função que remove prefixos bancários, CNPJ e varia o texto para consolidar a mesma despesa sob um nome canônico. |

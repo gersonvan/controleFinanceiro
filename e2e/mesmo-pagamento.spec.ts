@@ -38,7 +38,7 @@ test("juntar dois nomes como mesmo pagamento leva a categoria de um para o outro
   await expect(page.locator("li").filter({ hasText: "BANCO B" }).getByText("🔗 Financiamento do carro")).toBeVisible();
 
   // categorizar automaticamente: o histórico da FINANCEIRA A (Automóvel) vale para o BANCO B
-  const r = await page.request.post("/api/categorizar", { data: { usarGemini: false } });
+  const r = await page.request.post("/api/categorizar", { data: {} });
   expect(r.ok()).toBe(true);
   const lista = await (await page.request.get("/api/lancamentos?limit=500&busca=BANCO%20B")).json();
   expect(lista.lancamentos.map((l: { categoria: string }) => l.categoria)).toEqual(["Automóvel", "Automóvel"]);

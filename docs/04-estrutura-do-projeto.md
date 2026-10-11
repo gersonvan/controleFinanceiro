@@ -60,4 +60,4 @@ O projeto segue uma organização **por camada** (não por feature). Cada camada
 | `src/auth.config.ts` | Configuração base do NextAuth usada no Edge; `pages` de login/erro definidos aqui | Modificação afeta redirecionamento de login em todo o sistema | `src/auth.config.ts:4` |
 | `prisma/schema.prisma` | Define o modelo de dados completo e relacionamentos | Modificação sem migration pode corromper o banco de produção | `prisma/schema.prisma:1` |
 | `next.config.ts` | Configura `serverExternalPackages` necessário para Prisma e pdf-parse | Remoção de entradas pode quebrar o bundle em produção | `next.config.ts:1` |
-| `.env` / variáveis de ambiente | Credenciais de banco, segredos OAuth e chave Gemini | Exposição compromete todos os dados de todos os usuários | `SETUP.md` |
+| `.env` / variáveis de ambiente | Credenciais de banco, segredos OAuth e chave da Claude API | Exposição compromete todos os dados de todos os usuários | `SETUP.md` |

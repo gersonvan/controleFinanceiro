@@ -103,7 +103,7 @@ erDiagram
 
 ## Política de transações
 
-As atualizações em lote da Memória IA e das regras manuais usam `prisma.$transaction()`, garantindo rollback dentro de cada fase local de categorização. A fase Gemini permanece individual: ela depende de chamadas externas e de espera por rate limit, portanto não deve manter uma transação aberta — `src/app/api/categorizar/route.ts`.
+As atualizações em lote da Memória IA e das regras manuais usam `prisma.$transaction()`, garantindo rollback dentro de cada fase local de categorização. A categorização inteligente não grava: as sugestões da IA só entram pelo `PUT /api/categorizar`, numa transação, depois da revisão do usuário.
 
 ## Padrões de acesso a dados
 

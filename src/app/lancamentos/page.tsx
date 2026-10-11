@@ -7,6 +7,7 @@ import { nomeDoEstabelecimento } from "@/lib/estabelecimento";
 import type { ResumoFiltro } from "@/app/api/resumo/route";
 import Link from "next/link";
 import LancamentoForm from "@/components/LancamentoForm";
+import RevisaoInteligente, { type SugestaoRevisao } from "@/components/RevisaoInteligente";
 import OpcoesCategorias from "@/components/OpcoesCategorias";
 import DividirPainel from "@/components/DividirPainel";
 import { CATEGORIA_REEMBOLSO } from "@/lib/reembolso";
@@ -93,7 +94,8 @@ function LancamentosContent() {
   const [pessoaEdit, setPessoaEdit]           = useState("");
   const [categorizando, setCategorizando]     = useState(false);
   // "✨ Inteligente" (categorização por IA) só aparece quando o servidor tem a chave
-  const [geminiDisponivel, setGeminiDisponivel] = useState(false);
+  const [iaDisponivel, setIaDisponivel]       = useState(false);
+  const [sugestoesIA, setSugestoesIA]         = useState<SugestaoRevisao[] | null>(null);
   const [salvandoMemoria, setSalvandoMemoria] = useState<number | null>(null);
   const [toastMsg, setToastMsg]               = useState("");
   const [limit, setLimit]                     = useState(50);
@@ -246,17 +248,17 @@ function LancamentosContent() {
     let ativo = true;
     fetch("/api/categorizar")
       .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (ativo) setGeminiDisponivel(!!json?.gemini); })
+      .then((json) => { if (ativo) setIaDisponivel(!!json?.inteligente); })
       .catch(() => {});
     return () => { ativo = false; };
   }, []);
 
-  const categorizarSemCategoria = async (usarGemini = false) => {
+  const categorizarSemCategoria = async (inteligente = false) => {
     setCategorizando(true);
     const res = await fetch("/api/categorizar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usarGemini }),
+      body: JSON.stringify({ inteligente }),
     });
     const json = await res.json();
     setCategorizando(false);
@@ -265,11 +267,13 @@ function LancamentosContent() {
     if (json.porMemoria > 0)   partes.push(`🧠 ${json.porMemoria} pela Memória`);
     if (json.porHistorico > 0) partes.push(`🔁 ${json.porHistorico} pelo seu histórico`);
     if (json.porRegras > 0)    partes.push(`📏 ${json.porRegras} pelas regras`);
-    if (json.porGemini > 0)    partes.push(`✨ ${json.porGemini} pela categorização inteligente`);
-    if (json.gemini === "erro")      partes.push(`✨ Categorização inteligente indisponível (${json.geminiErro ?? "erro"})`);
-    if (json.gemini === "sem-chave") partes.push("✨ Categorização inteligente não configurada");
+    if (json.inteligente === "erro")      partes.push(`✨ Categorização inteligente indisponível (${json.inteligenteErro ?? "erro"})`);
+    if (json.inteligente === "sem-chave") partes.push("✨ Categorização inteligente não configurada");
+    if (json.inteligente === "ok" && !json.sugestoes?.length) partes.push("✨ nenhuma sugestão segura para o que sobrou");
     if (json.semCategoria > 0) partes.push(`⚠️ ${json.semCategoria} sem categoria`);
-    showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
+    // sugestões da IA não são gravadas: abrem a revisão (que já é o retorno — sem aviso por cima)
+    if (json.sugestoes?.length) setSugestoesIA(json.sugestoes);
+    else showToast(partes.length ? partes.join(" · ") : "Nenhuma transação sem categoria.");
   };
 
   // ── Seleção em massa ──────────────────────────────────────────────────────
@@ -398,6 +402,14 @@ function LancamentosContent() {
         onSalvo={(msg) => { setDividindo(null); carregar(); showToast(msg); }}
       />
 
+      {sugestoesIA && (
+        <RevisaoInteligente
+          sugestoes={sugestoesIA}
+          onFechar={() => setSugestoesIA(null)}
+          onAplicado={(n) => { setSugestoesIA(null); carregar(); showToast(`✨ ${n} categorizado${n === 1 ? "" : "s"} pela categorização inteligente`); }}
+        />
+      )}
+
       <LancamentoForm
         aberto={novoAberto}
         onFechar={() => setNovoAberto(false)}
@@ -423,7 +435,7 @@ function LancamentosContent() {
           <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(false)} disabled={categorizando} title="Categoriza lançamentos sem categoria usando Memória Local + regras">
             {categorizando ? <span className="spinner" /> : "🧠"} Categorizar
           </button>
-          {geminiDisponivel && (
+          {iaDisponivel && (
             <button className="btn btn-secondary" onClick={() => categorizarSemCategoria(true)} disabled={categorizando} title="Categorização inteligente: o que a Memória e as regras não resolverem, a IA sugere">
               {categorizando ? <span className="spinner" /> : "✨"} Inteligente
             </button>

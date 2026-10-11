@@ -79,13 +79,15 @@ O perfil `c6-cartao-csv` reconhece as colunas da fatura C6, usa `Valor (em R$)` 
 7. **Financeiro** — pagamentos, investimentos, taxas, transferências.
 8. **Fallback** — retorna `""` (sem categoria).
 
-### Integração com Gemini AI
+### Categorização inteligente (Claude)
 
-`src/lib/gemini.ts` — função `categorizarComGemini(itens, categorias, { apiKey, modelo })`, chamada pela rota só para o que a Memória, o histórico e as regras não resolveram:
+`src/lib/categorizacao-inteligente.ts` — `sugerirCategorias(itens, { cliente, modelo })`, chamada pela rota só para o que a Memória, o histórico e as regras não resolveram, e só **sugere**:
 
-- Endpoint: `https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent`, modelo padrão `gemini-3.1-flash-lite` (variável `GEMINI_MODEL` troca); chave no header `x-goog-api-key`.
-- Lotes de 50 lançamentos por pedido (até 200 por clique); resposta `[{ id, categoria }]` com `categoria` restrita por `enum` à lista `CATEGORIAS`; `temperature: 0`.
-- Timeout de 25 s por pedido. Um erro interrompe os lotes seguintes, mantém o que já voltou e é devolvido à tela (`gemini: "erro"`, `geminiErro`); sem chave, `gemini: "sem-chave"` e o botão nem aparece (`GET /api/categorizar` → `{ gemini: boolean }`).
+- SDK oficial `@anthropic-ai/sdk`, `messages.parse` com `claude-haiku-5-5` (variável `IA_MODELO` troca), `effort: "low"`, timeout 25 s, 1 retentativa.
+- Entradas e saídas em pedidos separados, lotes de 50 em paralelo (até 200 por clique); sai só `{ id, descricao }`.
+- Resposta em JSON Schema com `enum` da lista do tipo (`CATEGORIAS_IA`, sem as de contexto em `FORA_DA_IA`) e `certeza`; conferida de novo no código.
+- Um lote com erro não derruba os outros; o erro volta à tela (`inteligente: "erro"`, `inteligenteErro`); sem chave, `inteligente: "sem-chave"` e o botão nem aparece (`GET /api/categorizar` → `{ inteligente: boolean }`).
+- Gravação só pelo `PUT /api/categorizar`, depois da revisão (`src/components/RevisaoInteligente.tsx`), e só onde o lançamento continua sem categoria.
 
 ## Normalização de descrições (Matriz)
 

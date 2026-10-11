@@ -1,36 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { categorizarComOrigem, CATEGORIAS } from "@/lib/categorias";
+import { categorizarComOrigem } from "@/lib/categorias";
 import { carregarMemoriaCategorizacao } from "@/lib/memoria";
 import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
-import { idSchema, lerCorpo, validar } from "@/lib/validacao";
-import { categorizarComGemini, geminiConfigurado } from "@/lib/gemini";
+import { categoriaSchema, idSchema, lerCorpo, validar } from "@/lib/validacao";
+import { criarCliente, iaConfigurada, sugerirCategorias } from "@/lib/categorizacao-inteligente";
 
-// O Gemini vai em lotes (lib/gemini.ts): teto por clique para caber no tempo da
-// função e na cota gratuita; o que sobrar fica para o próximo clique.
-const MAX_GEMINI_POR_REQUISICAO = 200;
+// Os lotes da IA vão em paralelo, cada um com até 25 s; folga para a resposta.
+export const maxDuration = 60;
 
-// Se o botão "✨ Inteligente" (categorização inteligente) deve aparecer (há chave configurada no servidor).
+// Teto por clique: cabe no tempo da função e numa revisão de tela; o que sobrar
+// fica para o próximo clique.
+const MAX_IA_POR_REQUISICAO = 200;
+
+// Se o botão "✨ Inteligente" (categorização inteligente) deve aparecer: há chave no servidor.
 export async function GET() {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  return NextResponse.json({ gemini: geminiConfigurado() });
+  return NextResponse.json({ inteligente: iaConfigurada() });
 }
 
 const categorizacaoSchema = z.object({
   ids: z.array(idSchema).max(1000).optional(),
-  usarGemini: z.boolean().default(false),
+  inteligente: z.boolean().default(false),
 });
 
+// Memória → histórico → regras gravam direto (como sempre). Com `inteligente`,
+// a IA só SUGERE para o que sobrou: as sugestões voltam para o usuário revisar
+// e gravar pelo PUT.
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const v = validar(categorizacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
-  const { ids, usarGemini } = v.dados;
+  const { ids, inteligente } = v.dados;
 
   // Memória Local + histórico do que o usuário já categorizou
   const fonte = await carregarMemoriaCategorizacao(userId);
@@ -42,80 +48,84 @@ export async function POST(req: NextRequest) {
 
   const lancamentos = await prisma.lancamento.findMany({ where });
 
-  const porMemoria: { id: number; categoria: string }[] = [];
-  const porHistorico: { id: number; categoria: string }[] = [];
-  const porRegras:  { id: number; categoria: string }[] = [];
+  const contagem = { memoria: 0, historico: 0, regra: 0 };
+  const resolvidos: { id: number; categoria: string }[] = [];
   const aindaSemCategoria: typeof lancamentos = [];
 
-  // --- Fases 1 e 2: Memória → delivery → histórico → regras ---
+  // Memória → delivery → histórico → regras
   for (const l of lancamentos) {
     const { categoria, origem } = categorizarComOrigem(l.descricao, "", l.tipo, fonte);
-    if (origem === "memoria") porMemoria.push({ id: l.id, categoria });
-    else if (origem === "historico") porHistorico.push({ id: l.id, categoria });
-    else if (origem === "regra") porRegras.push({ id: l.id, categoria });
-    else aindaSemCategoria.push(l);
+    if (origem === "memoria" || origem === "historico" || origem === "regra") {
+      contagem[origem]++;
+      resolvidos.push({ id: l.id, categoria });
+    } else aindaSemCategoria.push(l);
   }
 
-  // --- Batch update: Memória da IA e histórico ---
-  const porAprendizado = [...porMemoria, ...porHistorico];
-  if (porAprendizado.length > 0) {
+  // só onde ainda está sem categoria: não sobrescreve o que o usuário fez enquanto isso
+  if (resolvidos.length > 0) {
     await prisma.$transaction(
-      porAprendizado.map((item) =>
+      resolvidos.map((item) =>
         prisma.lancamento.updateMany({
-          where: escopoDoUsuario(userId, { id: item.id }),
+          where: escopoDoUsuario(userId, { id: item.id, categoria: null }),
           data: { categoria: item.categoria },
         })
       )
     );
   }
 
-  // --- Batch update: Regras manuais ---
-  if (porRegras.length > 0) {
-    await prisma.$transaction(
-      porRegras.map((item) =>
-        prisma.lancamento.updateMany({
-          where: escopoDoUsuario(userId, { id: item.id }),
-          data: { categoria: item.categoria },
-        })
-      )
-    );
-  }
-
-  // --- Fase 3: Gemini (só se solicitado explicitamente) ---
-  let porGemini = 0;
-  // "ok" | "sem-chave" | "erro": o botão avisa em vez de falhar calado
-  let gemini: string | undefined;
-  let geminiErro: string | undefined;
-  if (usarGemini && aindaSemCategoria.length > 0) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) gemini = "sem-chave";
+  // Categorização inteligente: sugestões para revisar, nada gravado aqui.
+  // "ok" | "sem-chave" | "erro": a tela avisa em vez de falhar calada.
+  let ia: { inteligente: string; inteligenteErro?: string; sugestoes?: unknown[] } | null = null;
+  if (inteligente && aindaSemCategoria.length > 0) {
+    if (!iaConfigurada()) ia = { inteligente: "sem-chave" };
     else {
-      const r = await categorizarComGemini(
-        aindaSemCategoria.slice(0, MAX_GEMINI_POR_REQUISICAO).map(({ id, descricao, tipo }) => ({ id, descricao, tipo })),
-        CATEGORIAS,
-        { apiKey, modelo: process.env.GEMINI_MODEL },
+      const alvo = aindaSemCategoria.slice(0, MAX_IA_POR_REQUISICAO);
+      const r = await sugerirCategorias(
+        alvo.map(({ id, descricao, tipo }) => ({ id, descricao, tipo })),
+        { cliente: criarCliente(), modelo: process.env.IA_MODELO },
       );
-      if (r.categorias.size > 0) {
-        await prisma.$transaction(
-          [...r.categorias].map(([id, categoria]) =>
-            prisma.lancamento.updateMany({ where: escopoDoUsuario(userId, { id }), data: { categoria } })
-          )
-        );
-      }
-      porGemini = r.categorias.size;
-      gemini = r.erro ? "erro" : "ok";
-      if (r.erro) geminiErro = r.erro.message;
+      const porId = new Map(alvo.map((l) => [l.id, l]));
+      ia = {
+        inteligente: r.erro ? "erro" : "ok",
+        ...(r.erro && { inteligenteErro: r.erro.message }),
+        sugestoes: r.sugestoes.map((s) => {
+          const l = porId.get(s.id)!;
+          return { ...s, descricao: l.descricao, data: l.data, valor: l.valor, conta: l.conta };
+        }),
+      };
     }
   }
 
   return NextResponse.json({
     total: lancamentos.length,
-    porMemoria: porMemoria.length,
-    porHistorico: porHistorico.length,
-    porRegras: porRegras.length,
-    porGemini,
-    semCategoria: aindaSemCategoria.length - porGemini,
-    ...(gemini && { gemini }),
-    ...(geminiErro && { geminiErro }),
+    porMemoria: contagem.memoria,
+    porHistorico: contagem.historico,
+    porRegras: contagem.regra,
+    semCategoria: aindaSemCategoria.length,
+    ...ia,
   });
+}
+
+const aplicacaoSchema = z.object({
+  itens: z.array(z.object({ id: idSchema, categoria: categoriaSchema })).min(1).max(MAX_IA_POR_REQUISICAO),
+});
+
+// Grava as sugestões que o usuário confirmou (com a categoria que ele escolheu),
+// só nos lançamentos dele que continuam sem categoria.
+export async function PUT(req: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const v = validar(aplicacaoSchema, await lerCorpo(req));
+  if (!v.ok) return v.resposta;
+
+  const resultados = await prisma.$transaction(
+    v.dados.itens.map(({ id, categoria }) =>
+      prisma.lancamento.updateMany({
+        where: escopoDoUsuario(userId, { id, categoria: null }),
+        data: { categoria },
+      })
+    )
+  );
+  return NextResponse.json({ aplicados: resultados.reduce((a, r) => a + r.count, 0) });
 }

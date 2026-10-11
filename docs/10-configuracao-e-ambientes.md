@@ -8,8 +8,8 @@
 | `AUTH_SECRET` | Sim | Segredo de assinatura dos tokens JWT do NextAuth v5. Gerado com `openssl rand -base64 32`. | `src/auth.ts:13` (via NextAuth config) |
 | `AUTH_GOOGLE_ID` | Sim | Client ID da aplicação Google OAuth 2.0 (Console GCP). | `src/auth.ts:15` (Google Provider) |
 | `AUTH_GOOGLE_SECRET` | Sim | Client Secret da aplicação Google OAuth 2.0. | `src/auth.ts:15` (Google Provider) |
-| `GEMINI_API_KEY` | Não | Chave de API do Google AI Studio para Gemini. Sem ela, o botão "✨ Inteligente" (categorização inteligente) de Lançamentos não aparece. | `src/lib/gemini.ts` |
-| `GEMINI_MODEL` | Não | Modelo do Gemini; padrão `gemini-3.1-flash-lite`. Serve para trocar de modelo quando o Google desligar o atual. | `src/lib/gemini.ts` |
+| `ANTHROPIC_API_KEY` | Não | Chave da Claude API (Claude Console). Sem ela, o botão "✨ Inteligente" (categorização inteligente) de Lançamentos não aparece. | `src/lib/categorizacao-inteligente.ts` |
+| `IA_MODELO` | Não | Modelo da categorização inteligente; padrão `claude-haiku-5-5`. Serve para trocar de modelo sem mudar código. | `src/lib/categorizacao-inteligente.ts` |
 | `ALLOWED_EMAILS` | Não | Lista de e-mails autorizados separados por vírgula. Padrão: `gersonvan@gmail.com`. | `src/auth.ts:6` |
 
 ## Arquivo `.env.local`

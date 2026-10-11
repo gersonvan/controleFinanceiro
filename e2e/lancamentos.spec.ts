@@ -21,7 +21,8 @@ test("escolher a categoria salva na hora e mantém a rolagem", async ({ page }) 
 
   await expect(linha.locator("button.badge")).toHaveText("Lazer e Entretenimento");
   await expect(linha.locator("select")).toHaveCount(0);
-  expect(await page.evaluate(() => window.scrollY)).toBe(rolagem);
+  // fica onde estava (±2 px: a linha troca o seletor pelo selo e a âncora de rolagem pode mexer 1 px)
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - rolagem)).toBeLessThanOrEqual(2);
   expect(erros).toEqual([]);
 });
 

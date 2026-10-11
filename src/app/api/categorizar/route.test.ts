@@ -9,9 +9,15 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   transaction: vi.fn(),
   perfilFindUnique: vi.fn(),
+  parse: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
+// o cliente da Anthropic é trocado por um falso: nenhum teste chama a API de verdade
+vi.mock("@/lib/categorizacao-inteligente", async (original) => ({
+  ...(await original<typeof import("@/lib/categorizacao-inteligente")>()),
+  criarCliente: () => ({ messages: { parse: mocks.parse } }),
+}));
 vi.mock("@/lib/db", () => ({
   prisma: {
     memoriaIA: { findMany: mocks.memoriaFindMany },
@@ -22,13 +28,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { GET, POST } from "./route";
+import { GET, POST, PUT } from "./route";
 
-const categorizar = (usarGemini = false) => POST(new NextRequest("http://localhost/api/categorizar", {
-  method: "POST",
-  body: JSON.stringify({ usarGemini }),
-  headers: { "content-type": "application/json" },
-}));
+const req = (method: string, body: unknown) => new NextRequest("http://localhost/api/categorizar", {
+  method, body: JSON.stringify(body), headers: { "content-type": "application/json" },
+});
+const categorizar = (inteligente = false) => POST(req("POST", { inteligente }));
 
 describe("API de categorização", () => {
   beforeEach(() => {
@@ -51,8 +56,9 @@ describe("API de categorização", () => {
     expect(mocks.groupBy).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: "ana@example.com", categoria: { not: null } },
     }));
+    // só onde ainda está sem categoria
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { userId: "ana@example.com", id: 9 },
+      where: { userId: "ana@example.com", id: 9, categoria: null },
       data: { categoria: "Compras" },
     });
   });
@@ -73,43 +79,62 @@ describe("API de categorização", () => {
     expect(gravado).toEqual({ 1: "Mensalidades e Cursos", 2: "Delivery e iFood", 3: "Transporte por App" });
   });
 
-  describe("Gemini", () => {
+  describe("categorização inteligente", () => {
     // descrição que nem Memória, nem histórico, nem regras resolvem
-    const semPista = { id: 4, descricao: "XPTO 123", tipo: "Saída", categoria: null };
-    afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+    const semPista = { id: 4, descricao: "XPTO 123", tipo: "Saída", categoria: null, data: new Date("2026-10-02T00:00:00Z"), valor: -50, conta: "Nubank · Crédito" };
+    afterEach(() => vi.unstubAllEnvs());
 
     it("o botão só aparece com chave no servidor", async () => {
-      vi.stubEnv("GEMINI_API_KEY", "");
-      expect(await (await GET()).json()).toEqual({ gemini: false });
-      vi.stubEnv("GEMINI_API_KEY", "chave-falsa");
-      expect(await (await GET()).json()).toEqual({ gemini: true });
+      vi.stubEnv("ANTHROPIC_API_KEY", "");
+      expect(await (await GET()).json()).toEqual({ inteligente: false });
+      vi.stubEnv("ANTHROPIC_API_KEY", "chave-falsa");
+      expect(await (await GET()).json()).toEqual({ inteligente: true });
       mocks.getSessionUserId.mockResolvedValue(null);
       expect((await GET()).status).toBe(401);
     });
 
     it("sem chave avisa em vez de falhar calado", async () => {
-      vi.stubEnv("GEMINI_API_KEY", "");
+      vi.stubEnv("ANTHROPIC_API_KEY", "");
       mocks.lancamentoFindMany.mockResolvedValue([semPista]);
-      expect(await (await categorizar(true)).json()).toMatchObject({ porGemini: 0, semCategoria: 1, gemini: "sem-chave" });
+      expect(await (await categorizar(true)).json()).toMatchObject({ semCategoria: 1, inteligente: "sem-chave" });
+      expect(mocks.parse).not.toHaveBeenCalled();
     });
 
-    it("grava o que o Gemini sugeriu, dentro do tenant", async () => {
-      vi.stubEnv("GEMINI_API_KEY", "chave-falsa");
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: JSON.stringify([{ id: 4, categoria: "Compras" }]) }] } }],
-      }))));
+    it("só sugere: devolve para revisão e não grava nada", async () => {
+      vi.stubEnv("ANTHROPIC_API_KEY", "chave-falsa");
+      mocks.parse.mockResolvedValue({ stop_reason: "end_turn", parsed_output: { sugestoes: [{ id: 4, categoria: "Compras", certeza: "media" }] } });
       mocks.lancamentoFindMany.mockResolvedValue([semPista]);
-      expect(await (await categorizar(true)).json()).toMatchObject({ porGemini: 1, semCategoria: 0, gemini: "ok" });
-      expect(mocks.updateMany).toHaveBeenCalledWith({ where: { userId: "ana@example.com", id: 4 }, data: { categoria: "Compras" } });
+      const json = await (await categorizar(true)).json();
+      expect(json).toMatchObject({ inteligente: "ok", semCategoria: 1 });
+      expect(json.sugestoes).toEqual([{
+        id: 4, categoria: "Compras", certeza: "media", descricao: "XPTO 123",
+        data: "2026-10-02T00:00:00.000Z", valor: -50, conta: "Nubank · Crédito",
+      }]);
+      expect(mocks.updateMany).not.toHaveBeenCalled();
     });
 
-    it("erro do Gemini (ex.: modelo desligado) volta para a tela", async () => {
-      vi.stubEnv("GEMINI_API_KEY", "chave-falsa");
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 404 })));
+    it("erro do serviço volta para a tela", async () => {
+      vi.stubEnv("ANTHROPIC_API_KEY", "chave-falsa");
+      mocks.parse.mockRejectedValue(new Error("rede"));
       mocks.lancamentoFindMany.mockResolvedValue([semPista]);
       const res = await categorizar(true);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ porGemini: 0, semCategoria: 1, gemini: "erro", geminiErro: "o serviço respondeu HTTP 404" });
+      expect(await res.json()).toMatchObject({ inteligente: "erro", inteligenteErro: "o serviço não respondeu", sugestoes: [] });
+    });
+
+    it("aplicar grava só o confirmado, no próprio usuário e onde ainda está sem categoria", async () => {
+      const res = await PUT(req("PUT", { itens: [{ id: 4, categoria: "Farmácia" }, { id: 5, categoria: "Compras" }], userId: "bruno@example.com" }));
+      expect(await res.json()).toEqual({ aplicados: 2 });
+      expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: 4, categoria: null, userId: "ana@example.com" }, data: { categoria: "Farmácia" } });
+      expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: 5, categoria: null, userId: "ana@example.com" }, data: { categoria: "Compras" } });
+    });
+
+    it("aplicar recusa categoria inventada, lista vazia e quem não entrou", async () => {
+      for (const corpo of [{ itens: [{ id: 4, categoria: "Inventada" }] }, { itens: [] }, {}, { itens: [{ id: -1, categoria: "Compras" }] }])
+        expect((await PUT(req("PUT", corpo))).status, JSON.stringify(corpo)).toBe(400);
+      mocks.getSessionUserId.mockResolvedValue(null);
+      expect((await PUT(req("PUT", { itens: [{ id: 4, categoria: "Compras" }] }))).status).toBe(401);
+      expect(mocks.updateMany).not.toHaveBeenCalled();
     });
   });
 });

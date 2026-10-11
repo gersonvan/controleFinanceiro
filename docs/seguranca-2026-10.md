@@ -52,7 +52,7 @@ rodam a cada `npm run test:e2e`.
 | Item | Risco | Recomendação |
 |---|---|---|
 | `npm audit`: 4 "high" em `prisma` (`@prisma/config` → `deepmerge-ts`; `mysql2`) | Baixo: só na ferramenta de linha de comando do Prisma e num driver MySQL que o app não usa | A correção sugerida rebaixa o Prisma para a v6; acompanhar um patch da v7 |
-| Sem limite de requisições por usuário | Baixo: só e-mails da lista entram | Se abrir para mais usuários, limitar `/api/importar` e `/api/categorizar` (Gemini tem custo) |
+| Sem limite de requisições por usuário | Baixo: só e-mails da lista entram | Se abrir para mais usuários, limitar `/api/importar` e `/api/categorizar` (a categorização inteligente tem custo por uso) |
 | `DATABASE_URL` com `sslmode=require` | Nenhum hoje; a biblioteca avisa que o significado vai mudar | Trocar por `sslmode=verify-full` na Vercel |
 | Migrações não recriam o banco do zero | Recuperação de desastre / ambiente novo | Migração de alinhamento idempotente (ver CONTEXTO-PROJETO.md, "Ambiente de testes") |
 | Regra global de `input/select` fora das camadas do Tailwind | Visual, não de segurança | Mover para `@layer base` com revisão visual das páginas |

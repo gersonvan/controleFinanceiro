@@ -98,33 +98,33 @@ sequenceDiagram
 
 ### Descrição
 
-O usuário solicita a categorização de lançamentos sem categoria. O sistema aplica, em sequência: Memória Local (pela chave normalizada), regra de delivery, histórico do próprio usuário (categoria usada em ≥ 75% das vezes para o mesmo estabelecimento), regras de texto e, opcionalmente, Gemini AI. A mesma ordem vale na importação (`categorizarComOrigem`, `src/lib/categorias.ts`; carga em `src/lib/memoria.ts`).
+O usuário solicita a categorização de lançamentos sem categoria. O sistema aplica, em sequência e gravando direto: Memória Local (pela chave normalizada), regra de delivery, histórico do próprio usuário (categoria usada em ≥ 75% das vezes para o mesmo estabelecimento) e regras de texto. A mesma ordem vale na importação (`categorizarComOrigem`, `src/lib/categorias.ts`; carga em `src/lib/memoria.ts`). No botão "✨ Inteligente" (categorização inteligente), o que sobrar recebe **sugestões** do Claude, que o usuário revisa antes de gravar.
 
 ### Pré-condições
 
 - Existência de lançamentos com `categoria = null` para o usuário
+- Para a categorização inteligente: `ANTHROPIC_API_KEY` no servidor (sem ela o botão não aparece)
 
 ### Passos do caminho feliz
 
-1. Usuário aciona categorização — a interface chama `POST /api/categorizar` — `src/app/api/categorizar/route.ts:7`.
-2. A API carrega a `MemoriaIA` do usuário como `Map<descricao, categoria>` — `src/app/api/categorizar/route.ts:15`.
-3. **Fase 1 — Memória da IA**: para cada lançamento, verifica correspondência exata (case-insensitive) com a memória — `src/app/api/categorizar/route.ts:34`.
-4. Lançamentos encontrados recebem atualização com `prisma.lancamento.update` — `src/app/api/categorizar/route.ts:57`.
-5. **Fase 2 — Regras manuais**: `mapearCategoria()` é aplicado aos lançamentos restantes — `src/app/api/categorizar/route.ts:47`.
-6. Lançamentos categorizados pelas regras recebem atualização — `src/app/api/categorizar/route.ts:69`.
-7. **Fase 3 — Gemini AI** (somente se `usarGemini: true` na requisição): para cada lançamento ainda sem categoria, chama `chamarGemini()` via REST — `src/app/api/categorizar/route.ts:83`.
-8. Gemini retorna JSON com `categoria_sugerida`; se válida, o lançamento é atualizado — `src/app/api/categorizar/route.ts:90`.
-9. A API retorna contadores: `{ total, porMemoria, porHistorico, porRegras, porGemini, semCategoria }` — `src/app/api/categorizar/route.ts:110`.
+1. Usuário aciona "🧠 Categorizar" ou "✨ Inteligente" — a interface chama `POST /api/categorizar` (`{ inteligente }`).
+2. A API carrega Memória Local, histórico e apelidos do usuário (`carregarMemoriaCategorizacao`).
+3. Para cada lançamento sem categoria: Memória → delivery → histórico → regras (`categorizarComOrigem`).
+4. Os resolvidos são gravados numa transação, só onde o lançamento continua sem categoria.
+5. **Categorização inteligente** (só com `inteligente: true`): até 200 lançamentos restantes vão ao Claude Haiku (`src/lib/categorizacao-inteligente.ts`) — só a descrição, entradas e saídas em pedidos separados, lotes de 50 em paralelo, resposta presa à lista de categorias do tipo.
+6. A API devolve contadores e as **sugestões** `{ id, categoria, certeza, descricao, data, valor, conta }` — nada da IA é gravado.
+7. A tela abre a revisão (`RevisaoInteligente`): certeza alta já marcada, categoria editável; "Aplicar" chama `PUT /api/categorizar` com os itens confirmados, gravados só onde ainda não há categoria.
 
 ### Caminho de erro principal
 
-1. Chave de API Gemini ausente ou inválida — `src/app/api/categorizar/route.ts:86` verifica `apiKey`; se ausente, a Fase 3 é silenciosamente ignorada.
-2. Lançamentos sem correspondência em nenhuma fase permanecem com `categoria = null`.
+1. Sem `ANTHROPIC_API_KEY`: `inteligente: "sem-chave"` (e o botão nem aparece).
+2. Erro do serviço (HTTP, rede, recusa, resposta incompleta): `inteligente: "erro"` com `inteligenteErro`; a tela avisa e o que outros lotes sugeriram continua valendo.
+3. Lançamentos sem correspondência e sem sugestão segura permanecem com `categoria = null`.
 
 ### Pós-condições
 
-- **Caminho feliz**: lançamentos categorizáveis recebem categoria; os sem correspondência permanecem `null`.
-- **Caminho de erro Gemini**: fases 1 e 2 são executadas normalmente; fase 3 é omitida.
+- **Caminho feliz**: o que as regras resolvem fica gravado; o que a IA sugeriu só é gravado depois da confirmação.
+- **Caminho de erro da IA**: fases locais executadas normalmente; nenhuma sugestão aplicada sem revisão.
 
 ### Diagrama de sequência
 
@@ -133,27 +133,21 @@ sequenceDiagram
     actor U as Usuário
     participant API as API Route\n/api/categorizar
     participant DB as Banco de Dados
-    participant GEM as Gemini AI
+    participant IA as Claude (Haiku)
 
-    U->>API: POST /api/categorizar {usarGemini}
-    API->>DB: memoriaIA.findMany
-    DB-->>API: memoria[]
-    API->>DB: lancamento.findMany(categoria: null)
-    DB-->>API: lancamentos[]
-    loop Fase 1 - Memória
-        API->>DB: lancamento.update(categoria)
-    end
-    loop Fase 2 - Regras
-        API->>DB: lancamento.update(categoria)
-    end
-    alt usarGemini = true
-        loop Fase 3 - Gemini
-            API->>GEM: POST generateContent
-            GEM-->>API: categoria_sugerida
-            API->>DB: lancamento.update(categoria)
+    U->>API: POST /api/categorizar {inteligente}
+    API->>DB: memória, histórico, lançamentos sem categoria
+    API->>DB: updateMany(categoria) onde ainda é null
+    alt inteligente = true
+        par lotes de até 50, por tipo
+            API->>IA: messages.parse (só descrições, lista do tipo)
+            IA-->>API: {sugestoes: [{id, categoria, certeza}]}
         end
     end
-    API-->>U: {total, porMemoria, porRegras, porGemini, semCategoria}
+    API-->>U: contadores + sugestões (nada da IA gravado)
+    U->>API: PUT /api/categorizar {itens confirmados}
+    API->>DB: updateMany(categoria) onde ainda é null
+    API-->>U: {aplicados}
 ```
 
 ## Métricas de saúde do fluxo

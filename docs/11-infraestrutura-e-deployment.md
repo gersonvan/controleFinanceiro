@@ -10,13 +10,13 @@ flowchart LR
     FN[API Routes\nNode.js Serverless]
     DB[(Neon PostgreSQL\nServerless Postgres)]
     GOOGLE[Google OAuth\nIdentidade]
-    GEMINI[Gemini AI\nREST API]
+    IA[Claude API\nAnthropic]
 
     U -- "HTTPS" --> CDN
     CDN --> EDGE
     EDGE --> FN
     FN --> DB
-    FN --> GEMINI
+    FN --> IA
     U -- "OAuth 2.0" --> GOOGLE
     GOOGLE -- "callback" --> FN
 ```
@@ -32,7 +32,7 @@ O projeto é projetado para deploy na **Vercel** (plataforma serverless para Nex
 | Plataforma de hosting | Vercel (serverless) | Serve Next.js: SSR, API Routes, assets estáticos, Edge Middleware | `SETUP.md` |
 | Banco de dados | Neon PostgreSQL | Persistência relacional serverless com connection pooling | `src/lib/db.ts:1` |
 | Provedor de identidade | Google OAuth 2.0 / OIDC | Autenticação de usuários | `src/auth.ts:14` |
-| Modelo de linguagem | Google Gemini 2.0 Flash Lite | Categorização de transações por IA | `src/app/api/categorizar/route.ts:124` |
+| Modelo de linguagem | Claude Haiku 5.5 (Anthropic) | Sugestões de categoria revisadas pelo usuário | `src/lib/categorizacao-inteligente.ts` |
 
 ## Runtimes
 

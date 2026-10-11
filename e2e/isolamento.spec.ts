@@ -15,7 +15,7 @@ const ROTAS: [string, string][] = [
   ["GET", "/api/reembolsos"], ["PUT", "/api/reembolsos"], ["GET", "/api/reembolsos/candidatos"], ["GET", "/api/reembolsos/parecidos"], ["POST", "/api/reembolsos/aplicar"],
   ["GET", "/api/desafios"], ["POST", "/api/desafios"], ["PATCH", "/api/desafios"],
   ["GET", "/api/emprestimos"], ["GET", "/api/financas/meios"], ["GET", "/api/financas/ritmo"], ["GET", "/api/financas/divida"],
-  ["GET", "/api/categorizar"], ["POST", "/api/categorizar"], ["POST", "/api/importar"], ["POST", "/api/importar/analisar"], ["POST", "/api/importar/preview"], ["POST", "/api/importar/pdf-preview"],
+  ["GET", "/api/categorizar"], ["POST", "/api/categorizar"], ["PUT", "/api/categorizar"], ["POST", "/api/importar"], ["POST", "/api/importar/analisar"], ["POST", "/api/importar/preview"], ["POST", "/api/importar/pdf-preview"],
 ];
 
 test("sem sessão, nenhuma rota de API entrega ou aceita dados", async ({ baseURL }) => {

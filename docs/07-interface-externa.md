@@ -61,23 +61,33 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 ```json
 {
   "ids": [1, 2, 3],
-  "usarGemini": false
+  "inteligente": false
 }
 ```
 
 - `ids` (opcional): restringe a categorização a IDs específicos. Se ausente, processa todos sem categoria.
-- `usarGemini` (padrão `false`): ativa a Fase 3 via Gemini AI.
+- `inteligente` (padrão `false`): depois das regras, pede ao Claude sugestões para o que sobrou (até 200). As sugestões **não** são gravadas.
 
 Resposta:
 ```json
 {
   "total": 10,
   "porMemoria": 3,
+  "porHistorico": 2,
   "porRegras": 4,
-  "porGemini": 1,
-  "semCategoria": 2
+  "semCategoria": 1,
+  "inteligente": "ok",
+  "sugestoes": [{ "id": 7, "categoria": "Farmácia", "certeza": "alta", "descricao": "DROGASIL 2460", "data": "2026-10-03T00:00:00.000Z", "valor": -58.9, "conta": "Nubank · Crédito" }]
 }
 ```
+
+`inteligente` só aparece quando pedido: `"ok"`, `"sem-chave"` ou `"erro"` (com `inteligenteErro`, ex.: "o serviço respondeu HTTP 529").
+
+## Contrato PUT /api/categorizar
+
+Grava as sugestões confirmadas na revisão: `{ "itens": [{ "id": 7, "categoria": "Farmácia" }] }` (1 a 200; categoria da lista). Só altera lançamentos do usuário que continuam sem categoria. Resposta: `{ "aplicados": 1 }`.
+
+`GET /api/categorizar` → `{ "inteligente": true }` quando há `ANTHROPIC_API_KEY` (o botão "✨ Inteligente" só aparece assim).
 
 ## Tratamento de erros padrão
 

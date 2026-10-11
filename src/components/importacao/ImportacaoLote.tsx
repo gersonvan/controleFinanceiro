@@ -60,7 +60,7 @@ export default function ImportacaoLote({
     const r = await fetch("/api/categorizar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usarGemini: false }),
+      body: JSON.stringify({}),
     });
     const json = await r.json().catch(() => null);
     setCategorizando(false);
