@@ -13,6 +13,7 @@ import { corpoGrandeDemais, erro400, idSchema, lerArquivo, opcional, validar } f
 import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { bancoTipoDoPerfil, resolverConta } from "@/lib/contas";
 import type { SaldoDaImportacao } from "@/lib/importacoes";
+import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
@@ -20,6 +21,8 @@ const importacaoSchema = z.object({
   mesReferencia: opcional(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato AAAA-MM")),
   // conta escolhida quando há mais de uma do mesmo banco e tipo (apelidos)
   conta: opcional(z.string().trim().min(1).max(120)),
+  // o usuário confirmou que o documento é dele (o titular não bateu com o nome)
+  confirmarTitular: opcional(z.enum(["1"])),
 });
 
 export async function POST(req: NextRequest) {
@@ -37,6 +40,7 @@ export async function POST(req: NextRequest) {
     perfilId: formData.get("perfilId"),
     mesReferencia: formData.get("mesReferencia"),
     conta: formData.get("conta"),
+    confirmarTitular: formData.get("confirmarTitular"),
   });
   if (!v.ok) return v.resposta;
   const { perfilId, mesReferencia: mesRefStr, conta: contaEscolhida } = v.dados;
@@ -78,6 +82,18 @@ export async function POST(req: NextRequest) {
     texto = decodificarTexto(Buffer.from(await file.arrayBuffer()));
   }
   const fileName = file.name;
+
+  // documento de outra pessoa (titular ≠ nome do usuário): só com confirmação
+  if (!v.dados.confirmarTitular) {
+    const dono = await prisma.userProfile.findUnique({ where: { userId }, select: { nomeCompleto: true, nome: true } });
+    const outraPessoa = documentoDeOutraPessoa(texto, perfil.formato, nomeParaConferir(dono));
+    if (outraPessoa) {
+      return NextResponse.json({
+        error: outraPessoa.nome ? `Este documento parece ser de ${outraPessoa.nome}.` : "Não achamos o seu nome neste documento.",
+        outraPessoa,
+      }, { status: 409 });
+    }
+  }
 
   const memoriaMap = await carregarMemoriaCategorizacao(userId);
 

@@ -12,6 +12,7 @@ vi.mock("@/lib/importacao/perfis-nativos", () => ({ ensureBuiltinPerfis: vi.fn()
 vi.mock("@/lib/db", () => ({
   prisma: {
     perfilImportacao: { findFirst: mocks.perfilFindFirst },
+    userProfile: { findUnique: async () => ({ nomeCompleto: "", nome: "" }) },
     lancamento: { findMany: mocks.lancamentoFindMany },
   },
 }));

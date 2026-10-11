@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import DestinoConta from "./DestinoConta";
+import AvisoOutraPessoa from "./AvisoOutraPessoa";
 
 export type StatusItem = "analisando" | "pronto" | "configurar" | "importando" | "importado" | "erro";
 
@@ -17,6 +18,7 @@ export interface ItemLote {
   analise?: AnaliseArquivo;
   mesRef: string; // "AAAA-MM" — só faturas
   conta?: string | null; // destino; null = há mais de uma conta do mesmo banco e tipo e falta escolher
+  confirmarTitular?: boolean; // "é meu": documento cujo titular não bate com o nome do usuário
   resultado?: { conta?: string; novos: number; duplicados: number; processados: number; reembolsosVinculados?: number; saldoConta?: { conta: string; saldo: number; atualizado: boolean } | null };
   erro?: string;
 }
@@ -33,6 +35,7 @@ interface Props {
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
   onConta: (id: number, conta: string | null) => void;
+  onConfirmarTitular: (id: number, confirmado: boolean) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
   onAdicionar: (files: File[]) => void;
@@ -41,13 +44,14 @@ interface Props {
 }
 
 export default function ImportacaoLote({
-  itens, importando, onMesRef, onConta, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
+  itens, importando, onMesRef, onConta, onConfirmarTitular, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
 }: Props) {
   const [categorizacao, setCategorizacao] = useState<string>("");
   const [categorizando, setCategorizando] = useState(false);
 
   const analisando = itens.some((i) => i.status === "analisando");
-  const prontos = itens.filter((i) => i.status === "pronto");
+  // documento de outra pessoa só entra com o "é meu"
+  const prontos = itens.filter((i) => i.status === "pronto" && (!i.analise?.outraPessoa || i.confirmarTitular));
   const faltaMes = prontos.filter((i) => i.analise?.perfil?.usaMesReferencia && !i.mesRef);
   const faltaConta = prontos.filter((i) => i.conta === null);
   const importados = itens.filter((i) => i.status === "importado");
@@ -91,7 +95,7 @@ export default function ImportacaoLote({
 
         <ul className="divide-y divide-slate-100">
           {itens.map((item) => <Linha key={item.id} item={item} importando={importando}
-            onMesRef={onMesRef} onConta={onConta} onRemover={onRemover} onConfigurar={onConfigurar} />)}
+            onMesRef={onMesRef} onConta={onConta} onConfirmarTitular={onConfirmarTitular} onRemover={onRemover} onConfigurar={onConfigurar} />)}
         </ul>
       </div>
 
@@ -149,11 +153,12 @@ export default function ImportacaoLote({
   );
 }
 
-function Linha({ item, importando, onMesRef, onConta, onRemover, onConfigurar }: {
+function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onRemover, onConfigurar }: {
   item: ItemLote;
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
   onConta: (id: number, conta: string | null) => void;
+  onConfirmarTitular: (id: number, confirmado: boolean) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
 }) {
@@ -198,6 +203,16 @@ function Linha({ item, importando, onMesRef, onConta, onRemover, onConfigurar }:
             <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
               ⚠️ {a.suspeitos} lançamento{a.suspeitos !== 1 ? "s" : ""} têm a mesma data e valor de outros já gravados, com outra descrição.
               Pode ser o mesmo extrato em outro formato (OFX × CSV) — se for, tire este arquivo da lista.
+            </div>
+          )}
+
+          {a?.outraPessoa && item.status === "pronto" && (
+            <div className="space-y-1">
+              <AvisoOutraPessoa compacto nome={a.outraPessoa.nome} />
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={!!item.confirmarTitular} onChange={(e) => onConfirmarTitular(item.id, e.target.checked)} />
+                É meu, importar mesmo assim
+              </label>
             </div>
           )}
 

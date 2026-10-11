@@ -7,6 +7,7 @@ import { corpoGrandeDemais, erro400, lerArquivo } from "@/lib/validacao";
 import { ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
+import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -77,6 +78,10 @@ export async function POST(req: NextRequest) {
     perfil,
     preview,
     mesReferenciaSugerido,
+    outraPessoa: documentoDeOutraPessoa(
+      texto, "pdf",
+      nomeParaConferir(await prisma.userProfile.findUnique({ where: { userId }, select: { nomeCompleto: true, nome: true } })),
+    ),
     total: preview.length,
   });
 }

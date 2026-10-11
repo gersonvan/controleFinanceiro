@@ -1,3 +1,4 @@
+import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUserId } from "@/lib/session";
@@ -24,6 +25,8 @@ export interface AnaliseArquivo {
   suspeitos?: number;
   periodo?: { inicio: string; fim: string };
   mesReferenciaSugerido?: string | null;
+  // o titular do documento não bate com o nome do usuário (nome = titular, quando o documento diz)
+  outraPessoa?: { nome: string | null } | null;
 }
 
 const diaISO = (d: Date) => d.toISOString().slice(0, 10);
@@ -140,5 +143,9 @@ export async function POST(req: NextRequest) {
     mesReferenciaSugerido: perfil.usaMesReferencia
       ? sugerirMesReferencia(datas, formato === "pdf" ? texto : undefined, file.name)
       : null,
+    outraPessoa: documentoDeOutraPessoa(
+      texto, formato,
+      nomeParaConferir(await prisma.userProfile.findUnique({ where: { userId }, select: { nomeCompleto: true, nome: true } })),
+    ),
   } satisfies AnaliseArquivo);
 }

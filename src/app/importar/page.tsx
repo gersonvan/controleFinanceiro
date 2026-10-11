@@ -7,6 +7,7 @@ import SeletorConta from "@/components/SeletorConta";
 import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
 import ImportacoesRecentes, { desfazer } from "@/components/importacao/ImportacoesRecentes";
+import AvisoOutraPessoa from "@/components/importacao/AvisoOutraPessoa";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { colunasDosPapeis, detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirJuntarLinhas, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 import MapeamentoColunas from "@/components/importacao/MapeamentoColunas";
@@ -82,6 +83,7 @@ export default function ImportarPage() {
   const [perfilCSV, setPerfilCSV]     = useState<Perfil | null>(null);
   const [bancoNomePDF, setBancoNomePDF] = useState("");
   const [previewPDF, setPreviewPDF]   = useState<Array<{ data: string; descricao: string; valor: number }>>([]);
+  const [outraPessoaPDF, setOutraPessoaPDF] = useState<{ nome: string | null } | null>(null);
   const [contaPDF, setContaPDF]       = useState("");
 
   // CSV
@@ -127,6 +129,7 @@ export default function ImportarPage() {
     setPerfilCSV(null);
     setBancoNomePDF("");
     setPreviewPDF([]);
+    setOutraPessoaPDF(null);
     setContaPDF("");
     setPreview([]);
     setPapeis([]);
@@ -174,6 +177,7 @@ export default function ImportarPage() {
       }
       setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
       setPreviewPDF(json.preview ?? []);
+      setOutraPessoaPDF(json.outraPessoa ?? null);
       setMesRef(json.mesReferenciaSugerido ?? vencimentoNoNome(file.name) ?? "");
 
       if (json.perfilId) {
@@ -270,7 +274,7 @@ export default function ImportarPage() {
     ...colunasDosPapeis(papeis), inverterSinal, usaMesReferencia: false, juntarLinhasSemData: juntarLinhas,
   }), [delimitador, linhasPular, formatoData, papeis, inverterSinal, juntarLinhas]);
 
-  const importar = async (perfilId: number, mRef?: string) => {
+  const importar = async (perfilId: number, mRef?: string, confirmarTitular = false) => {
     if (!arquivo) return;
     if (contaDestino === null) return; // mais de uma conta do mesmo banco: falta escolher
     setFase("importando");
@@ -280,9 +284,18 @@ export default function ImportarPage() {
     form.append("perfilId", String(perfilId));
     if (mRef) form.append("mesReferencia", mRef);
     if (contaDestino) form.append("conta", contaDestino);
+    if (confirmarTitular) form.append("confirmarTitular", "1");
     try {
       const res = await fetch("/api/importar", { method: "POST", body: form });
       const json = await res.json();
+      // documento de outra pessoa: só importa se o usuário confirmar
+      if (res.status === 409 && json.outraPessoa) {
+        if (confirm(`${json.error}\n\nImportar mesmo assim? Os lançamentos entram na SUA conta.`)) return importar(perfilId, mRef, true);
+        setErroImport(`${json.error} Importação cancelada.`);
+        setResultado({ processados: 0, novos: 0, duplicados: 0 });
+        setFase("resultado");
+        return;
+      }
       if (res.ok) {
         setResultado(json);
       } else {
@@ -390,7 +403,8 @@ export default function ImportarPage() {
   // Em sequência: cada importação consulta o que já existe, então arquivos que
   // se sobrepõem não geram duplicatas entre si.
   const importarLote = async () => {
-    const fila = lote.filter((i) => i.status === "pronto" && i.analise?.perfil);
+    // documento de outra pessoa só com o "é meu"
+    const fila = lote.filter((i) => i.status === "pronto" && i.analise?.perfil && (!i.analise.outraPessoa || i.confirmarTitular));
     setImportandoLote(true);
     for (const item of fila) {
       atualizarItem(item.id, { status: "importando" });
@@ -399,6 +413,7 @@ export default function ImportarPage() {
       form.append("perfilId", String(item.analise!.perfil!.id));
       if (item.analise!.perfil!.usaMesReferencia && item.mesRef) form.append("mesReferencia", item.mesRef);
       if (item.conta) form.append("conta", item.conta);
+      if (item.confirmarTitular) form.append("confirmarTitular", "1");
       try {
         const res = await fetch("/api/importar", { method: "POST", body: form });
         const json = await res.json();
@@ -458,6 +473,7 @@ export default function ImportarPage() {
           importando={importandoLote}
           onMesRef={(id, mesRef) => atualizarItem(id, { mesRef })}
           onConta={(id, conta) => atualizarItem(id, { conta })}
+          onConfirmarTitular={(id, confirmarTitular) => atualizarItem(id, { confirmarTitular })}
           onRemover={(id) => setLote((prev) => prev.filter((i) => i.id !== id))}
           onConfigurar={configurarDoLote}
           onAdicionar={(files) => void adicionarAoLote(files)}
@@ -517,6 +533,7 @@ export default function ImportarPage() {
       {/* CONFIRMAR PDF */}
       {fase === "confirmar_pdf" && perfilPDF && (
         <div className="card space-y-4">
+          {outraPessoaPDF && <AvisoOutraPessoa nome={outraPessoaPDF.nome} />}
           <div className="flex items-start gap-3">
             <span className="text-2xl">📄</span>
             <div>
