@@ -814,3 +814,59 @@ describe("fatura Nomad (PDF)", () => {
     expect(ls.every((l) => l.mesReferencia.getTime() === new Date(2026, 9, 1).getTime() && l.fonte === "Importado Nomad (PDF)")).toBe(true);
   });
 });
+
+describe("extrato Bradesco (PDF do app Bradesco Celular)", () => {
+  // layout real (pdf-parse v2), dados fictícios
+  const cabecalho = (secao: string, folha: string) => [
+    "Bradesco Celular", "Data: 11/10/2026 - 19h35", "Nome: FULANO DE TAL",
+    `Extrato de: Agência: 1 | Conta: 2-3 | ${secao} Folha: ${folha}`,
+    "Data Histórico Docto. Crédito (R$) Débito (R$) Saldo (R$)",
+  ];
+  const extrato = [
+    ...cabecalho("Movimentação entre: 01/08/2026 e 11/10/2026", "1/2"),
+    "31/07/2026 COD. LANC. 0 0,00 300,00",
+    "02/08/2026 PIX RECEBIDO",
+    "REM: CICLANO DE SOUZA 02/08 1634373 100,00 400,00",
+    "COMPRA ELO DEBITO VISTA",
+    "MERCADINHO SAO LUIZ 0500149 50,00 350,00",
+    "PAGTO ELETRON COBRANCA",
+    "BANCO C6 S.A. 0000450 1.000,00 650,00", // ficou negativo: o PDF perde o "-"
+    "03/08/2026 RENTAB.INVEST FACILCRED* 3096128 0,01 649,99",
+    "PIX RECEBIDO",
+    "REM: EMPRESA X LTDA 03/08 1239048 1.000,00 350,01",
+    "Total 1.100,01 1.050,00 350,01",
+    "-- 1 of 2 --",
+    ...cabecalho("Últimos Lancamentos", "2/2"),
+    "03/08/2026 COD. LANC. 0 350,00",
+    "RENTAB.INVEST FACILCRED* 3096128 0,01 350,01", // já veio no período
+    "04/08/2026 PIX ENVIADO",
+    "DES: BELTRANA LIMA 04/08 1130413 20,00 330,01",
+    "Total 0,01 20,00 330,01",
+    "-- 2 of 2 --",
+  ].join("\n");
+
+  it("é reconhecido pela estrutura, mesmo citando o C6 e \"cartão\" nos lançamentos", () => {
+    expect(detectarBancoPDF(`${extrato}\nGASTOS CARTAO DE CREDITO`)).toEqual({ builtinKey: "bradesco-extrato-pdf", bancoNome: "Bradesco — Extrato da Conta" });
+  });
+
+  it("junta histórico e complemento, leva a data do dia e tira o sinal do saldo (inclusive negativo)", async () => {
+    const { parsePDF } = await import("./pdf");
+    const ls = parsePDF(extrato, { conta: "Bradesco · Débito", builtin: "bradesco-extrato-pdf" } as Parameters<typeof parsePDF>[1], new Map(), null);
+    expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.descricao, l.valor])).toEqual([
+      ["2026-08-02", "Pix recebido de CICLANO DE SOUZA", 100],
+      ["2026-08-02", "Compra no débito - MERCADINHO SAO LUIZ", -50],
+      ["2026-08-02", "Pagamento de boleto - BANCO C6 S.A.", -1000],
+      ["2026-08-03", "RENTAB.INVEST FACILCRED*", 0.01],
+      ["2026-08-03", "Pix recebido de EMPRESA X LTDA", 1000], // de -649,99 para 350,01
+      ["2026-08-04", "Pix enviado para BELTRANA LIMA", -20], // o rendimento repetido nos últimos não entra de novo
+    ]);
+    expect(ls.every((l) => l.fonte === "Importado Bradesco (PDF)" && l.conta === "Bradesco · Débito")).toBe(true);
+  });
+
+  it("saldo final para a Reserva, depois dos últimos lançamentos", async () => {
+    const { extrairSaldoFinal } = await import("./saldo");
+    const s = extrairSaldoFinal(extrato);
+    expect(s?.saldo).toBe(330.01);
+    expect(s?.data.toISOString().slice(0, 10)).toBe("2026-08-04");
+  });
+});

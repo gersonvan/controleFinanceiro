@@ -32,5 +32,6 @@ describe("perfis nativos", () => {
     expect(por.get("nubank-credito")).toMatchObject({ nome: "Nubank — Fatura Cartão (CSV)", conta: "Nubank · Crédito", usaMesReferencia: true });
     expect(por.get("nubank-debito")).toMatchObject({ nome: "Nubank — Extrato da Conta (CSV)", conta: "Nubank · Débito", usaMesReferencia: false });
     expect(por.has("c6-credito")).toBe(false); // a fatura C6 em CSV é o c6-cartao-csv
+    expect(por.get("bradesco-extrato-pdf")).toMatchObject({ nome: "Bradesco — Extrato da Conta", conta: "Bradesco · Débito", usaMesReferencia: false });
   });
 });

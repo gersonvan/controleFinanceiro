@@ -37,10 +37,15 @@ export type BancoPDF =
   | "bradesco-cartao-pdf"
   | "inter-cartao-pdf"
   | "nomad-cartao-pdf"
+  | "bradesco-extrato-pdf"
   | "sofisa-extrato-pdf";
 
 export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; bancoNome: string } {
   const t = texto.toLowerCase();
+  // Extrato Bradesco (app "Bradesco Celular") pela estrutura, antes de tudo: os lançamentos
+  // citam outros bancos ("PAGTO ELETRON COBRANCA / BANCO C6 S.A.") e era lido como fatura C6.
+  if (t.includes("bradesco celular") && /extrato de:\s*ag[eê]ncia/.test(t) && t.includes("histórico") && t.includes("docto"))
+    return { builtinKey: "bradesco-extrato-pdf", bancoNome: "Bradesco — Extrato da Conta" };
   // Nomad antes dos outros: o boleto é do Itaú (341) e o texto tem "internacional"/"internet" (o Inter casava)
   if (t.includes("nomadglobal") || t.includes("nomad tecnologia") || t.includes("fatura nomad"))
     return { builtinKey: "nomad-cartao-pdf", bancoNome: "Nomad — Fatura do Cartão" };
@@ -86,6 +91,7 @@ export function parsePDF(
     case "bradesco-cartao-pdf":  return parseBradesco(texto, perfil, memoriaIA, mesReferenciaManual);
     case "inter-cartao-pdf":     return parseInter(texto, perfil, memoriaIA, mesReferenciaManual);
     case "nomad-cartao-pdf":     return parseNomad(texto, perfil, memoriaIA, mesReferenciaManual);
+    case "bradesco-extrato-pdf": return parseBradescoExtrato(texto, perfil, memoriaIA);
     case "sofisa-extrato-pdf":   return parseSofisa(texto, perfil, memoriaIA);
     default:                     return parseGenerico(texto, perfil, memoriaIA, mesReferenciaManual);
   }
@@ -381,6 +387,101 @@ function parseInter(
     }
   }
   return result;
+}
+
+// ─── Bradesco Extrato da Conta (PDF do app "Bradesco Celular") ────────────────
+// Cabeçalho repetido em cada página ("Bradesco Celular", "Data: …", "Nome: …",
+// "Extrato de: Agência…", "Data Histórico Docto. Crédito (R$) Débito (R$) Saldo (R$)").
+// A data só vem no primeiro lançamento do dia. Lançamento numa linha
+// ("05/01/2026 RENTAB.INVEST FACILCRED* 3096128 0,01 507,71") ou em duas — o
+// histórico e, embaixo, complemento + docto, valor e saldo ("PIX ENVIADO" /
+// "DES: FULANO 03/01 1239048 30,00 365,95"). O PDF perde a coluna: crédito ou
+// débito sai do saldo, que sobe ou desce pelo valor (o "-" do saldo negativo
+// também se perde). "COD. LANC." é o saldo
+// anterior; "Total" fecha a seção; "Últimos Lancamentos" repete o fim — o que
+// já veio (mesma data, docto e valor) não entra de novo.
+
+const CABECALHO_BRADESCO = /^(bradesco celular|data: \d{2}\/\d{2}\/\d{4}|nome:|extrato de:|data hist[óo]rico|-- \d+ of \d+ --|total\s)/i;
+const VALORES_BRADESCO = /^(.*?)\s*(\d+)\s+(-?[\d.]+,\d{2})\s+(-?[\d.]+,\d{2})$/;
+
+/** No formato que as regras já entendem: "Pix enviado para X", "Compra no débito - X"… */
+export function descricaoBradesco(historico: string, complemento: string): string {
+  const h = historico.replace(/\s+/g, " ").trim();
+  const quem = complemento.replace(/^(des|rem):\s*/i, "").replace(/\s+\d{2}\/\d{2}$/, "").replace(/\s+/g, " ").trim();
+  if (!quem) return h;
+  if (/^pix (enviado|qr code (estatico|dinamico)|automatico)$/i.test(h)) return `Pix enviado para ${quem}`;
+  if (/^pix recebido$/i.test(h)) return `Pix recebido de ${quem}`;
+  if (/^compra .*debito/i.test(h)) return `Compra no débito - ${quem}`;
+  if (/^pagto eletron cobranca$/i.test(h)) return `Pagamento de boleto - ${quem}`;
+  return `${h} - ${quem}`;
+}
+
+interface LinhaBradesco { data: Date; docto: string; valor: number; historico: string; complemento: string }
+
+/** Lançamentos e o saldo final (com o sinal recuperado) do extrato Bradesco em PDF. */
+export function lerExtratoBradesco(texto: string): { linhas: LinhaBradesco[]; saldoFinal: { saldo: number; data: Date } | null } {
+  const linhas: LinhaBradesco[] = [];
+  const vistos = new Set<string>();
+  let data: Date | null = null;
+  let saldo: number | null = null;
+  let historico: string | null = null;
+
+  for (const bruta of texto.split(/\r?\n/)) {
+    let linha = bruta.trim();
+    if (!linha || CABECALHO_BRADESCO.test(linha)) continue;
+    const comData = linha.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(.*)$/);
+    if (comData) {
+      data = new Date(Date.UTC(+comData[3], +comData[2] - 1, +comData[1]));
+      linha = comData[4];
+    }
+    // saldo anterior: "COD. LANC. 0 0,00 309,18" ou, nos últimos lançamentos, "COD. LANC. 0 17.798,02"
+    const anterior = linha.match(/^cod\. lanc\.\s+\d+\s+(?:-?[\d.]+,\d{2}\s+)?(-?[\d.]+,\d{2})$/i);
+    if (anterior) { saldo = parseBR(anterior[1]); historico = null; continue; }
+    const m = linha.match(VALORES_BRADESCO);
+    if (!m) { historico = historico ? `${historico} ${linha}` : linha; continue; } // histórico; os valores vêm embaixo
+    const [, antes, docto, valorTxt, saldoTxt] = m;
+    const hist = historico ?? antes;
+    const complemento = historico ? antes : "";
+    historico = null;
+    const saldoLinha = parseBR(saldoTxt);
+    const bruto = parseBR(valorTxt);
+    if (!data || isNaN(bruto) || bruto === 0) { saldo = saldoLinha; continue; }
+
+    // o saldo diz se entrou ou saiu. O PDF perde o "-" do saldo negativo (conta no
+    // limite): vale o saldo com ou sem sinal que fecha a conta. Sem saldo anterior,
+    // o nome do lançamento decide.
+    let valor: number | null = null;
+    if (saldo !== null) {
+      for (const novo of [saldoLinha, -saldoLinha]) {
+        if (Math.abs(saldo + bruto - novo) < 0.005) { valor = bruto; saldo = novo; break; }
+        if (Math.abs(saldo - bruto - novo) < 0.005) { valor = -bruto; saldo = novo; break; }
+      }
+    }
+    if (valor === null) {
+      valor = /recebid|rentab|deposito|estorno|resgate/i.test(hist) ? bruto : -bruto;
+      saldo = saldoLinha;
+    }
+
+    const chave = `${data.getTime()}|${docto}|${valor}`;
+    if (vistos.has(chave)) continue; // "Últimos Lancamentos" repete o fim do período
+    vistos.add(chave);
+    linhas.push({ data, docto, valor, historico: hist, complemento });
+  }
+  const ultima = linhas[linhas.length - 1];
+  return { linhas, saldoFinal: ultima && saldo !== null ? { saldo: Math.round(saldo * 100) / 100, data: ultima.data } : null };
+}
+
+export function parseBradescoExtrato(texto: string, perfil: PerfilPDF, memoriaIA: FonteMemoria): LancamentoImportado[] {
+  return lerExtratoBradesco(texto).linhas.map(({ data, valor, historico, complemento }) => {
+    const descricao = descricaoBradesco(historico, complemento);
+    const tipo = valor > 0 ? "Entrada" : "Saída";
+    return {
+      data, descricao, valor, tipo, conta: perfil.conta,
+      categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      fonte: "Importado Bradesco (PDF)",
+      mesReferencia: new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), 1)),
+    } satisfies LancamentoImportado;
+  });
 }
 
 // ─── Nomad Cartão (emitido pela Afinz) ───────────────────────────────────────

@@ -1,7 +1,8 @@
 // Saldo final do extrato de conta corrente, quando o arquivo traz: C6 ("Saldo do
-// Dia(R$)"), Bradesco ("Saldo (R$)") e BB (linhas "Saldo do dia"/"S A L D O").
+// Dia(R$)"), Bradesco ("Saldo (R$)", CSV e PDF) e BB (linhas "Saldo do dia"/"S A L D O").
 // Serve para a Reserva mostrar quanto há em cada conta sem digitar.
 import { parseCSV } from "./tipos";
+import { detectarBancoPDF, lerExtratoBradesco } from "./pdf";
 
 export interface SaldoExtrato { saldo: number; data: Date }
 
@@ -20,6 +21,9 @@ const paraNumero = (s: string): number | null => {
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function extrairSaldoFinal(texto: string): SaldoExtrato | null {
+  // Bradesco em PDF: o saldo depois do último lançamento (com o sinal que o PDF perde)
+  if (detectarBancoPDF(texto).builtinKey === "bradesco-extrato-pdf") return lerExtratoBradesco(texto).saldoFinal;
+
   const linhas = texto.replace(/^﻿/, "").split(/\r?\n/);
   const cabecalho = linhas.findIndex((l) => /saldo/i.test(l) && /data/i.test(l));
 

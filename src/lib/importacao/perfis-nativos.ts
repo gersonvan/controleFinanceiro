@@ -54,6 +54,8 @@ const BUILTIN_PDF_PERFIS: { builtin: string; nome: string; inverterSinal: boolea
   { builtin: "bradesco-cartao-pdf", nome: "Bradesco — Fatura Cartão", inverterSinal: false },
   { builtin: "inter-cartao-pdf",    nome: "Inter — Fatura Cartão",    inverterSinal: false },
   { builtin: "nomad-cartao-pdf",    nome: "Nomad — Fatura Cartão",    inverterSinal: false },
+  // mesma conta do OFX do Bradesco
+  { builtin: "bradesco-extrato-pdf", nome: "Bradesco — Extrato da Conta", inverterSinal: false, usaMesReferencia: false },
 ];
 
 const PDF_DEFAULTS = {

@@ -199,6 +199,7 @@ Os padrões de regex do nosso `pdf.ts` foram derivados deste projeto.
 | Itaú Corrente | `itau-corrente-ofx` | ✅ Implementado |
 | Itaú Poupança | `itau-poupanca-ofx` | ✅ Implementado |
 | Bradesco | `bradesco-corrente-ofx` | ✅ Implementado |
+| Bradesco (extrato em PDF do app Bradesco Celular) | `bradesco-extrato-pdf` | ✅ Implementado |
 | Santander | `santander-corrente-ofx` | ✅ Implementado |
 | Banco do Brasil | `bb-corrente-ofx` | ✅ Implementado |
 | Caixa | `caixa-corrente-ofx` | ✅ Implementado |

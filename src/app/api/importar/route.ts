@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   // Extrato de conta com saldo (C6, Bradesco, BB): atualiza a conta na Reserva
   let saldoConta: { conta: string; saldo: number; data: Date; atualizado: boolean } | null = null;
-  const saldoFinal = perfil.formato !== "pdf" ? extrairSaldoFinal(texto) : null;
+  const saldoFinal = perfil.formato !== "ofx" ? extrairSaldoFinal(texto) : null;
   const contaDoExtrato = destino.nome;
   if (saldoFinal && contaDoExtrato) {
     const { desfazer, ...publico } = await atualizarSaldoConta(userId, contaDoExtrato, saldoFinal.saldo, saldoFinal.data);
