@@ -77,6 +77,8 @@ function LancamentosContent() {
   const [lancamentos, setLancamentos]         = useState<Lancamento[]>([]);
   const [novoAberto, setNovoAberto]           = useState(() => searchParams.get("novo") === "1");
   const [total, setTotal]                     = useState(0);
+  // busca vazia só por causa das datas: quantos há fora do período (para o filtro em que foi contado)
+  const [foraDoPeriodo, setForaDoPeriodo]     = useState<{ chave: string; n: number }>({ chave: "", n: 0 });
   const [page, setPage]                       = useState(1);
   const [loading, setLoading]                 = useState(true);
   // filtro de contas: as do usuário que têm lançamentos (antes era uma lista fixa)
@@ -166,6 +168,22 @@ function LancamentosContent() {
     void carregarInicial();
     return () => { ativo = false; };
   }, [buildParams]);
+
+  // Nada no período escolhido? Conta o mesmo filtro sem as datas, para avisar e oferecer "ver todos".
+  const chaveFiltros = JSON.stringify(filtros);
+  const comDatas = !!(filtros.dataInicio || filtros.dataFim);
+  useEffect(() => {
+    if (loading || total > 0 || !comDatas) return;
+    let ativo = true;
+    const p = new URLSearchParams({ page: "1", limit: "1" });
+    for (const k of ["busca", "conta", "categoria", "tipo", "pessoa"] as const) if (filtros[k]) p.set(k, filtros[k]);
+    fetch(`/api/lancamentos?${p}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (ativo) setForaDoPeriodo({ chave: chaveFiltros, n: j?.total ?? 0 }); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, [loading, total, comDatas, chaveFiltros]); // eslint-disable-line react-hooks/exhaustive-deps -- filtros entra pela chave
+  const foraDoPeriodoAgora = foraDoPeriodo.chave === chaveFiltros ? foraDoPeriodo.n : 0;
 
   const aplicarPreset = (fn: () => { i: string; f: string }) => {
     const { i, f } = fn();
@@ -494,6 +512,16 @@ function LancamentosContent() {
           <div className="flex justify-center py-12"><div className="spinner" /></div>
         ) : (
           <>
+            {total === 0 && (
+              <div className="px-4 py-6 text-center text-sm text-slate-500" data-lista-vazia>
+                {comDatas && foraDoPeriodoAgora > 0 ? (
+                  <>
+                    Nenhum lançamento neste período — <strong className="text-slate-700">{foraDoPeriodoAgora}</strong> em outras datas.{" "}
+                    <button className="text-blue-600 hover:underline" onClick={limparPeriodo}>Ver todos</button>
+                  </>
+                ) : "Nenhum lançamento encontrado."}
+              </div>
+            )}
             {/* Celular: lista em cartões */}
             <ul className="sm:hidden divide-y divide-slate-100">
               {lancamentos.map((l) => {

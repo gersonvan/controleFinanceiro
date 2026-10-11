@@ -38,3 +38,19 @@ test("Esc cancela a edição sem salvar", async ({ page }) => {
   await expect(linha.locator("button.badge")).toHaveText(antes!);
   expect(patch).toBe(false);
 });
+
+test("busca sem resultado no período avisa quantos há em outras datas", async ({ page }) => {
+  await entrar(page, "Ana");
+  await page.goto("/lancamentos");
+  // na semente, a FINANCEIRA A só aparece 2 e 3 meses atrás; o padrão é o mês atual
+  await page.getByPlaceholder("Buscar descrição…").fill("FINANCEIRA A");
+  const vazia = page.locator("[data-lista-vazia]");
+  await expect(vazia).toContainText("Nenhum lançamento neste período — 2 em outras datas.");
+  await vazia.getByRole("button", { name: "Ver todos" }).click();
+  await expect(page.locator("table tbody tr").filter({ hasText: "FINANCEIRA A" })).toHaveCount(2);
+  await expect(vazia).toHaveCount(0);
+
+  // sem nada em data nenhuma, só "nenhum encontrado"
+  await page.getByPlaceholder("Buscar descrição…").fill("NAO EXISTE EM LUGAR NENHUM");
+  await expect(vazia).toHaveText("Nenhum lançamento encontrado.");
+});
