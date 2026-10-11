@@ -5,31 +5,36 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
+import {
+  Brain, Camera, ChevronRight, FileDown, FileUp, Grid3x3, Handshake, Landmark, LayoutDashboard,
+  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Target, TrendingUp, Wallet, Wrench, X,
+  type LucideIcon,
+} from "lucide-react";
 
-interface ItemMenu { href: string; label: string; icon?: string }
-interface GrupoMenu { label: string; icon: string; href?: string; filhos: ItemMenu[] }
+interface ItemMenu { href: string; label: string; icon?: LucideIcon }
+interface GrupoMenu { label: string; icon: LucideIcon; href?: string; filhos: ItemMenu[] }
 type EntradaMenu = ItemMenu | GrupoMenu;
 
 // Uso real: acompanhar → planejar → importar → lançamentos → ferramentas → ajustes
 const menu: EntradaMenu[] = [
-  { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/planejamento", label: "Planejamento", icon: "📸" },
-  { href: "/desafios", label: "Desafios", icon: "🎯" },
-  { href: "/importar", label: "Importar Lançamentos", icon: "📂" },
-  { href: "/lancamentos", label: "Lançamentos", icon: "📋", filhos: [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/planejamento", label: "Planejamento", icon: Camera },
+  { href: "/desafios", label: "Desafios", icon: Target },
+  { href: "/importar", label: "Importar Lançamentos", icon: FileUp },
+  { href: "/lancamentos", label: "Lançamentos", icon: ReceiptText, filhos: [
     { href: "/lancamentos/revisar", label: "Revisar categorias" },
   ] },
-  { label: "Ferramentas", icon: "🧰", filhos: [
-    { href: "/matriz", label: "Matriz", icon: "🗂️" },
-    { href: "/previsao", label: "Previsão", icon: "🔮" },
-    { href: "/reserva", label: "Reserva", icon: "💰" },
-    { href: "/emprestimos", label: "Empréstimos", icon: "🤝" },
+  { label: "Ferramentas", icon: Wrench, filhos: [
+    { href: "/matriz", label: "Matriz", icon: Grid3x3 },
+    { href: "/previsao", label: "Previsão", icon: TrendingUp },
+    { href: "/reserva", label: "Reserva", icon: PiggyBank },
+    { href: "/emprestimos", label: "Empréstimos", icon: Handshake },
   ] },
-  { label: "Configurações", icon: "⚙️", filhos: [
-    { href: "/configuracoes/contas", label: "Contas", icon: "🏦" },
-    { href: "/configuracoes/importacao", label: "Importação", icon: "📥" },
-    { href: "/configuracoes/memoria", label: "Memória Local", icon: "🧠" },
-    { href: "/configuracoes/mesmo-pagamento", label: "Mesmo pagamento", icon: "🔗" },
+  { label: "Configurações", icon: Settings, filhos: [
+    { href: "/configuracoes/contas", label: "Contas", icon: Landmark },
+    { href: "/configuracoes/importacao", label: "Importação", icon: FileDown },
+    { href: "/configuracoes/memoria", label: "Memória Local", icon: Brain },
+    { href: "/configuracoes/mesmo-pagamento", label: "Mesmo pagamento", icon: Link2 },
   ] },
 ];
 
@@ -46,14 +51,14 @@ export default function Nav({ user }: { user?: Session["user"] }) {
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
 
   const classeLink = (ativo: boolean, filho = false) =>
-    `flex items-center gap-2.5 ${filho ? "pl-9 pr-3 py-2" : "px-3 py-2.5"} rounded-lg text-sm transition-colors ${
-      ativo ? "bg-blue-600 text-white font-medium" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+    `flex items-center gap-2 ${filho ? "pl-9 pr-3 py-2" : "px-3 py-2.5"} rounded-lg text-sm transition-colors ${
+      ativo ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
     }`;
 
   const link = (l: ItemMenu, filho = false, ativo = ativoEm(l.href, pathname)) => (
     <Link key={l.href} href={l.href} onClick={() => setAberto(false)} className={classeLink(ativo, filho)}
       aria-current={ativo ? "page" : undefined}>
-      {l.icon && <span>{l.icon}</span>}
+      {l.icon && <l.icon size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />}
       {l.label}
     </Link>
   );
@@ -67,8 +72,9 @@ export default function Nav({ user }: { user?: Session["user"] }) {
       if (novo.has(e.label)) novo.delete(e.label); else novo.add(e.label);
       return novo;
     });
+    const Icone = e.icon;
     const seta = (
-      <span className={`ml-auto text-xs text-slate-500 transition-transform ${expandido ? "rotate-90" : ""}`} aria-hidden>▶</span>
+      <ChevronRight size={16} aria-hidden className={`ml-auto shrink-0 text-slate-500 transition-transform ${expandido ? "rotate-90" : ""}`} />
     );
     return (
       <div key={e.label} className="space-y-0.5">
@@ -77,17 +83,17 @@ export default function Nav({ user }: { user?: Session["user"] }) {
           <div className="flex items-center">
             <Link href={e.href} onClick={() => setAberto(false)}
               className={`${classeLink(pathname === e.href)} flex-1`} aria-current={pathname === e.href ? "page" : undefined}>
-              <span>{e.icon}</span>{e.label}
+              <Icone size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />{e.label}
             </Link>
             <button onClick={alternar} aria-expanded={expandido} aria-label={`${expandido ? "Fechar" : "Abrir"} ${e.label}`}
-              className="px-2 py-2.5 text-slate-500 hover:text-white">
-              <span className={`inline-block text-xs transition-transform ${expandido ? "rotate-90" : ""}`}>▶</span>
+              className="px-2 py-2.5 text-slate-500 hover:text-slate-900">
+              <ChevronRight size={16} aria-hidden className={`transition-transform ${expandido ? "rotate-90" : ""}`} />
             </button>
           </div>
         ) : (
           <button onClick={alternar} aria-expanded={expandido}
-            className={`w-full ${classeLink(false)} ${contemAtual ? "text-white" : ""}`}>
-            <span>{e.icon}</span>{e.label}{seta}
+            className={`w-full ${classeLink(false)} ${contemAtual ? "text-slate-900" : ""}`}>
+            <Icone size={16} strokeWidth={1.75} aria-hidden className="shrink-0" />{e.label}{seta}
           </button>
         )}
         {expandido && e.filhos.map((f) => link(f, true))}
@@ -96,20 +102,21 @@ export default function Nav({ user }: { user?: Session["user"] }) {
   });
 
   const usuario = user && (
-    <div className="p-3 border-t border-slate-700">
+    <div className="p-3 border-t border-slate-200">
       <div className="flex items-center gap-2 mb-2">
         {user.image && (
           <Image src={user.image} alt="" width={28} height={28} unoptimized className="w-7 h-7 rounded-full" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-medium text-white truncate">{user.name}</div>
-          <div className="text-xs text-slate-400 truncate">{user.email}</div>
+          <div className="text-xs font-medium text-slate-800 truncate">{user.name}</div>
+          <div className="text-xs text-slate-500 truncate">{user.email}</div>
         </div>
       </div>
       <button
         onClick={() => signOut({ callbackUrl: "/login" })}
-        className="w-full text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg px-3 py-1.5 transition-colors text-left"
+        className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg px-3 py-1.5 transition-colors text-left"
       >
+        <LogOut size={14} aria-hidden />
         Sair
       </button>
     </div>
@@ -118,30 +125,30 @@ export default function Nav({ user }: { user?: Session["user"] }) {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 bg-slate-900 text-white flex-col z-10">
-        <div className="p-4 border-b border-slate-700">
-          <div className="text-lg font-bold text-white">💰 FinanceiroWeb</div>
-          <div className="text-xs text-slate-400 mt-0.5">Controle Financeiro</div>
+      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-56 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
+        <div className="p-4 border-b border-slate-200">
+          <div className="flex items-center gap-2 text-lg font-bold text-slate-800"><Wallet size={20} aria-hidden className="text-blue-600" />FinanceiroWeb</div>
+          <div className="text-xs text-slate-500 mt-0.5">Controle Financeiro</div>
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">{itens}</nav>
         {usuario}
       </aside>
 
       {/* Celular */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-20 bg-slate-900 text-white">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-20 bg-white text-slate-800 border-b border-slate-200">
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/" className="font-bold" onClick={() => setAberto(false)}>💰 FinanceiroWeb</Link>
+          <Link href="/" className="flex items-center gap-2 font-bold" onClick={() => setAberto(false)}><Wallet size={20} aria-hidden className="text-blue-600" />FinanceiroWeb</Link>
           <button
             onClick={() => setAberto((v) => !v)}
             aria-label={aberto ? "Fechar menu" : "Abrir menu"}
             aria-expanded={aberto}
-            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-800 text-xl"
+            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-100"
           >
-            {aberto ? "✕" : "☰"}
+            {aberto ? <X size={22} aria-hidden /> : <Menu size={22} aria-hidden />}
           </button>
         </div>
         {aberto && (
-          <div className="border-t border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
+          <div className="border-t border-slate-200 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <nav className="p-3 space-y-0.5">{itens}</nav>
             {usuario}
           </div>
