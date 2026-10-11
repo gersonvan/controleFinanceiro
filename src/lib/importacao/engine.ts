@@ -4,7 +4,6 @@
 //   - formato "ofx"   -> parser OFX
 //   - formato "csv"   -> parser CSV genérico (mapeamento de colunas)
 import {
-  parseFaturaC6,
   parseExtratoC6,
   parseFaturaNubank,
   parseExtratoNubank,
@@ -64,19 +63,18 @@ function importarBruto(
     return parseExtratoBB(parseCSV(texto, ",").slice(1), perfil.conta, memoriaIA);
   }
 
-  // 1. Perfis legados de CSV (C6 e Nubank, formato antigo)
+  // 1. Perfis nativos de CSV com parser próprio (extrato C6, CSVs do Nubank).
+  // A fatura C6 em CSV usa o parser genérico (perfil c6-cartao-csv).
   if (perfil.builtin) {
-    const delim = perfil.builtin === "c6-credito" ? ";" : ",";
-    const rows = parseCSV(texto, delim);
+    const rows = parseCSV(texto, ",");
     const linhasHeader: Record<string, number> = {
       // c6-debito: 0 — o cabeçalho do extrato varia de tamanho; o parser já
       // ignora linhas sem data e valores válidos.
-      "c6-credito": 1, "c6-debito": 0, "nubank-credito": 1, "nubank-debito": 1,
+      "c6-debito": 0, "nubank-credito": 1, "nubank-debito": 1,
     };
     const dataRows = rows.slice(linhasHeader[perfil.builtin] ?? 1);
 
     switch (perfil.builtin) {
-      case "c6-credito":     return parseFaturaC6(dataRows, perfil.conta, fileName, memoriaIA);
       case "c6-debito":      return parseExtratoC6(dataRows, perfil.conta, memoriaIA);
       case "nubank-credito": return parseFaturaNubank(dataRows, perfil.conta, fileName, memoriaIA, mesReferenciaManual);
       case "nubank-debito":  return parseExtratoNubank(dataRows, perfil.conta, memoriaIA);

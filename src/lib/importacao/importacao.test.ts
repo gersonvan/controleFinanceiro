@@ -279,7 +279,7 @@ describe("extrato CSV da conta C6", () => {
   ].join("\n");
 
   it("é reconhecido, usa o detalhe nas compras no débito e anexa a mensagem do Pix", () => {
-    expect(detectarPerfilCSV(extrato)).toEqual({ builtinKey: "c6-debito", nome: "C6 Bank — Extrato Débito" });
+    expect(detectarPerfilCSV(extrato)).toEqual({ builtinKey: "c6-debito", nome: "C6 — Extrato da Conta (CSV)" });
     const perfil: PerfilCompleto = { ...perfilCsv, delimitador: ",", builtin: "c6-debito" };
     expect(importar(extrato, "extrato.csv", perfil, new Map(), null).map(({ descricao, valor }) => ({ descricao, valor }))).toEqual([
       { descricao: "ATILA LIMA FORTALEZA BRA", valor: -14 },

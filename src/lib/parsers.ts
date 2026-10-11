@@ -22,60 +22,6 @@ function parseDateBR(str: string): Date | null {
   return null;
 }
 
-export function parseFaturaC6(
-  rows: string[][],
-  conta: string, // vem do perfil (lib/bancos.ts), ex.: "C6 · Crédito"
-  fileName: string,
-  memoriaIA: FonteMemoria
-): LancamentoImportado[] {
-  const lancamentos: LancamentoImportado[] = [];
-  const ano = fileName.substring(7, 11);
-  const mes = fileName.substring(12, 14);
-  const mesReferencia = new Date(parseInt(ano), parseInt(mes) - 1, 1);
-
-  for (const row of rows) {
-    if (row.length < 9 || row[4]?.includes("Inclusao de Pagamento")) continue;
-
-    const valorCsv = parseFloat(row[8]?.replace(",", "."));
-    if (isNaN(valorCsv)) continue;
-
-    let valor: number;
-    let tipo: "Entrada" | "Saída";
-    let categoria = row[3] || "";
-
-    if (valorCsv > 0) {
-      valor = -valorCsv;
-      tipo = "Saída";
-    } else {
-      valor = Math.abs(valorCsv);
-      tipo = "Entrada";
-      if (categoria === "-") categoria = "Estorno";
-    }
-
-    let descricao = row[4] || "";
-    const parcela = row[5];
-    if (parcela && parcela !== "Única") descricao = `${descricao} (${parcela})`;
-
-    const dataStr = row[0];
-    const data = parseDateBR(dataStr);
-    if (!data) continue;
-
-    categoria = mapearCategoria(descricao, categoria, tipo, memoriaIA);
-
-    lancamentos.push({
-      data,
-      descricao,
-      categoria,
-      valor,
-      tipo,
-      conta,
-      mesReferencia,
-      fonte: `Importado C6Crédito`,
-    });
-  }
-  return lancamentos;
-}
-
 // Mensagens que o C6 põe na coluna "Descrição" quando não há texto do usuário.
 const DETALHE_GENERICO_C6 = /^(transf enviada pix( ob)?|transf pix cartoes|boleto|pix recorrente|cheque especial)$/i;
 

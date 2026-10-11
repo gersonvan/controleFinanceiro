@@ -67,6 +67,12 @@ const PDF_DEFAULTS = {
   usaMesReferencia: true,
 };
 
+const LEGADO_CSV = {
+  delimitador: ",", linhasPular: 1, formatoData: "DD/MM/AAAA", modoValor: "unica" as const,
+  colData: null, colDescricao: null, colParcela: null, colValor: null, colEntrada: null, colSaida: null,
+  inverterSinal: false,
+};
+
 const BUILTIN_CSV_PERFIS = [
   {
     builtin: "bb-corrente-csv",
@@ -100,6 +106,11 @@ const BUILTIN_CSV_PERFIS = [
     inverterSinal: true,
     usaMesReferencia: true,
   },
+  // Com parser próprio (engine.ts): as colunas daqui não são usadas na leitura.
+  // Antes só existiam para quem criou a conta na primeira versão do app.
+  { builtin: "c6-debito",      nome: "C6 — Extrato da Conta (CSV)",    ...LEGADO_CSV, usaMesReferencia: false },
+  { builtin: "nubank-credito", nome: "Nubank — Fatura Cartão (CSV)",   ...LEGADO_CSV, usaMesReferencia: true },
+  { builtin: "nubank-debito",  nome: "Nubank — Extrato da Conta (CSV)", ...LEGADO_CSV, usaMesReferencia: false },
 ];
 
 export async function ensureBuiltinPerfis(userId: string) {
