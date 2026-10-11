@@ -103,12 +103,20 @@ export default function ReservaPage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card"><div className="text-sm text-slate-500">Em conta</div>
-          <div className={`text-2xl font-bold ${totais.emConta >= 0 ? "text-slate-800" : "text-red-700"}`}>{fmt(totais.emConta)}</div>
-          <div className="text-xs text-slate-400">soma das contas correntes</div></div>
-        <div className="card"><div className="text-sm text-slate-500">Aplicado disponível</div><div className="text-2xl font-bold text-emerald-700">{fmt(totais.disponivel)}</div></div>
-        <div className="card"><div className="text-sm text-slate-500">Bloqueado</div><div className="text-2xl font-bold text-slate-600">{fmt(totais.bloqueado)}</div><div className="text-xs text-slate-400">previdência e similares</div></div>
-        <div className="card"><div className="text-sm text-slate-500">Total</div><div className="text-2xl font-bold text-slate-800">{fmt(totais.geral)}</div><div className="text-xs text-slate-400">conta + aplicado + bloqueado</div></div>
+        {[
+          { rotulo: "Em conta", valor: totais.emConta, cor: totais.emConta >= 0 ? "text-slate-800" : "text-red-700", nota: "soma das contas correntes" },
+          { rotulo: "Aplicado disponível", valor: totais.disponivel, cor: "text-emerald-700", nota: "" },
+          { rotulo: "Bloqueado", valor: totais.bloqueado, cor: "text-slate-600", nota: "previdência e similares" },
+          { rotulo: "Total", valor: totais.geral, cor: "text-slate-800", nota: "conta + aplicado + bloqueado" },
+        ].map((k) => (
+          // o número nunca quebra (o "-" ficava sozinho numa linha): a fonte acompanha a
+          // largura do cartão (cqi), até o tamanho de antes; cabe até "-R$ 1.234.567,89"
+          <div key={k.rotulo} className="card @container min-w-0" style={{ padding: "1rem" }}>
+            <div className="text-sm text-slate-500">{k.rotulo}</div>
+            <div className={`font-bold whitespace-nowrap tabular-nums ${k.cor}`} style={{ fontSize: "clamp(0.9rem, 10.5cqi, 1.5rem)" }}>{fmt(k.valor)}</div>
+            {k.nota && <div className="text-xs text-slate-400">{k.nota}</div>}
+          </div>
+        ))}
       </div>
 
       {erro && <p className="text-sm text-red-600">{erro}</p>}
