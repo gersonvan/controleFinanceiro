@@ -5,7 +5,7 @@
 | Integração | Propósito | Criticidade | Ambiente onde existe | Evidência |
 |---|---|---|---|---|
 | Google OAuth 2.0 / OIDC | Autenticação de usuários; emissão de identidade | Alta — sem ela nenhum usuário consegue acessar o sistema | Produção e desenvolvimento | `src/auth.ts:14` |
-| Google Gemini AI (`gemini-3.1-flash-lite`, trocável por `GEMINI_MODEL`) | Classificação de categorias de transações financeiras por IA generativa, só no botão "+ Gemini" | Baixa — sem a chave o botão não aparece | Produção (opcional em desenvolvimento) | `src/lib/gemini.ts` |
+| Google Gemini AI (`gemini-3.1-flash-lite`, trocável por `GEMINI_MODEL`) | Classificação de categorias de transações financeiras por IA generativa, só no botão "✨ Inteligente" (categorização inteligente) | Baixa — sem a chave o botão não aparece | Produção (opcional em desenvolvimento) | `src/lib/gemini.ts` |
 
 ## Contratos consumidos
 
@@ -51,7 +51,7 @@ Só valem ids do próprio lote e categorias de `CATEGORIAS`; a gravação usa o 
 | Integração | Cenário de falha | Plano de contingência | Responsável | Evidência |
 |---|---|---|---|---|
 | Google OAuth indisponível | Usuários não conseguem fazer login | // CARÊNCIA: sem fallback; o sistema fica inacessível | — | — |
-| Gemini AI indisponível ou sem chave | Fase 3 de categorização não executa | Sem chave o botão "+ Gemini" some; com erro, a tela avisa e as fases 1 (memória/histórico) e 2 (regras) continuam valendo; o restante fica sem categoria | — | `src/app/api/categorizar/route.ts` |
+| Gemini AI indisponível ou sem chave | Fase 3 de categorização não executa | Sem chave o botão "✨ Inteligente" (categorização inteligente) some; com erro, a tela avisa e as fases 1 (memória/histórico) e 2 (regras) continuam valendo; o restante fica sem categoria | — | `src/app/api/categorizar/route.ts` |
 
 ## Mapa visual das integrações
 

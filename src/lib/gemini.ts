@@ -1,4 +1,4 @@
-// Categorização pelo Gemini (opcional, botão "+ Gemini" em Lançamentos): só o
+// Categorização pelo Gemini (opcional, botão "✨ Inteligente" em Lançamentos): só o
 // que a Memória, o histórico e as regras não resolveram, em lotes — um pedido
 // com várias descrições em vez de um por lançamento. Sem GEMINI_API_KEY o
 // botão não aparece. O modelo pode ser trocado por GEMINI_MODEL sem mexer no
@@ -17,7 +17,8 @@ export interface ItemGemini { id: number; descricao: string; tipo: string }
 /** Falha do Gemini com o status HTTP (a mensagem não leva corpo de resposta nem chave). */
 export class ErroGemini extends Error {
   constructor(readonly status: number) {
-    super(status ? `Gemini respondeu HTTP ${status}` : "Gemini não respondeu");
+    // vai para a tela: sem o nome do fornecedor
+    super(status ? `o serviço respondeu HTTP ${status}` : "o serviço não respondeu");
   }
 }
 

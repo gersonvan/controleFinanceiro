@@ -12,7 +12,7 @@ import { categorizarComGemini, geminiConfigurado } from "@/lib/gemini";
 // função e na cota gratuita; o que sobrar fica para o próximo clique.
 const MAX_GEMINI_POR_REQUISICAO = 200;
 
-// Se o botão "+ Gemini" deve aparecer (há chave configurada no servidor).
+// Se o botão "✨ Inteligente" (categorização inteligente) deve aparecer (há chave configurada no servidor).
 export async function GET() {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });

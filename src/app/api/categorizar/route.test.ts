@@ -109,7 +109,7 @@ describe("API de categorização", () => {
       mocks.lancamentoFindMany.mockResolvedValue([semPista]);
       const res = await categorizar(true);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ porGemini: 0, semCategoria: 1, gemini: "erro", geminiErro: "Gemini respondeu HTTP 404" });
+      expect(await res.json()).toMatchObject({ porGemini: 0, semCategoria: 1, gemini: "erro", geminiErro: "o serviço respondeu HTTP 404" });
     });
   });
 });

@@ -45,12 +45,12 @@ describe("Gemini", () => {
     const r = await categorizarComGemini(itens(POR_PEDIDO * 3), CATEGORIAS, { apiKey: "k", fetch });
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(r.categorias).toEqual(new Map([[1, "Compras"]]));
-    expect(r.erro?.message).toBe("Gemini respondeu HTTP 404");
+    expect(r.erro?.message).toBe("o serviço respondeu HTTP 404");
   });
 
   it("sem resposta (rede, tempo esgotado) vira erro sem detalhes", async () => {
     const fetch = vi.fn().mockRejectedValue(new Error("ECONNRESET chave-falsa"));
     const r = await categorizarComGemini(itens(1), CATEGORIAS, { apiKey: "chave-falsa", fetch });
-    expect(r.erro?.message).toBe("Gemini não respondeu");
+    expect(r.erro?.message).toBe("o serviço não respondeu");
   });
 });
