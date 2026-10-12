@@ -65,6 +65,7 @@ export const DESCRICOES: Record<string, string> = {
   "Plano de Saúde": "plano de saúde ou odontológico (Unimed, Amil, Hapvida)",
   "Prestação de Imóvel": "prestação ou financiamento do imóvel próprio",
   "Presentes": "floricultura e lojas de presentes",
+  "Doações": "doação a ONG ou instituição de caridade, dízimo e oferta para igreja, vaquinha online",
   "Restaurantes e Lanches": "restaurante, lanchonete, café, fast food",
   "Seguros": "seguro de carro, vida ou residência",
   "Serviços Domésticos": "diarista, faxina, lavanderia",

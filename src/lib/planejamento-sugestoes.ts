@@ -49,6 +49,7 @@ export const SUGESTOES: Record<Grupo, Sugestao[]> = {
     { nome: "Cuidados pessoais", categoria: "Cuidados Pessoais" },
     { nome: "Diarista / empregada", categoria: "Serviços Domésticos" },
     { nome: "Ajuda à família", categoria: "Transferência para Terceiros" },
+    { nome: "Doações (dízimo, ONG)", categoria: "Doações" },
   ],
   variavel: [
     { nome: "Mercado", categoria: "Supermercado e Mercearia" },

@@ -42,6 +42,7 @@ export const CATEGORIAS = [
   "Gastos de Terceiros",
   "Cuidados Pessoais",
   "Presentes",
+  "Doações", // ONG, igreja (dízimo, oferta), vaquinha: dinheiro dado sem contrapartida
   "Pets",
   // Empréstimos
   "Empréstimo",
@@ -72,7 +73,7 @@ export const GRUPOS_CATEGORIAS: { grupo: string; categorias: Categoria[] }[] = [
   { grupo: "Transporte", categorias: ["Transporte por App", "Automóvel", "Combustível", "Estacionamento"] },
   { grupo: "Saúde", categorias: ["Plano de Saúde", "Consultas e Terapias", "Farmácia", "Academia e Bem-estar"] },
   { grupo: "Educação", categorias: ["Mensalidades e Cursos"] },
-  { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Viagem", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Pets"] },
+  { grupo: "Pessoal e Lazer", categorias: ["Compras", "Lazer e Entretenimento", "Viagem", "Assinaturas Digitais", "Cuidados Pessoais", "Presentes", "Doações", "Pets"] },
   { grupo: "Financeiro", categorias: ["Taxas e Anuidades", "Impostos e Tributos", "Seguros", "Investimentos (Aportes)", "Compra e Venda de Bens", "Empréstimo", "Pagamento de Empréstimos"] },
   { grupo: "Transferências", categorias: ["Transferência para Terceiros", "Transferência entre Contas", "Pagamento de Cartão de Crédito", "Gastos de Terceiros"] },
   { grupo: "Empresa", categorias: ["Empresa (PJ)"] },
@@ -114,6 +115,7 @@ export const CATEGORIAS_SAIDA = [
   "Contas de Consumo",
   "Cuidados Pessoais",
   "Delivery e iFood",
+  "Doações",
   "Empresa (PJ)",
   "Empréstimo",
   "Estacionamento",
@@ -534,6 +536,8 @@ function regras(d: string, categoriaOriginal: string, tipo: string): string {
   )
     return "Taxas e Anuidades";
   if (d.includes("seguro") || d.includes("seg vida")) return "Seguros";
+  // antes do "Pix enviado para": a mensagem do Pix diz que foi doação ("… · Dízimo")
+  if (/\b(doa[cç][aã]o|doa[cç][oõ]es|d[ií]zimo|vakinha|vaquinha|unicef|m[eé]dicos sem fronteiras|actionaid|graacc)\b/.test(d)) return "Doações";
   // GPS = guia do INSS ("PAGAMENTO TRIBUTO GPS", "INT /GPS 0109…")
   if (/\btributo gps\b|^int \/gps\b/.test(d)) return "Impostos e Tributos";
   // mensagem do Pix diz para que foi: "Pix enviado para FULANO · Emprestimo"

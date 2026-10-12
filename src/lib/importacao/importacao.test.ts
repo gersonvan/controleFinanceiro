@@ -1022,3 +1022,15 @@ describe("revisão das linhas antes de importar", () => {
     expect(ajustesSchema.safeParse({ ...ok, incluir: [{ data: "2026-08-01", descricao: "   ", valor: -1 }] }).success).toBe(false);
   });
 });
+
+describe("categoria Doações", () => {
+  it("doação, dízimo e vaquinha vão para Doações — inclusive Pix com a mensagem —, mas doação recebida não", async () => {
+    const { mapearCategoria } = await import("../categorias");
+    for (const d of ["DOACAO INSTITUTO FICTICIO", "Pix enviado para IGREJA FICTICIA · Dízimo", "VAKINHA*AJUDA FULANO", "Doação mensal ONG Exemplo", "MEDICOS SEM FRONTEIRAS"]) {
+      expect(mapearCategoria(d, "", "Saída"), d).toBe("Doações");
+    }
+    expect(mapearCategoria("Pix enviado para FULANO DE TAL", "", "Saída")).toBe("Transferência para Terceiros");
+    expect(mapearCategoria("Pix recebido de FULANO · doação", "", "Entrada")).toBe("Transferência Recebida");
+    expect(mapearCategoria("SUPERMERCADO OFERTA BOA", "", "Saída")).not.toBe("Doações");
+  });
+});
