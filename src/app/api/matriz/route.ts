@@ -8,6 +8,8 @@ import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { filtroPeriodo, filtrosLancamentoSchema } from "@/lib/filtros";
 import { lerQuery, validar } from "@/lib/validacao";
+import { GRUPO_OUTRAS, grupoDaCategoria, type Catalogo } from "@/lib/catalogo-categorias";
+import { carregarCatalogo } from "@/lib/categorias-usuario";
 
 const matrizSchema = filtrosLancamentoSchema.pick({ tipo: true, dataInicio: true, dataFim: true });
 
@@ -73,18 +75,18 @@ function mediaDosMeses(totais: Record<string, number>, meses: string[]): number 
   return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
 }
 
-const GRUPO_DA_CATEGORIA = new Map(GRUPOS_CATEGORIAS.flatMap((g) => g.categorias.map((c): [string, string] => [c, g.grupo])));
 const ORDEM_CATEGORIA = new Map(GRUPOS_CATEGORIAS.flatMap((g) => g.categorias.map((c, i): [string, number] => [c, i])));
-const OUTROS = "Outros"; // categoria antiga, fora da lista atual
 
-/** Na ordem dos seletores (estável de um mês para o outro); categorias também. */
-function agruparPorGrupo(linhas: MatrizLinha[], meses: string[]): MatrizGrupo[] {
+/** Na ordem dos seletores (estável de um mês para o outro); categorias também. As
+ *  personalizadas ficam no grupo que o usuário escolheu; categoria antiga, fora de
+ *  qualquer lista, em "Outras". */
+function agruparPorGrupo(linhas: MatrizLinha[], meses: string[], catalogo: Catalogo): MatrizGrupo[] {
   const porGrupo = new Map<string, MatrizLinha[]>();
   for (const l of linhas) {
-    const g = GRUPO_DA_CATEGORIA.get(l.categoria) ?? OUTROS;
+    const g = grupoDaCategoria(catalogo, l.categoria) ?? GRUPO_OUTRAS;
     porGrupo.set(g, [...(porGrupo.get(g) ?? []), l]);
   }
-  const ordem = [...GRUPOS_CATEGORIAS.map((g) => g.grupo), OUTROS];
+  const ordem = [...GRUPOS_CATEGORIAS.map((g) => g.grupo), GRUPO_OUTRAS];
   return ordem.filter((g) => porGrupo.has(g)).map((grupo) => {
     const categorias = porGrupo.get(grupo)!.sort((a, b) =>
       (ORDEM_CATEGORIA.get(a.categoria) ?? 99) - (ORDEM_CATEGORIA.get(b.categoria) ?? 99) || a.categoria.localeCompare(b.categoria, "pt-BR"));
@@ -160,7 +162,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     meses,
     linhas: principais,
-    grupos: agruparPorGrupo(principais, meses),
+    grupos: agruparPorGrupo(principais, meses, await carregarCatalogo(userId)),
     internas: linhas.filter((l) => ehInterna(l.categoria)),
   } satisfies MatrizData);
 }

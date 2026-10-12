@@ -7,6 +7,7 @@ import { escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { categoriaSchema, idSchema, lerCorpo, validar } from "@/lib/validacao";
 import { criarCliente, iaConfigurada, sugerirCategorias } from "@/lib/categorizacao-inteligente";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 // Os lotes da IA vão em paralelo, cada um com até 25 s; folga para a resposta.
 export const maxDuration = 60;
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       const alvo = aindaSemCategoria.slice(0, MAX_IA_POR_REQUISICAO);
       const r = await sugerirCategorias(
         alvo.map(({ id, descricao, tipo }) => ({ id, descricao, tipo })),
-        { cliente: criarCliente(), modelo: process.env.IA_MODELO },
+        { cliente: criarCliente(), modelo: process.env.IA_MODELO, ocultas: fonte.ocultas },
       );
       const porId = new Map(alvo.map((l) => [l.id, l]));
       ia = {
@@ -118,6 +119,8 @@ export async function PUT(req: NextRequest) {
 
   const v = validar(aplicacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, v.dados.itens.map((i) => i.categoria)); // só as categorias do usuário
+  if (fora) return fora;
 
   const resultados = await prisma.$transaction(
     v.dados.itens.map(({ id, categoria }) =>

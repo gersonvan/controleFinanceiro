@@ -249,3 +249,20 @@ model Acesso {
   @@unique([donoUserId, membroEmail])
   @@index([membroEmail])
 }
+
+/// Categorias do usuário (src/lib/categorias-usuario.ts), por dono das finanças:
+/// as nativas que ele ocultou (com o destino do que cairia nelas) e as
+/// personalizadas que criou. As nativas do sistema (CATEGORIAS_DO_SISTEMA, que o
+/// app usa nos cálculos) nunca aparecem aqui.
+model CategoriaUsuario {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  nome      String
+  nativa    Boolean  // true = nativa oculta; false = personalizada
+  grupo     String?  // personalizada: o grupo onde aparece (define entrada ou saída)
+  destino   String?  // nativa oculta: para onde vão regras e IA (null = sem categoria)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, nome])
+}

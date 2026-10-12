@@ -10,6 +10,7 @@ import {
   categoriaSchema, idSchema, lerCorpo, lerQuery, opcional, textoCurto, textoLongo,
   tipoSchema, validar,
 } from "@/lib/validacao";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 const listagemSchema = filtrosLancamentoSchema.extend({
   page: opcional(z.coerce.number().int().min(1)).default(1),
@@ -76,6 +77,8 @@ export async function POST(req: NextRequest) {
 
   const v = validar(criacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.categoria]); // só as categorias do usuário
+  if (fora) return fora;
 
   const { conta } = await padronizarConta(userId, v.dados.conta); // "Carteira" → "Outro · Carteira"
   const lancamento = await prisma.lancamento.create({
@@ -109,6 +112,8 @@ export async function PATCH(req: NextRequest) {
 
   const v = validar(edicaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.categoria]); // só as categorias do usuário
+  if (fora) return fora;
   const { id, ...campos } = v.dados;
   const data = campos.conta ? { ...campos, conta: (await padronizarConta(userId, campos.conta)).conta } : campos;
 
@@ -125,6 +130,8 @@ export async function PUT(req: NextRequest) {
 
   const v = validar(recategorizacaoSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.categoriaCorreta]); // só as categorias do usuário
+  if (fora) return fora;
   const { ids, descricaoContem, descricaoExata, categoriaErrada, somenteSemCategoria, categoriaCorreta, pessoa } = v.dados;
 
   const where = escopoDoUsuario(userId);

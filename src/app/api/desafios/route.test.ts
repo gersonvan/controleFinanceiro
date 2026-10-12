@@ -16,6 +16,7 @@ vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
 vi.mock("@/lib/contas", () => ({ tiposDasContas: mocks.tiposDasContas }));
 vi.mock("@/lib/db", () => ({
   prisma: {
+    categoriaUsuario: { findMany: async () => [] }, // sem categorias personalizadas nem ocultas
     desafio: {
       findMany: mocks.desafioFindMany, findFirst: mocks.desafioFindFirst,
       create: mocks.desafioCreate, updateMany: mocks.desafioUpdateMany,

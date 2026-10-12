@@ -9,7 +9,7 @@ import { SeletorEspaco } from "@/components/Espaco";
 import type { OpcaoEspaco } from "@/lib/espaco";
 import {
   Brain, Camera, ChevronRight, FileDown, FileUp, Grid3x3, Handshake, Landmark, LayoutDashboard,
-  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Share2, Target, TrendingUp, Wallet, Wrench, X,
+  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Share2, Tags, Target, TrendingUp, Wallet, Wrench, X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +34,7 @@ const menu: EntradaMenu[] = [
   ] },
   { label: "Configurações", icon: Settings, filhos: [
     { href: "/configuracoes/contas", label: "Contas", icon: Landmark },
+    { href: "/configuracoes/categorias", label: "Categorias", icon: Tags },
     { href: "/configuracoes/importacao", label: "Importação", icon: FileDown },
     { href: "/configuracoes/memoria", label: "Memória Local", icon: Brain },
     { href: "/configuracoes/mesmo-pagamento", label: "Mesmo pagamento", icon: Link2 },

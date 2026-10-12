@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getSessionUserId: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
-vi.mock("@/lib/db", () => ({ prisma: { lancamento: { findMany: mocks.findMany }, apelido: { findMany: async () => [] } } }));
+vi.mock("@/lib/db", () => ({ prisma: {
+  lancamento: { findMany: mocks.findMany }, apelido: { findMany: async () => [] },
+  categoriaUsuario: { findMany: async () => [] }, // sem categorias personalizadas nem ocultas
+} }));
 
 import { GET } from "./route";
 
@@ -35,7 +38,7 @@ describe("Matriz", () => {
       l("Categoria Antiga", "X", -10, "2026-09"),
     ]);
     const j = await (await GET(new NextRequest("http://localhost/api/matriz?tipo=Saída"))).json();
-    expect(j.grupos.map((g: { grupo: string }) => g.grupo)).toEqual(["Moradia", "Transporte", "Outros"]);
+    expect(j.grupos.map((g: { grupo: string }) => g.grupo)).toEqual(["Moradia", "Transporte", "Outras"]);
     const transporte = j.grupos[1];
     expect(transporte.categorias.map((c: { categoria: string }) => c.categoria)).toEqual(["Combustível", "Estacionamento"]);
     expect(transporte.totais).toEqual({ "08/2026": 300, "09/2026": 250 });

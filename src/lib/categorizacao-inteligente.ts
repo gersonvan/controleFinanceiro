@@ -75,8 +75,9 @@ export const DESCRICOES: Record<string, string> = {
   "Viagem": "passagens, hotel, hospedagem, agência de viagem",
 };
 
-export function instrucao(tipo: Tipo): string {
-  const lista = CATEGORIAS_IA[tipo].map((c) => `- ${c}: ${DESCRICOES[c]}`).join("\n");
+/** `categorias`: as do tipo que o usuário vê (sem as que ele ocultou). */
+export function instrucao(tipo: Tipo, categorias: string[] = CATEGORIAS_IA[tipo]): string {
+  const lista = categorias.map((c) => `- ${c}: ${DESCRICOES[c]}`).join("\n");
   return `Você classifica transações de extratos bancários brasileiros de uma pessoa física em categorias de finanças pessoais.
 
 Você recebe uma lista JSON de transações {id, descricao}, todas do tipo ${tipo}. Para cada uma, decida se a descrição sozinha deixa claro o ramo do gasto ou a origem do dinheiro.
@@ -115,7 +116,7 @@ const CERTEZAS: Certeza[] = ["alta", "media", "baixa"];
 
 // JSON Schema sem a transformação do SDK: ela rebaixa `enum` a texto de
 // descrição, e aqui a lista de categorias tem de valer na geração (a API aceita `enum`).
-function formato(tipo: Tipo) {
+function formato(categorias: string[]) {
   return jsonSchemaOutputFormat({
     type: "object",
     properties: {
@@ -125,7 +126,7 @@ function formato(tipo: Tipo) {
           type: "object",
           properties: {
             id: { type: "integer" },
-            categoria: { type: "string", enum: CATEGORIAS_IA[tipo] },
+            categoria: { type: "string", enum: categorias },
             certeza: { type: "string", enum: CERTEZAS },
           },
           required: ["id", "categoria", "certeza"],
@@ -138,14 +139,14 @@ function formato(tipo: Tipo) {
   }, { transform: false });
 }
 
-async function pedir(lote: ItemIA[], tipo: Tipo, cliente: ClienteIA, modelo: string): Promise<SugestaoIA[]> {
+async function pedir(lote: ItemIA[], tipo: Tipo, categorias: string[], cliente: ClienteIA, modelo: string): Promise<SugestaoIA[]> {
   let resposta;
   try {
     resposta = await cliente.messages.parse({
       model: modelo,
       max_tokens: 8000, // sobra para o raciocínio e ~50 itens de JSON
-      output_config: { effort: "low", format: formato(tipo) },
-      system: instrucao(tipo),
+      output_config: { effort: "low", format: formato(categorias) },
+      system: instrucao(tipo, categorias),
       messages: [{ role: "user", content: JSON.stringify(lote.map(({ id, descricao }) => ({ id, descricao }))) }],
     });
   } catch (e) {
@@ -157,7 +158,7 @@ async function pedir(lote: ItemIA[], tipo: Tipo, cliente: ClienteIA, modelo: str
 
   // de novo, aqui: só ids do lote, só categorias da lista deste tipo
   const ids = new Set(lote.map((l) => l.id));
-  const permitidas = new Set(CATEGORIAS_IA[tipo]);
+  const permitidas = new Set(categorias);
   return lista.filter((s): s is SugestaoIA =>
     typeof s?.id === "number" && ids.has(s.id) && permitidas.has(s.categoria) && CERTEZAS.includes(s.certeza))
     .map(({ id, categoria, certeza }) => ({ id, categoria, certeza }));
@@ -170,15 +171,17 @@ async function pedir(lote: ItemIA[], tipo: Tipo, cliente: ClienteIA, modelo: str
  */
 export async function sugerirCategorias(
   itens: ItemIA[],
-  opts: { cliente: ClienteIA; modelo?: string },
+  opts: { cliente: ClienteIA; modelo?: string; ocultas?: ReadonlySet<string> | ReadonlyMap<string, unknown> },
 ): Promise<{ sugestoes: SugestaoIA[]; erro: ErroIA | null }> {
   const modelo = opts.modelo || MODELO_PADRAO;
+  // categoria que o usuário ocultou não é sugerida
+  const categorias = (tipo: Tipo) => CATEGORIAS_IA[tipo].filter((c) => !opts.ocultas?.has(c));
   const lotes: { tipo: Tipo; itens: ItemIA[] }[] = [];
   for (const tipo of ["Entrada", "Saída"] as const) {
     const doTipo = itens.filter((i) => i.tipo === tipo);
     for (let i = 0; i < doTipo.length; i += POR_PEDIDO) lotes.push({ tipo, itens: doTipo.slice(i, i + POR_PEDIDO) });
   }
-  const resultados = await Promise.allSettled(lotes.map((l) => pedir(l.itens, l.tipo, opts.cliente, modelo)));
+  const resultados = await Promise.allSettled(lotes.map((l) => pedir(l.itens, l.tipo, categorias(l.tipo), opts.cliente, modelo)));
 
   const vistos = new Set<number>();
   const sugestoes: SugestaoIA[] = [];

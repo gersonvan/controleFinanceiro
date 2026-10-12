@@ -27,7 +27,7 @@ export default function CategoriaSelect({
       onKeyDown={onKeyDown}
     >
       <option value="">{placeholder}</option>
-      <OpcoesCategorias />
+      <OpcoesCategorias atual={value} />
     </select>
   );
 }

@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { z } from "zod";
 import { categoriaSchema, idSchema, lerCorpo, lerQuery, textoLongo, validar } from "@/lib/validacao";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 const regraSchema = z.object({ descricao: textoLongo, categoriaCorreta: categoriaSchema });
 
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest) {
 
   const v = validar(regraSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.categoriaCorreta]); // só as categorias do usuário
+  if (fora) return fora;
   const { descricao, categoriaCorreta } = v.dados;
   const regra = await prisma.memoriaIA.upsert({
     where: { descricao_userId: { descricao, userId } },

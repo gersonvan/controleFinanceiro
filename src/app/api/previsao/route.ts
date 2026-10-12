@@ -7,6 +7,7 @@ import { getSessionUserId } from "@/lib/session";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { calcularPrevisao } from "@/lib/previsao";
 import type { ItemPlanejado } from "@/lib/planejamento";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 export type { ItemPrevisao, HistoricoItem, HistoricoLancamento } from "@/lib/previsao";
 
@@ -44,6 +45,9 @@ export async function PATCH(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const v = validar(encerrarSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  // reabrir vale para qualquer nome (a categoria pode ter saído da lista); encerrar, só as do usuário
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.encerrada ? v.dados.categoria : null]); // só as categorias do usuário
+  if (fora) return fora;
   const { categoria, encerrada } = v.dados;
 
   const perfil = await prisma.userProfile.findUnique({ where: escopoDoUsuario(userId), select: { previsaoEncerradas: true } });

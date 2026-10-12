@@ -491,7 +491,7 @@ function LancamentosContent() {
           <select value={filtros.categoria} onChange={(e) => setFiltro("categoria", e.target.value)}>
             <option value="">Todas as categorias</option>
             <option value="__sem__">⚠️ Sem categoria</option>
-            <OpcoesCategorias />
+            <OpcoesCategorias atual={filtros.categoria === "__sem__" ? null : filtros.categoria} />
           </select>
           <select value={filtros.tipo} onChange={(e) => setFiltro("tipo", e.target.value)}>
             <option value="">Entrada e Saída</option>

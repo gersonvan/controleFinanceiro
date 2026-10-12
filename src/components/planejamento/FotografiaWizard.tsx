@@ -9,7 +9,9 @@ import {
   totaisMensais, valorMensal,
   type Grupo, type ItemPlanejado, type Periodicidade,
 } from "@/lib/planejamento";
-import { CATEGORIA_LIVRE, PERIODICIDADE_PADRAO, SUGESTOES } from "@/lib/planejamento-sugestoes";
+import { PERIODICIDADE_PADRAO, SUGESTOES } from "@/lib/planejamento-sugestoes";
+import { categoriaLivre, resolverCategoria } from "@/lib/catalogo-categorias";
+import { useCategorias } from "@/components/Categorias";
 import {
   MESES_MINIMOS, fazSentidoSugerirNovo, valorSugerido,
   type HistoricoCategoria, type HistoricoPlanejamento,
@@ -88,6 +90,7 @@ interface Props {
 }
 
 export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) {
+  const catalogo = useCategorias();
   const [itens, setItens] = useState<ItemLocal[]>([]);
   const [margem, setMargem] = useState("20");
   const [etapa, setEtapa] = useState(0);
@@ -149,7 +152,7 @@ export default function FotografiaWizard({ modo, onConcluir, onDepois }: Props) 
 
   const adicionarLivre = (grupo: Grupo) =>
     setItens((prev) => [...prev, {
-      key: proximaKey++, grupo, descricao: "", categoria: CATEGORIA_LIVRE[grupo], valor: "",
+      key: proximaKey++, grupo, descricao: "", categoria: categoriaLivre(catalogo, grupo), valor: "",
       periodicidade: PERIODICIDADE_PADRAO[grupo], parcelaAtual: "", parcelaTotal: "", livre: true,
     }]);
 
@@ -263,7 +266,12 @@ function EtapaGrupo({ grupo, itens, total, onSugestao, onLivre, onAtualizar, onR
   categoriasUsadas: Set<string>;
   modo: "onboarding" | "pagina";
 }) {
-  const sugestoes = SUGESTOES[grupo];
+  // sugestão de categoria que o usuário ocultou: vai para o destino dele, ou some
+  const catalogo = useCategorias();
+  const sugestoes = SUGESTOES[grupo].flatMap((s) => {
+    const categoria = resolverCategoria(catalogo, s.categoria);
+    return categoria ? [{ ...s, categoria }] : [];
+  });
   const nomesAdicionados = new Set(itens.map((i) => i.descricao));
   const unidade = grupo === "sazonal" ? "/ano" : "/mês";
 

@@ -159,6 +159,18 @@ export const CATEGORIAS_FIXAS = [
 ];
 
 /**
+ * Categorias que o app usa nos cálculos — fora dos totais, coringas das regras,
+ * estornos e reembolsos, empréstimos, investimentos, encargos. Aparecem para
+ * todos: o usuário não pode ocultá-las (lib/categorias-usuario.ts).
+ */
+export const CATEGORIAS_DO_SISTEMA = new Set<string>([
+  "Pagamento de Cartão de Crédito", "Transferência entre Contas", "Gastos de Terceiros", "Empresa (PJ)", "Compra e Venda de Bens",
+  "Transferência para Terceiros", "Transferência Recebida", "Outras Entradas",
+  "Estorno", "Reembolso", "Investimentos (Aportes)",
+  "Empréstimo", "Recebimento de Empréstimo", "Pagamento de Empréstimos", "Taxas e Anuidades",
+]);
+
+/**
  * Fora das finanças pessoais: movimentações internas (pagamento da fatura,
  * transferência entre contas próprias), gastos de terceiros e despesas da
  * empresa. Excluídas dos totais do dashboard, do resumo e do Planejado ×
@@ -212,6 +224,8 @@ export interface MemoriaCategorizacao {
   nomeCompleto?: string;
   /** "Mesmo pagamento": chaveMemoria → nome comum (ver chaveAgrupada) */
   apelidos?: Map<string, string>;
+  /** nativas que o usuário ocultou → para onde vai o que cairia nelas (null = sem categoria) */
+  ocultas?: Map<string, string | null>;
 }
 /** Só a Memória (Map) ou Memória + histórico. */
 export type FonteMemoria = Map<string, string> | MemoriaCategorizacao;
@@ -297,9 +311,23 @@ function ehDelivery(d: string): boolean {
 
 /**
  * Ordem: Memória Local → delivery → histórico → regras. Devolve também de onde
- * veio a categoria, para a tela de categorização contar cada fonte.
+ * veio a categoria, para a tela de categorização contar cada fonte. Categoria
+ * que o usuário ocultou vira o destino que ele escolheu (ou nenhuma).
  */
 export function categorizarComOrigem(
+  descricao: string,
+  categoriaOriginal: string,
+  tipo: string,
+  fonte?: FonteMemoria,
+): { categoria: string; origem: OrigemCategoria | null } {
+  const r = categorizarSemOcultas(descricao, categoriaOriginal, tipo, fonte);
+  const ocultas = fonte instanceof Map ? undefined : fonte?.ocultas;
+  if (!ocultas?.has(r.categoria)) return r;
+  const destino = ocultas.get(r.categoria) ?? "";
+  return { categoria: destino, origem: destino ? r.origem : null };
+}
+
+function categorizarSemOcultas(
   descricao: string,
   categoriaOriginal: string,
   tipo: string,

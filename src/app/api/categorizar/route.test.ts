@@ -20,6 +20,7 @@ vi.mock("@/lib/categorizacao-inteligente", async (original) => ({
 }));
 vi.mock("@/lib/db", () => ({
   prisma: {
+    categoriaUsuario: { findMany: async () => [] }, // sem categorias personalizadas nem ocultas
     memoriaIA: { findMany: mocks.memoriaFindMany },
     userProfile: { findUnique: mocks.perfilFindUnique },
     apelido: { findMany: async () => [] },

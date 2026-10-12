@@ -5,7 +5,6 @@
 // mass assignment) e tipos errados viram 400 em vez de exceção do Prisma.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { CATEGORIAS } from "./categorias";
 
 z.config(z.locales.pt());
 
@@ -16,7 +15,9 @@ export const TAMANHO_MAX_UPLOAD = 8 * 1024 * 1024; // 8 MB
 export const idSchema = z.coerce.number().int().positive();
 export const textoCurto = z.string().trim().min(1).max(200);
 export const textoLongo = z.string().trim().min(1).max(500);
-export const categoriaSchema = z.enum(CATEGORIAS);
+// O formato; se a categoria é do usuário (nativa visível ou personalizada) cada
+// rota confere com categoriasForaDoCatalogo (lib/categorias-usuario.ts).
+export const categoriaSchema = z.string().trim().min(1).max(60);
 export const tipoSchema = z.enum(["Entrada", "Saída"]);
 
 /** Query strings chegam como "" quando o campo está vazio: trata como ausente. */

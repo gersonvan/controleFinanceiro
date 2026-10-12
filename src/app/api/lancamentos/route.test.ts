@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/session", () => ({ getSessionUserId: mocks.getSessionUserId }));
 vi.mock("@/lib/db", () => {
   const prisma = {
+    categoriaUsuario: { findMany: async () => [] }, // sem categorias personalizadas nem ocultas
     lancamento: {
       count: mocks.count,
       findMany: mocks.findMany,

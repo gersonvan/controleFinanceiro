@@ -11,6 +11,7 @@ import {
   metaMaisFacil, MODELOS, MODELOS_IDS, montarBase, ocupamVaga, opcoesDeTeto, periodoDo, referenciaDo, repetido,
   sugerirDesafios, tituloDoDesafio, type Avaliacao, type Desafio, type LancamentoDesafio,
 } from "@/lib/desafios";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 const DIA = 86_400_000;
 /** Fechados que a página mostra (os abandonados somem: desistir não tem castigo). */
@@ -108,6 +109,8 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const v = validar(aceiteSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, [v.dados.categoria]); // só as categorias do usuário
+  if (fora) return fora;
 
   const modelo = v.dados.modelo as (typeof MODELOS_IDS)[number];
   const { medida } = MODELOS[modelo];

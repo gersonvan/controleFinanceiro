@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/lib/session";
 import { dadosDoUsuario, escopoDoUsuario } from "@/lib/tenant";
 import { categoriaSchema, lerCorpo, textoCurto, validar } from "@/lib/validacao";
 import { GRUPOS, PERIODICIDADES, totaisMensais, type ItemPlanejado } from "@/lib/planejamento";
+import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
 
 const MARGEM_PADRAO = 20;
 
@@ -74,6 +75,8 @@ export async function PUT(req: NextRequest) {
 
   const v = validar(fotografiaSchema, await lerCorpo(req));
   if (!v.ok) return v.resposta;
+  const fora = await categoriasForaDoCatalogo(userId, v.dados.itens.map((i) => i.categoria)); // só as categorias do usuário
+  if (fora) return fora;
   const { itens, margemPercentual, concluir } = v.dados;
 
   const concluidaEm = concluir ? new Date() : undefined;

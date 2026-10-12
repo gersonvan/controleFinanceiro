@@ -4,6 +4,8 @@ import Nav from "@/components/Nav";
 import { auth } from "@/auth";
 import { contextoDaSessao, espacosDoUsuario } from "@/lib/espaco";
 import { AvisoEspaco, EspacoProvider } from "@/components/Espaco";
+import { CategoriasProvider } from "@/components/Categorias";
+import { linhasDoUsuario } from "@/lib/categorias-usuario";
 
 export const metadata: Metadata = {
   title: "Prumo",
@@ -28,6 +30,8 @@ export default async function RootLayout({
   const contexto = await contextoDaSessao();
   const espacos = contexto ? await espacosDoUsuario(contexto.usuario) : [];
   const atual = espacos.find((e) => e.dono === contexto?.dono);
+  // as categorias das finanças abertas (nativas não ocultas + personalizadas), para os seletores
+  const categorias = contexto ? await linhasDoUsuario(contexto.dono) : [];
 
   return (
     <html lang="pt-BR" className="h-full">
@@ -35,8 +39,10 @@ export default async function RootLayout({
         <Nav user={session.user} espacos={espacos} atual={contexto?.dono ?? ""} />
         <main className="flex-1 md:ml-56 pt-18 md:pt-6 p-4 md:p-6 min-h-screen min-w-0">
           <EspacoProvider papel={contexto?.papel ?? "dono"} nome={atual?.nome ?? ""}>
-            {contexto && atual && <AvisoEspaco nome={atual.nome} papel={contexto.papel} meu={contexto.usuario} />}
-            {children}
+            <CategoriasProvider linhas={categorias}>
+              {contexto && atual && <AvisoEspaco nome={atual.nome} papel={contexto.papel} meu={contexto.usuario} />}
+              {children}
+            </CategoriasProvider>
           </EspacoProvider>
         </main>
       </body>
