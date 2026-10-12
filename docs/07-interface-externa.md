@@ -25,7 +25,8 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `PATCH` | `/api/perfis` | Alterna o campo `ativo` de um perfil por `id` | `src/app/api/perfis/route.ts:767` |
 | `DELETE` | `/api/perfis` | Remove um perfil personalizado (`builtin: null`) por `id` | `src/app/api/perfis/route.ts:781` |
 | `GET` | `/api/lancamentos/agrupados` | Lançamentos de uma categoria (ou `__sem__`) agrupados pela descrição exata | `src/app/api/lancamentos/agrupados/route.ts:22` |
-| `POST` | `/api/importar/analisar` | Analisa um arquivo sem gravar (formato, banco, perfil, total/novos/duplicados, período, mês de referência sugerido) | `src/app/api/importar/analisar/route.ts:30` |
+| `POST` | `/api/importar/pdf-preview` | Lê um PDF sem gravar: banco, perfil nativo, todas as linhas lidas, conferência com o resumo da fatura, mês de referência sugerido e aviso de documento de outra pessoa | `src/app/api/importar/pdf-preview/route.ts:15` |
+| `POST` | `/api/importar/analisar` | Analisa um arquivo sem gravar (formato, banco, perfil, total/novos/duplicados, período, mês de referência sugerido, conferência com o resumo da fatura em PDF) | `src/app/api/importar/analisar/route.ts:30` |
 | `PATCH` | `/api/onboarding` | Marca o onboarding como completo e salva o nome do usuário | `src/app/api/onboarding/route.ts:634` |
 | `GET` | `/api/planejamento` | Fotografia do mês do usuário: itens, `margemPercentual`, `fotografiaConcluidaEm` e totais mensalizados | `src/app/api/planejamento/route.ts:63` |
 | `PUT` | `/api/planejamento` | Substitui a fotografia inteira (`itens[]`, `margemPercentual`, `concluir`) numa transação; validação zod por grupo/periodicidade/parcelas | `src/app/api/planejamento/route.ts:71` |

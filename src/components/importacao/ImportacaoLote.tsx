@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import DestinoConta from "./DestinoConta";
 import AvisoOutraPessoa from "./AvisoOutraPessoa";
+import LeituraPDF, { AvisoConferencia, type LinhaLida } from "./LeituraPDF";
 
 export type StatusItem = "analisando" | "pronto" | "configurar" | "importando" | "importado" | "erro";
 
@@ -19,11 +20,19 @@ export interface ItemLote {
   mesRef: string; // "AAAA-MM" — só faturas
   conta?: string | null; // destino; null = há mais de uma conta do mesmo banco e tipo e falta escolher
   confirmarTitular?: boolean; // "é meu": documento cujo titular não bate com o nome do usuário
+  confirmarLeitura?: boolean; // "conferi": a soma lida não bate com o resumo da fatura
   resultado?: { conta?: string; novos: number; duplicados: number; processados: number; reembolsosVinculados?: number; saldoConta?: { conta: string; saldo: number; atualizado: boolean } | null };
   erro?: string;
 }
 
 const FORMATO: Record<string, string> = { ofx: "OFX", pdf: "PDF", csv: "CSV" };
+
+/** Pronto e sem pendência do usuário: documento de outra pessoa só com o "é meu";
+ *  fatura cuja soma não bate com o resumo só com o "conferi". */
+export const podeImportar = (i: ItemLote) =>
+  i.status === "pronto" && !!i.analise?.perfil &&
+  (!i.analise.outraPessoa || !!i.confirmarTitular) &&
+  (i.analise.conferencia?.confere !== false || !!i.confirmarLeitura);
 
 const fmtDia = (iso: string) => {
   const [, m, d] = iso.split("-");
@@ -36,6 +45,7 @@ interface Props {
   onMesRef: (id: number, mesRef: string) => void;
   onConta: (id: number, conta: string | null) => void;
   onConfirmarTitular: (id: number, confirmado: boolean) => void;
+  onConfirmarLeitura: (id: number, confirmado: boolean) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
   onAdicionar: (files: File[]) => void;
@@ -44,14 +54,13 @@ interface Props {
 }
 
 export default function ImportacaoLote({
-  itens, importando, onMesRef, onConta, onConfirmarTitular, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
+  itens, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
 }: Props) {
   const [categorizacao, setCategorizacao] = useState<string>("");
   const [categorizando, setCategorizando] = useState(false);
 
   const analisando = itens.some((i) => i.status === "analisando");
-  // documento de outra pessoa só entra com o "é meu"
-  const prontos = itens.filter((i) => i.status === "pronto" && (!i.analise?.outraPessoa || i.confirmarTitular));
+  const prontos = itens.filter(podeImportar);
   const faltaMes = prontos.filter((i) => i.analise?.perfil?.usaMesReferencia && !i.mesRef);
   const faltaConta = prontos.filter((i) => i.conta === null);
   const importados = itens.filter((i) => i.status === "importado");
@@ -95,7 +104,8 @@ export default function ImportacaoLote({
 
         <ul className="divide-y divide-slate-100">
           {itens.map((item) => <Linha key={item.id} item={item} importando={importando}
-            onMesRef={onMesRef} onConta={onConta} onConfirmarTitular={onConfirmarTitular} onRemover={onRemover} onConfigurar={onConfigurar} />)}
+            onMesRef={onMesRef} onConta={onConta} onConfirmarTitular={onConfirmarTitular} onConfirmarLeitura={onConfirmarLeitura}
+            onRemover={onRemover} onConfigurar={onConfigurar} />)}
         </ul>
       </div>
 
@@ -153,16 +163,28 @@ export default function ImportacaoLote({
   );
 }
 
-function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onRemover, onConfigurar }: {
+function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRemover, onConfigurar }: {
   item: ItemLote;
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
   onConta: (id: number, conta: string | null) => void;
   onConfirmarTitular: (id: number, confirmado: boolean) => void;
+  onConfirmarLeitura: (id: number, confirmado: boolean) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
 }) {
   const a = item.analise;
+  // linhas lidas do PDF, buscadas só quando o usuário pede para ver
+  const [linhas, setLinhas] = useState<LinhaLida[] | null>(null);
+  const [vendoLinhas, setVendoLinhas] = useState(false);
+  const verLinhas = async () => {
+    setVendoLinhas((v) => !v);
+    if (linhas) return;
+    const form = new FormData();
+    form.append("file", item.file);
+    const r = await fetch("/api/importar/pdf-preview", { method: "POST", body: form });
+    setLinhas(r.ok ? ((await r.json()).preview ?? []) : []);
+  };
   const icone = {
     analisando: <span className="spinner" style={{ width: 16, height: 16 }} />,
     pronto: "📄",
@@ -203,6 +225,31 @@ function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onRemo
             <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
               ⚠️ {a.suspeitos} lançamento{a.suspeitos !== 1 ? "s" : ""} têm a mesma data e valor de outros já gravados, com outra descrição.
               Pode ser o mesmo extrato em outro formato (OFX × CSV) — se for, tire este arquivo da lista.
+            </div>
+          )}
+
+          {a?.conferencia && item.status === "pronto" && (
+            <div className="space-y-1">
+              <AvisoConferencia compacto conferencia={a.conferencia} />
+              {!a.conferencia.confere && (
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input type="checkbox" checked={!!item.confirmarLeitura} onChange={(e) => onConfirmarLeitura(item.id, e.target.checked)} />
+                  Conferi as linhas, importar assim mesmo
+                </label>
+              )}
+            </div>
+          )}
+
+          {a?.formato === "pdf" && a.reconhecido && item.status === "pronto" && (
+            <div>
+              <button type="button" onClick={() => void verLinhas()} className="text-xs text-blue-700 hover:text-blue-900">
+                {vendoLinhas ? "Esconder as linhas" : "Ver as linhas lidas"}
+              </button>
+              {vendoLinhas && (
+                <div className="mt-1">
+                  {linhas === null ? <div className="text-xs text-slate-400">Lendo…</div> : <LeituraPDF linhas={linhas} conferencia={null} />}
+                </div>
+              )}
             </div>
           )}
 

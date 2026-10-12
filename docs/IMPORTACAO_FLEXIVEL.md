@@ -122,7 +122,8 @@ upload → detectando → confirmar_ofx  → importando → resultado
 
 - **OFX**: lê `<FID>`/`<ORG>` → bate com perfil ativo → importa 1 clique.
 - **PDF**: envia ao servidor → `/api/importar/pdf-preview` extrai texto, detecta banco,
-  retorna prévia de até 10 transações; usuário confirma mês de referência e importa.
+  retorna todas as linhas lidas e a conferência com o resumo da fatura (`conferencia.ts`);
+  usuário confere a lista e a soma, confirma mês de referência e importa.
 - **CSV**: perfis ativos aparecem como cards para seleção direta; "Novo mapeamento"
   vai para o editor visual com sugestão automática de colunas.
 

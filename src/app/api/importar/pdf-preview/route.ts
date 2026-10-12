@@ -8,6 +8,9 @@ import { ehPDF, extrairTextoPDF } from "@/lib/importacao/arquivo";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
 import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
+import { conferirFatura, type ConferenciaFatura } from "@/lib/importacao/conferencia";
+
+const LIMITE_PREVIA = 1000; // uma fatura tem dezenas; isso só protege a resposta
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
   const perfilId = perfil?.id ?? null;
 
-  // Pré-visualização: parseia as primeiras 10 transações com perfil genérico
+  // Pré-visualização: todas as linhas, para o usuário conferir antes de importar
   const perfilTemp = {
     nome: bancoNome,
     conta: "Prévia",
@@ -57,12 +60,14 @@ export async function POST(req: NextRequest) {
   const memoriaIA = new Map<string, string>();
   let preview: Array<{ data: string; descricao: string; valor: number }> = [];
   let mesReferenciaSugerido: string | null = null;
+  let conferencia: ConferenciaFatura | null = null;
 
   try {
     const lancamentos = parsePDF(texto, perfilTemp, memoriaIA, null);
     // fatura: o vencimento do texto ou do nome do arquivo (o mesmo do modo de vários arquivos)
     if (perfil?.usaMesReferencia) mesReferenciaSugerido = sugerirMesReferencia(lancamentos.map((l) => l.data), texto, file.name);
-    preview = lancamentos.slice(0, 10).map((l) => ({
+    conferencia = conferirFatura(texto, lancamentos);
+    preview = lancamentos.slice(0, LIMITE_PREVIA).map((l) => ({
       data: l.data.toLocaleDateString("pt-BR", { timeZone: "UTC" }), // datas gravadas à meia-noite UTC
       descricao: l.descricao,
       valor: l.valor,
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
     perfilId,
     perfil,
     preview,
+    conferencia,
     mesReferenciaSugerido,
     outraPessoa: documentoDeOutraPessoa(
       texto, "pdf",

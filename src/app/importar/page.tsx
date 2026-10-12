@@ -6,9 +6,11 @@ import { vencimentoNoNome } from "@/lib/importacao/mes-referencia";
 import DestinoConta from "@/components/importacao/DestinoConta";
 import SeletorConta from "@/components/SeletorConta";
 import { decodificarBytes } from "@/lib/importacao/decodificar";
-import ImportacaoLote, { type ItemLote } from "@/components/importacao/ImportacaoLote";
+import ImportacaoLote, { podeImportar, type ItemLote } from "@/components/importacao/ImportacaoLote";
 import ImportacoesRecentes, { desfazer } from "@/components/importacao/ImportacoesRecentes";
 import AvisoOutraPessoa from "@/components/importacao/AvisoOutraPessoa";
+import LeituraPDF, { type LinhaLida } from "@/components/importacao/LeituraPDF";
+import type { ConferenciaFatura } from "@/lib/importacao/conferencia";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { colunasDosPapeis, detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirJuntarLinhas, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 import MapeamentoColunas from "@/components/importacao/MapeamentoColunas";
@@ -97,7 +99,8 @@ function ImportarConteudo() {
   const [perfilPDF, setPerfilPDF]     = useState<Perfil | null>(null);
   const [perfilCSV, setPerfilCSV]     = useState<Perfil | null>(null);
   const [bancoNomePDF, setBancoNomePDF] = useState("");
-  const [previewPDF, setPreviewPDF]   = useState<Array<{ data: string; descricao: string; valor: number }>>([]);
+  const [previewPDF, setPreviewPDF]   = useState<LinhaLida[]>([]);
+  const [conferenciaPDF, setConferenciaPDF] = useState<ConferenciaFatura | null>(null);
   const [outraPessoaPDF, setOutraPessoaPDF] = useState<{ nome: string | null } | null>(null);
   const [contaPDF, setContaPDF]       = useState("");
 
@@ -144,6 +147,7 @@ function ImportarConteudo() {
     setPerfilCSV(null);
     setBancoNomePDF("");
     setPreviewPDF([]);
+    setConferenciaPDF(null);
     setOutraPessoaPDF(null);
     setContaPDF("");
     setPreview([]);
@@ -192,6 +196,7 @@ function ImportarConteudo() {
       }
       setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
       setPreviewPDF(json.preview ?? []);
+      setConferenciaPDF(json.conferencia ?? null);
       setOutraPessoaPDF(json.outraPessoa ?? null);
       setMesRef(json.mesReferenciaSugerido ?? vencimentoNoNome(file.name) ?? "");
 
@@ -418,8 +423,7 @@ function ImportarConteudo() {
   // Em sequência: cada importação consulta o que já existe, então arquivos que
   // se sobrepõem não geram duplicatas entre si.
   const importarLote = async () => {
-    // documento de outra pessoa só com o "é meu"
-    const fila = lote.filter((i) => i.status === "pronto" && i.analise?.perfil && (!i.analise.outraPessoa || i.confirmarTitular));
+    const fila = lote.filter(podeImportar);
     setImportandoLote(true);
     for (const item of fila) {
       atualizarItem(item.id, { status: "importando" });
@@ -489,6 +493,7 @@ function ImportarConteudo() {
           onMesRef={(id, mesRef) => atualizarItem(id, { mesRef })}
           onConta={(id, conta) => atualizarItem(id, { conta })}
           onConfirmarTitular={(id, confirmarTitular) => atualizarItem(id, { confirmarTitular })}
+          onConfirmarLeitura={(id, confirmarLeitura) => atualizarItem(id, { confirmarLeitura })}
           onRemover={(id) => setLote((prev) => prev.filter((i) => i.id !== id))}
           onConfigurar={configurarDoLote}
           onAdicionar={(files) => void adicionarAoLote(files)}
@@ -557,28 +562,13 @@ function ImportarConteudo() {
             </div>
           </div>
 
-          {previewPDF.length > 0 && (
-            <div>
-              <div className="text-xs font-medium text-slate-500 mb-1">Prévia das transações encontradas</div>
-              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
-                <table className="w-full">
-                  <tbody>
-                    {previewPDF.map((t, i) => (
-                      <tr key={i} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-1.5 text-slate-400 whitespace-nowrap">{t.data}</td>
-                        <td className="px-3 py-1.5 text-slate-700 truncate max-w-xs">{t.descricao}</td>
-                        <td className={`px-3 py-1.5 text-right whitespace-nowrap font-medium ${t.valor < 0 ? "text-red-600" : "text-green-600"}`}>
-                          {t.valor < 0 ? "-" : "+"}R$ {Math.abs(t.valor).toFixed(2).replace(".", ",")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {previewPDF.length === 10 && (
-                  <div className="px-3 py-1.5 text-xs text-slate-400 bg-slate-50">Mostrando as primeiras 10 transações…</div>
-                )}
-              </div>
-            </div>
+          {previewPDF.length > 0 ? (
+            <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} />
+          ) : (
+            <p className="text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2" role="alert" data-leitura-vazia>
+              Reconhecemos o documento, mas não conseguimos ler nenhum lançamento — o banco pode ter mudado o layout
+              ou este pode ser outro modelo de {perfilPDF.usaMesReferencia ? "fatura" : "extrato"}. Nada foi importado.
+            </p>
           )}
 
           {perfilPDF.usaMesReferencia && (
@@ -595,10 +585,10 @@ function ImportarConteudo() {
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={perfilPDF.usaMesReferencia && !mesRef || contaDestino === null}
+              disabled={perfilPDF.usaMesReferencia && !mesRef || contaDestino === null || previewPDF.length === 0}
               onClick={() => importar(perfilPDF.id, perfilPDF.usaMesReferencia ? mesRef : undefined)}
             >
-              📥 Importar {previewPDF.length > 0 ? `(~${previewPDF.length}+ transações)` : ""}
+              📥 Importar {previewPDF.length} lançamento{previewPDF.length !== 1 ? "s" : ""}
             </button>
           </div>
         </div>
@@ -653,26 +643,7 @@ function ImportarConteudo() {
             </div>
           </div>
 
-          {previewPDF.length > 0 && (
-            <div>
-              <div className="text-xs font-medium text-slate-500 mb-1">Transações encontradas</div>
-              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
-                <table className="w-full">
-                  <tbody>
-                    {previewPDF.map((t, i) => (
-                      <tr key={i} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-1.5 text-slate-400 whitespace-nowrap">{t.data}</td>
-                        <td className="px-3 py-1.5 text-slate-700 truncate max-w-xs">{t.descricao}</td>
-                        <td className={`px-3 py-1.5 text-right whitespace-nowrap font-medium ${t.valor < 0 ? "text-red-600" : "text-green-600"}`}>
-                          {t.valor < 0 ? "-" : "+"}R$ {Math.abs(t.valor).toFixed(2).replace(".", ",")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          {previewPDF.length > 0 && <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} />}
 
           <p className="text-sm text-slate-500">
             {previewPDF.length === 0

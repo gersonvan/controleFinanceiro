@@ -10,6 +10,7 @@ import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
 import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
 import { detectarBancoPDF } from "@/lib/importacao/pdf";
 import { ensureBuiltinPerfis } from "@/lib/importacao/perfis-nativos";
+import { conferirFatura, type ConferenciaFatura } from "@/lib/importacao/conferencia";
 
 export interface AnaliseArquivo {
   formato: "ofx" | "pdf" | "csv";
@@ -27,6 +28,8 @@ export interface AnaliseArquivo {
   mesReferenciaSugerido?: string | null;
   // o titular do documento não bate com o nome do usuário (nome = titular, quando o documento diz)
   outraPessoa?: { nome: string | null } | null;
+  // soma lida × resumo impresso na fatura (PDF); null quando a fatura não traz um resumo conhecido
+  conferencia?: ConferenciaFatura | null;
 }
 
 const diaISO = (d: Date) => d.toISOString().slice(0, 10);
@@ -147,5 +150,6 @@ export async function POST(req: NextRequest) {
       texto, formato,
       nomeParaConferir(await prisma.userProfile.findUnique({ where: { userId }, select: { nomeCompleto: true, nome: true } })),
     ),
+    conferencia: formato === "pdf" ? conferirFatura(texto, lancamentos) : null,
   } satisfies AnaliseArquivo);
 }

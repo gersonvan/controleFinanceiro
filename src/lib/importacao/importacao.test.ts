@@ -870,3 +870,121 @@ describe("extrato Bradesco (PDF do app Bradesco Celular)", () => {
     expect(s?.data.toISOString().slice(0, 10)).toBe("2026-08-04");
   });
 });
+
+describe("fatura Bradesco (PDF)", () => {
+  // layout real de 2026 (pdf-parse v2), dados fictícios. O resumo do topo também
+  // diz "Total da fatura" — a lista só começa em "Lançamentos".
+  const fatura = (compras: string, lancamentos: string[]) => [
+    "Com o Bradesco, você tem a opção de substituir sua fatura do Cartão em papel",
+    "FULANO DE TAL",
+    "Total da fatura",
+    "R$ 1.026,30",
+    "Vencimento",
+    "01/01/2027",
+    "Resumo da fatura",
+    "Saldo anterior......................... R$ 900,00",
+    "(-) Créditos/Pagamentos..... R$ 920,00",
+    `(+)Compras/Débitos............ R$ ${compras}`,
+    "(=)Total.................................... R$ 1.026,30",
+    "-- 1 of 2 --",
+    "Fatura Mensal",
+    "Número do Cartão 4066 XXXX XXXX 0001",
+    "Lançamentos",
+    "Data Histórico de Lançamentos Cidade US$ Cotação",
+    "do Dólar R$",
+    ...lancamentos,
+    "Total da fatura em real 1.026,30",
+    "Mensagem Importante",
+    "05/01 LINHA DEPOIS DO FIM 99,99",
+  ].join("\n");
+  const linhas = [
+    "02/12 PAGTO. POR DEB EM C/C 900,00 -",
+    "FULANO DE TAL Cartão 4066 XXXX XXXX 0001",
+    "16/08 LOJA FICTICIA D05/06 FORTALEZA 584,72",
+    "01/12 MERCADO EXEMPLO FORTALEZA 20,00 -",
+    "02/12 WWW-LOJA-EXEMPLO-COM-",
+    "B02/06",
+    "CAMPO BOM 151,87",
+    "09/12 PADARIA MODELO JUAZEIRO DO",
+    "N",
+    "55,00",
+    "Total para FULANO DE TAL 771,59",
+    "Mensagem Importante", // a lista continua na página seguinte, depois dos avisos
+    "Compras R$ 6.900,00 R$ 4.265,11 R$ 2.634,89",
+    "Disponível em",
+    "21/12/2026",
+    "-- 2 of 2 --",
+    "Fatura Mensal",
+    "SICRANA DE TAL Cartão 4066 XXXX XXXX 0002",
+    "10/12 LOJA EXTERIOR SEATTLE 9,99 5,4500 54,44",
+    "02/01 FARMACIA TESTE FORTALEZA 200,27",
+    "Total para SICRANA DE",
+    "TAL 254,71",
+  ];
+
+  it("lê todos os cartões, linhas quebradas e parcelas; deixa de fora o pagamento anterior e o que vem depois do fim", async () => {
+    const { parsePDF } = await import("./pdf");
+    const texto = fatura("1.046,30", linhas);
+    expect(detectarBancoPDF(texto).builtinKey).toBe("bradesco-cartao-pdf");
+    const ls = parsePDF(texto, { conta: "Bradesco Cartão", builtin: "bradesco-cartao-pdf" } as Parameters<typeof parsePDF>[1], new Map(), null);
+    expect(ls.map((l) => [l.data.toISOString().slice(0, 10), l.descricao, l.valor])).toEqual([
+      ["2026-08-16", "LOJA FICTICIA D (05/06) FORTALEZA", -584.72],
+      ["2026-12-01", "MERCADO EXEMPLO FORTALEZA", 20],
+      ["2026-12-02", "WWW-LOJA-EXEMPLO-COM-B (02/06) CAMPO BOM", -151.87],
+      ["2026-12-09", "PADARIA MODELO JUAZEIRO DO N", -55],
+      ["2026-12-10", "LOJA EXTERIOR SEATTLE", -54.44],   // US$ e cotação ficam de fora
+      ["2027-01-02", "FARMACIA TESTE FORTALEZA", -200.27],
+    ]);
+    expect(ls[1].categoria).toBe("Estorno"); // crédito na fatura não é renda
+    // sem mês informado, vale o vencimento impresso na fatura
+    expect(ls.every((l) => l.mesReferencia.toISOString().startsWith("2027-01-01"))).toBe(true);
+  });
+
+  it("a conferência bate com \"(+)Compras/Débitos\" e acusa a linha que faltou", async () => {
+    const { parsePDF } = await import("./pdf");
+    const { conferirFatura } = await import("./conferencia");
+    const perfil = { conta: "Bradesco Cartão", builtin: "bradesco-cartao-pdf" } as Parameters<typeof parsePDF>[1];
+    const texto = fatura("1.046,30", linhas);
+    expect(conferirFatura(texto, parsePDF(texto, perfil, new Map(), null)))
+      .toEqual({ rotulo: "Compras/Débitos", esperado: 1046.3, lido: 1046.3, confere: true });
+
+    // um layout que o leitor não entende: a linha some e a soma deixa de bater
+    const mudou = fatura("1.046,30", linhas.map((l) => l.replace("02/01 FARMACIA TESTE FORTALEZA 200,27", "02.01 FARMACIA TESTE FORTALEZA R$200,27")));
+    expect(conferirFatura(mudou, parsePDF(mudou, perfil, new Map(), null))).toMatchObject({ esperado: 1046.3, lido: 846.03, confere: false });
+  });
+});
+
+describe("conferência com o resumo da fatura", () => {
+  it("Itaú e Nomad comparam compras menos estornos; sem resumo conhecido não há conferência", async () => {
+    const { conferirFatura } = await import("./conferencia");
+    const ls = [{ valor: -500 }, { valor: -19.44 }, { valor: 19.44 }];
+    expect(conferirFatura("Lançamentos atuais 500,00\nTotal desta fatura 500,00", ls)).toMatchObject({ rotulo: "Lançamentos atuais", confere: true });
+    expect(conferirFatura("Despesas e créditos do mês R$ 500,00", ls)).toMatchObject({ rotulo: "Despesas e créditos do mês", confere: true });
+    expect(conferirFatura("Despesas e créditos do mês R$ 519,44", ls)).toMatchObject({ lido: 500, confere: false });
+    expect(conferirFatura("Total a pagar R$ 500,00", ls)).toBeNull();
+  });
+});
+
+describe("crédito em fatura de cartão (PDF)", () => {
+  it("vira estorno, não renda — em qualquer banco", async () => {
+    const { parsePDF } = await import("./pdf");
+    const fatura = "Extrato Referente ao mês de Setembro de 2026\n19/09/2026 LOJA FICTICIA FORTALEZA BR -R$ 57,83\nnomadglobal";
+    const ls = parsePDF(fatura, { conta: "Nomad", builtin: "nomad-cartao-pdf" } as Parameters<typeof parsePDF>[1], new Map(), null);
+    expect(ls).toMatchObject([{ valor: 57.83, categoria: "Estorno" }]);
+  });
+});
+
+describe("vários arquivos: o que precisa do usuário antes de importar", () => {
+  it("fatura cuja soma não bate só entra com o \"conferi\"", async () => {
+    const { podeImportar } = await import("@/components/importacao/ImportacaoLote");
+    const item = (conferencia: { confere: boolean } | null, confirmarLeitura?: boolean) => ({
+      id: 1, file: {} as File, status: "pronto" as const, mesRef: "", confirmarLeitura,
+      analise: { formato: "pdf" as const, reconhecido: true, banco: "Bradesco", perfil: { id: 1, nome: "B", conta: "B", usaMesReferencia: true },
+        conferencia: conferencia && { rotulo: "Compras/Débitos", esperado: 10, lido: conferencia.confere ? 10 : 8, ...conferencia } },
+    });
+    expect(podeImportar(item({ confere: true }))).toBe(true);
+    expect(podeImportar(item(null))).toBe(true); // fatura sem resumo conhecido: só o usuário confere
+    expect(podeImportar(item({ confere: false }))).toBe(false);
+    expect(podeImportar(item({ confere: false }, true))).toBe(true);
+  });
+});

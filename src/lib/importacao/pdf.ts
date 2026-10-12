@@ -4,6 +4,7 @@
 
 import { mapearCategoria, type FonteMemoria } from "../categorias";
 import { LancamentoImportado, PerfilConfig } from "./tipos";
+import { vencimentoNoTexto } from "./mes-referencia";
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
 
@@ -78,6 +79,25 @@ export function detectarBancoPDF(texto: string): { builtinKey: BancoPDF | null; 
 // ─── Dispatch ─────────────────────────────────────────────────────────────────
 
 export function parsePDF(
+  texto: string,
+  perfil: PerfilPDF,
+  memoriaIA: FonteMemoria,
+  mesReferenciaManual: Date | null
+): LancamentoImportado[] {
+  const lancamentos = lerPDF(texto, perfil, memoriaIA, mesReferenciaManual);
+  // Fatura: crédito não é renda. O que não for o pagamento da fatura anterior é
+  // estorno de compra (como no OFX de cartão). Memória e regras continuam valendo.
+  if (perfil.builtin?.endsWith("-cartao-pdf")) {
+    for (const l of lancamentos) {
+      if (l.valor > 0 && (!l.categoria || l.categoria === "Outras Entradas" || l.categoria === "Transferência Recebida")) {
+        l.categoria = /\b(pgto|pagto|pagamento)\b/i.test(l.descricao) ? "Pagamento de Cartão de Crédito" : "Estorno";
+      }
+    }
+  }
+  return lancamentos;
+}
+
+function lerPDF(
   texto: string,
   perfil: PerfilPDF,
   memoriaIA: FonteMemoria,
@@ -298,7 +318,28 @@ export function parseItauExtrato(texto: string, perfil: PerfilPDF, memoriaIA: Fo
 }
 
 // ─── Bradesco Cartão ──────────────────────────────────────────────────────────
-// Formato: "15/01 Descrição 150,00" (crédito tem "-" no final: "150,00-")
+// A lista começa em "Lançamentos" (o resumo do topo, com o "Total da fatura", fica de fora)
+// e termina em "Total da fatura em real" — às vezes continua na página seguinte, depois
+// dos avisos e das taxas. Cada cartão (titular e adicionais) tem o cabeçalho
+// "NOME Cartão 4066 XXXX XXXX 1234" e fecha com "Total para NOME 1.234,56" (às vezes
+// em duas linhas). Linhas:
+//   "03/08 PAGTO. POR DEB EM C/C 2.560,24 -"     → quitação da fatura anterior: não entra
+//   "16/04 LOJA FICTICIA D05/06 FORTALEZA 584,72" → parcela colada no nome: "LOJA FICTICIA D (05/06) FORTALEZA"
+//   "23/08 MERCADO FORTALEZA 19,44 -"            → estorno (crédito)
+//   "10/09 LOJA EXTERIOR SEATTLE 9,99 5,45 54,45" → US$ e cotação antes do valor em R$
+//   "25/06 PET SHOP RIBEIRAO" / "PRET" / "84,98"  → nome ou cidade longos quebram a linha
+// A soma das compras bate com "(+)Compras/Débitos" do resumo (conferencia.ts).
+
+const LINHA_BRADESCO = /^(\d{2})\/(\d{2})\s+(.+?)(?:\s+[\d.]+,\d{2,4}){0,2}\s+(\d{1,3}(?:\.\d{3})*,\d{2})(\s*-)?$/;
+
+/** "LOJA D05/06 CIDADE" → "LOJA D (05/06) CIDADE" — o formato que a Previsão reconhece. */
+function separarParcela(descricao: string): string {
+  const m = descricao.match(/(?<!\d)(\d{2})\/(\d{2})(?=\s|$)/);
+  if (!m || m.index === undefined || +m[1] < 1 || +m[2] < 2 || +m[1] > +m[2]) return descricao;
+  const antes = descricao.slice(0, m.index).trimEnd();
+  const depois = descricao.slice(m.index + m[0].length).trimStart();
+  return [antes, `(${m[1]}/${m[2]})`, depois].filter(Boolean).join(" ");
+}
 
 function parseBradesco(
   texto: string, perfil: PerfilPDF,
@@ -306,35 +347,56 @@ function parseBradesco(
 ): LancamentoImportado[] {
   const linhas = texto.split("\n").map(l => l.trim()).filter(Boolean);
   const result: LancamentoImportado[] = [];
-  const ano = extrairAno(texto);
+  // compras de meses depois do vencimento são do ano anterior (fatura de janeiro)
+  const venc = vencimentoNoTexto(texto);
+  const [anoVenc, mesVenc] = venc ? venc.split("-").map(Number) : [extrairAno(texto), 12];
 
   let dentro = false;
-  const RE = /^(\d{2}\/\d{2})\s+(.+?)(\d{1,3}(?:\.\d{3})*,\d{2})(-)?\s*$/;
+  let pendente: string | null = null; // linha com data mas ainda sem o valor
+  let continuacoes = 0;
 
-  for (const linha of linhas) {
-    if (/lançamentos/i.test(linha)) { dentro = true; continue; }
-    if (/total da fatura/i.test(linha)) break;
-    if (!dentro) continue;
+  const registrar = (linha: string) => {
+    const m = linha.match(LINHA_BRADESCO);
+    if (!m) return false;
+    const dia = parseInt(m[1]), mes = parseInt(m[2]);
+    const raw = parseBR(m[4]);
+    const credito = !!m[5];
+    if (!dia || dia > 31 || !mes || mes > 12 || isNaN(raw) || raw === 0) return true;
+    const base = m[3].replace(/\s+/g, " ").trim();
+    if (credito && /^(pagto|pagamento)\b/i.test(base)) return true; // já está no extrato da conta
 
-    const m = linha.match(RE);
-    if (!m) continue;
-
-    const [diaPart, mesPart] = m[1].split("/").map(Number);
-    const descricao = m[2].trim();
-    const raw = parseBR(m[3]);
-    const isCredito = !!m[4];
-    if (isNaN(raw)) continue;
-
-    const v = isCredito ? raw : -raw;
+    const descricao = separarParcela(base);
+    const v = credito ? raw : -raw;
     const tipo: "Entrada" | "Saída" = v >= 0 ? "Entrada" : "Saída";
-    const data = new Date(ano, mesPart - 1, diaPart);
-
+    const ano = mes > mesVenc ? anoVenc - 1 : anoVenc;
     result.push({
-      data, descricao, categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
+      data: new Date(Date.UTC(ano, mes - 1, dia)),
+      descricao, categoria: mapearCategoria(descricao, "", tipo, memoriaIA),
       valor: v, tipo, conta: perfil.conta,
-      mesReferencia: mesRef(data, manual),
+      mesReferencia: manual ?? new Date(Date.UTC(venc ? anoVenc : ano, (venc ? mesVenc : mes) - 1, 1)),
       fonte: "Importado Bradesco (PDF)",
     });
+    return true;
+  };
+
+  for (const linha of linhas) {
+    // o título da lista ou o cabeçalho das colunas ("Data Histórico de Lançamentos ...")
+    if (!dentro) { dentro = /^lan[çc]amentos\b|hist[óo]rico de lan[çc]amentos/i.test(linha); continue; }
+    if (/^total da fatura\b/i.test(linha)) break;
+
+    const comData = /^\d{2}\/\d{2}\s/.test(linha);
+    // "Total para NOME", cabeçalho de cartão ou nova data: a linha pendente não tinha valor
+    if (comData || /^total\b/i.test(linha) || /cart[ãa]o\s+\d{4}\b/i.test(linha)) pendente = null;
+    if (comData) {
+      if (!registrar(linha)) { pendente = linha; continuacoes = 0; }
+      continue;
+    }
+    if (pendente === null) continue;
+    // a quebra pode cortar uma palavra ("WWW-LOJA-COM-" / "B02/06"): depois de hífen, sem espaço
+    const junto: string = pendente.endsWith("-") ? pendente + linha : `${pendente} ${linha}`;
+    if (registrar(junto)) pendente = null;
+    else if (++continuacoes >= 3) pendente = null;
+    else pendente = junto;
   }
   return result;
 }
