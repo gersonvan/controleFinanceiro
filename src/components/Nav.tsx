@@ -9,7 +9,7 @@ import { SeletorEspaco } from "@/components/Espaco";
 import type { OpcaoEspaco } from "@/lib/espaco";
 import {
   Brain, Camera, ChevronRight, FileDown, FileUp, Grid3x3, Handshake, Landmark, LayoutDashboard,
-  Link2, LogOut, Menu, PiggyBank, ReceiptText, Settings, Share2, Tags, Target, TrendingUp, Wallet, Wrench, X,
+  Link2, ListChecks, LogOut, Menu, PiggyBank, ReceiptText, Settings, Share2, Tags, Target, TrendingUp, Wallet, Wrench, X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,16 +17,16 @@ interface ItemMenu { href: string; label: string; icon?: LucideIcon }
 interface GrupoMenu { label: string; icon: LucideIcon; href?: string; filhos: ItemMenu[] }
 type EntradaMenu = ItemMenu | GrupoMenu;
 
-// Uso real: acompanhar → planejar → importar → lançamentos → ferramentas → ajustes
+// Uso real: acompanhar → planejar → lançamentos (importar, revisar) → ferramentas → ajustes
 const menu: EntradaMenu[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/planejamento", label: "Planejamento", icon: Camera },
-  { href: "/desafios", label: "Desafios", icon: Target },
-  { href: "/importar", label: "Importar Lançamentos", icon: FileUp },
   { href: "/lancamentos", label: "Lançamentos", icon: ReceiptText, filhos: [
-    { href: "/lancamentos/revisar", label: "Revisar categorias" },
+    { href: "/importar", label: "Importar extratos", icon: FileUp }, // o título da página
+    { href: "/lancamentos/revisar", label: "Revisar categorias", icon: ListChecks },
   ] },
   { label: "Ferramentas", icon: Wrench, filhos: [
+    { href: "/desafios", label: "Desafios", icon: Target },
     { href: "/matriz", label: "Matriz", icon: Grid3x3 },
     { href: "/previsao", label: "Previsão", icon: TrendingUp },
     { href: "/reserva", label: "Reserva", icon: PiggyBank },

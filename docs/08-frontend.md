@@ -30,7 +30,7 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 
 | Componente | Arquivo | Responsabilidade |
 |---|---|---|
-| `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral com 9 links; ocultada durante onboarding e em sessões sem autenticação |
+| `Nav` | `src/components/Nav.tsx` | Barra de navegação lateral (menu com grupos, ver Navegação); ocultada durante onboarding e em sessões sem autenticação |
 | `FotografiaWizard` | `src/components/planejamento/FotografiaWizard.tsx` | Wizard da Fotografia do mês (entradas → fixos → variáveis → sazonais → parcelas → resumo); `modo="onboarding"` mostra "Fazer depois", `modo="pagina"` permite salvar em qualquer etapa; sempre envia o conjunto inteiro ao `PUT /api/planejamento`; com histórico, sugere valores nos chips, mostra referência em categorias compartilhadas e o bloco "Encontrado no seu histórico" (`GET /api/planejamento/historico`); sem histórico, mostra a dica da funcionalidade |
 | `PlanejadoRealizado` | `src/components/planejamento/PlanejadoRealizado.tsx` | Tabela e cartões do Planejado × Realizado de um mês (`GET /api/planejamento/realizado`) |
 | `LancamentoForm` | `src/components/LancamentoForm.tsx` | Modal de lançamento manual (`POST /api/lancamentos`); contas sugeridas a partir dos perfis |
@@ -75,19 +75,15 @@ Ao finalizar:
 
 ## Navegação
 
-`src/components/Nav.tsx` define os 8 links de navegação principal:
+`src/components/Nav.tsx` define o menu (grupos abrem e fecham; o da página atual vem aberto):
 
-| Rota | Rótulo |
+| Entrada | Rota(s) |
 |---|---|
-| `/` | Dashboard |
-| `/planejamento` | Planejamento |
-| `/lancamentos` | Lançamentos |
-| `/matriz` | Matriz |
-| `/importar` | Importar |
-| `/previsao` | Previsão |
-| `/emprestimos` | Empréstimos |
-| `/memoria-ia` | Memória IA |
-| `/configuracoes` | Configurações |
+| Dashboard | `/` |
+| Planejamento | `/planejamento` |
+| Lançamentos | `/lancamentos` · └ Importar extratos (`/importar`), Revisar categorias (`/lancamentos/revisar`) |
+| Ferramentas | Desafios (`/desafios`), Matriz (`/matriz`), Previsão (`/previsao`), Reserva (`/reserva`), Empréstimos (`/emprestimos`) |
+| Configurações | Contas, Categorias, Importação, Memória Local, Mesmo pagamento, Compartilhar (`/configuracoes/*`) |
 
 ## Bibliotecas de interface
 
