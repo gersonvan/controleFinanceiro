@@ -84,8 +84,9 @@ const NAO_SAO_GASTO = new Set([
   ...CATEGORIAS_NEUTRAS, CATEGORIA_INVESTIMENTO,
   "Empréstimo", "Pagamento de Empréstimos", "Compra e Venda de Bens", "Transferência para Terceiros",
 ]);
-export function categoriaAceitaTeto(c: string): boolean {
-  return (CATEGORIAS_SAIDA as readonly string[]).includes(c) && !NAO_SAO_GASTO.has(c);
+/** Gasto em que dá para pôr teto: nativo de saída que é gasto de verdade, ou uma categoria própria de gasto. */
+export function categoriaAceitaTeto(c: string, propriasDeGasto: ReadonlySet<string> = new Set()): boolean {
+  return ((CATEGORIAS_SAIDA as readonly string[]).includes(c) && !NAO_SAO_GASTO.has(c)) || propriasDeGasto.has(c);
 }
 
 export interface LancamentoDesafio {
@@ -315,12 +316,13 @@ export function sugerirDesafios(base: Base, desafios: Desafio[], hoje: Date): Su
     .slice(0, MAX_SUGESTOES);
 }
 
-/** Categorias que o usuário pode escolher no teto, com a média e o teto proposto (10% abaixo). */
-export function opcoesDeTeto(base: Base): { categoria: string; media: number; meta: number }[] {
+/** Categorias que o usuário pode escolher no teto, com a média e o teto proposto (10% abaixo).
+ *  As próprias entram aqui (escolha do usuário), não nas sugestões automáticas. */
+export function opcoesDeTeto(base: Base, propriasDeGasto: ReadonlySet<string> = new Set()): { categoria: string; media: number; meta: number }[] {
   const n = divisor(base);
   const categorias = new Set(base.porMes.flatMap((b) => [...b.porCategoria.keys()]));
   return [...categorias]
-    .filter(categoriaAceitaTeto)
+    .filter((c) => categoriaAceitaTeto(c, propriasDeGasto))
     .map((c) => {
       const media = soma(serieCategoria(base, c)) / n;
       return { categoria: c, media: arred(media), meta: arred10(media * (1 - CORTE_NORMAL)) };

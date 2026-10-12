@@ -11,7 +11,8 @@ import {
   metaMaisFacil, MODELOS, MODELOS_IDS, montarBase, ocupamVaga, opcoesDeTeto, periodoDo, referenciaDo, repetido,
   sugerirDesafios, tituloDoDesafio, type Avaliacao, type Desafio, type LancamentoDesafio,
 } from "@/lib/desafios";
-import { categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
+import { carregarCatalogo, categoriasForaDoCatalogo } from "@/lib/categorias-usuario";
+import { propriasDeGasto } from "@/lib/catalogo-categorias";
 
 const DIA = 86_400_000;
 /** Fechados que a página mostra (os abandonados somem: desistir não tem castigo). */
@@ -44,10 +45,11 @@ export async function GET() {
   const ativos = desafios.filter((d) => d.status === "ativo");
   // os ativos precisam das contas usadas até 60 dias antes do início
   const desde = new Date(Math.min(base0.getTime(), ...ativos.map((d) => d.inicio.getTime() - 60 * DIA)));
-  const [tipos, lancamentos, semCategoria] = await Promise.all([
+  const [tipos, lancamentos, semCategoria, catalogo] = await Promise.all([
     tiposDasContas(userId),
     carregarLancamentos(userId, desde),
     prisma.lancamento.count({ where: escopoDoUsuario(userId, { categoria: null, data: { gte: base0 } }) }),
+    carregarCatalogo(userId),
   ]);
 
   const lista: (Desafio & Avaliacao)[] = [];
@@ -91,7 +93,7 @@ export async function GET() {
       id, ...MODELOS[id], ...periodoDo(id, hoje),
       referencia: MODELOS[id].medida === "gasto" && !MODELOS[id].categoriaFixa ? null : referenciaDo(id, categoriaDo(id, null), base),
     })),
-    opcoesTeto: opcoesDeTeto(base),
+    opcoesTeto: opcoesDeTeto(base, propriasDeGasto(catalogo)), // as próprias de gasto também
     semHistorico: base.mesesComDados < MESES_MINIMOS,
     semCategoria,
   });
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
   const modelo = v.dados.modelo as (typeof MODELOS_IDS)[number];
   const { medida } = MODELOS[modelo];
   const categoria = categoriaDo(modelo, v.dados.categoria);
-  if (medida === "gasto" && (!categoria || !categoriaAceitaTeto(categoria)))
+  if (medida === "gasto" && (!categoria || !categoriaAceitaTeto(categoria, propriasDeGasto(await carregarCatalogo(userId)))))
     return NextResponse.json({ error: "Escolha uma categoria de gasto" }, { status: 400 });
   if (medida !== "sobra" && (v.dados.meta ?? 0) < 0)
     return NextResponse.json({ error: "A meta não pode ser negativa" }, { status: 400 });

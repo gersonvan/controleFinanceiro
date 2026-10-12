@@ -59,6 +59,10 @@ export function grupoDaCategoria(c: Catalogo, nome: string): string | null {
 }
 export const ehDeEntrada = (c: Catalogo, nome: string) => grupoDaCategoria(c, nome) === "Entradas";
 
+/** As categorias próprias de gasto (fora do grupo Entradas). */
+export const propriasDeGasto = (c: Catalogo) =>
+  new Set(c.personalizadas.filter((p) => !c.entradas.has(p.nome)).map((p) => p.nome));
+
 export const podeOcultar = (nome: string) => NATIVAS.has(nome) && !CATEGORIAS_DO_SISTEMA.has(nome);
 
 /** A categoria como o usuário a vê: ela mesma, o destino de uma oculta, ou null. */

@@ -18,7 +18,8 @@ const IGNORAR = new Set([
   "Recebimento de Empréstimo",
   "Reembolso",
 ]);
-const CATEGORIAS_ENTRADA = new Set(["Salário", "Outras Entradas", "Receita de Aluguel", "Rendimento Investimentos"]);
+// renda nativa; as próprias do grupo Entradas chegam pelo catálogo do usuário (resumirHistorico)
+const CATEGORIAS_ENTRADA: ReadonlySet<string> = new Set(["Salário", "Outras Entradas", "Receita de Aluguel", "Rendimento Investimentos"]);
 
 /** Abaixo disto (por mês) a categoria é ruído para a fotografia. */
 export const VALOR_MINIMO_MENSAL = 20;
@@ -94,7 +95,9 @@ function grupoPeloComportamento(valores6: number[]): Grupo {
  * Resume os lançamentos dos 12 meses (`meses12`, do mais antigo ao mais novo;
  * os 6 últimos entram nas médias) por categoria.
  */
-export function resumirHistorico(lancamentos: LancamentoFinancas[], meses12: string[]): HistoricoPlanejamento {
+export function resumirHistorico(
+  lancamentos: LancamentoFinancas[], meses12: string[], entradas: ReadonlySet<string> = CATEGORIAS_ENTRADA,
+): HistoricoPlanejamento {
   const meses6 = meses12.slice(-6);
   const idx12 = new Map(meses12.map((m, i) => [m, i]));
   const comDados = new Set<string>();
@@ -106,7 +109,7 @@ export function resumirHistorico(lancamentos: LancamentoFinancas[], meses12: str
     if (i === undefined) continue;
     if (meses6.includes(mes)) comDados.add(mes);
     if (!l.categoria || IGNORAR.has(l.categoria)) continue;
-    const entrada = CATEGORIAS_ENTRADA.has(l.categoria);
+    const entrada = entradas.has(l.categoria);
     // entradas contam o que entrou; saídas, o que saiu (estornos não abatem)
     const v = entrada ? l.valor : -l.valor;
     if (v <= 0) continue;

@@ -64,6 +64,14 @@ test("cria, oculta com destino, renomeia e exclui — e os dados acompanham", as
   await page.goto("/configuracoes/categorias");
   await expect(page.locator('[data-oculta="Pets"]')).toContainText("“Cachorros”");
 
+  // teto de desafio numa categoria própria; enquanto ele anda, a categoria não sai da lista
+  const teto = await api.post("/api/desafios", { data: { modelo: "teto-categoria", categoria: "Cachorros", meta: 100 } });
+  expect(teto.status()).toBe(201);
+  const excluirComDesafio = await api.patch("/api/categorias", { data: { acao: "excluir", nome: "Cachorros", destino: null } });
+  expect(excluirComDesafio.status()).toBe(409);
+  expect((await excluirComDesafio.json()).error).toContain("desafio em andamento");
+  expect((await api.patch("/api/desafios", { data: { id: (await teto.json()).id, acao: "desistir" } })).status()).toBe(200);
+
   // isolamento: o Bruno não vê as categorias da Ana
   const ctxBruno = await browser.newContext();
   const bruno = await ctxBruno.newPage();

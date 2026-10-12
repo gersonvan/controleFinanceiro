@@ -153,6 +153,16 @@ describe("sugestões", () => {
     expect(categoriaAceitaTeto("Pagamento de Cartão de Crédito")).toBe(false);
     expect(categoriaAceitaTeto("Investimentos (Aportes)")).toBe(false);
     expect(categoriaAceitaTeto("Salário")).toBe(false);
+    // categoria própria de gasto: só quando o catálogo do usuário diz que é dele
+    expect(categoriaAceitaTeto("Cachorro")).toBe(false);
+    expect(categoriaAceitaTeto("Cachorro", new Set(["Cachorro"]))).toBe(true);
+  });
+
+  it("opções de teto incluem as categorias próprias de gasto, mas as sugestões automáticas não", () => {
+    const base = montarBase(seisMeses((m) => [l({ data: `2026-${m}-18`, valor: -300, categoria: "Cachorro" })]), HOJE);
+    expect(opcoesDeTeto(base).map((o) => o.categoria)).not.toContain("Cachorro");
+    expect(opcoesDeTeto(base, new Set(["Cachorro"]))).toContainEqual({ categoria: "Cachorro", media: 300, meta: 270 });
+    expect(sugerirDesafios(base, [], HOJE).map((s) => s.categoria)).not.toContain("Cachorro");
   });
 });
 

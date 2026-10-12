@@ -37,6 +37,13 @@ describe("histórico para a Fotografia do mês", () => {
   const h = resumirHistorico(dados, meses12);
   const cat = (c: string) => h.categorias.find((x) => x.categoria === c);
 
+  it("categoria própria de entrada conta o que entrou, quando o catálogo diz que é de entrada", () => {
+    const bico = ultimos6.map((m) => l(m, 800, "Bico", "Pix recebido de CLIENTE"));
+    expect(resumirHistorico(bico, meses12).categorias.find((x) => x.categoria === "Bico")).toBeUndefined();
+    const comCatalogo = resumirHistorico(bico, meses12, new Set(["Salário", "Bico"])).categorias.find((x) => x.categoria === "Bico");
+    expect(comCatalogo).toMatchObject({ entrada: true, media: 800 });
+  });
+
   it("classifica pelo comportamento e usa mediana nos fixos", () => {
     expect(h.mesesComDados).toBe(6);
     expect(cat("Condomínio")).toMatchObject({ grupo: "fixo", mediana: 1600, media: 1833 });
