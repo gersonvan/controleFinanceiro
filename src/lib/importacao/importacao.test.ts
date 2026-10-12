@@ -946,7 +946,7 @@ describe("fatura Bradesco (PDF)", () => {
     const perfil = { conta: "Bradesco Cartão", builtin: "bradesco-cartao-pdf" } as Parameters<typeof parsePDF>[1];
     const texto = fatura("1.046,30", linhas);
     expect(conferirFatura(texto, parsePDF(texto, perfil, new Map(), null)))
-      .toEqual({ rotulo: "Compras/Débitos", esperado: 1046.3, lido: 1046.3, confere: true });
+      .toEqual({ rotulo: "Compras/Débitos", esperado: 1046.3, lido: 1046.3, confere: true, soma: "gastos" });
 
     // um layout que o leitor não entende: a linha some e a soma deixa de bater
     const mudou = fatura("1.046,30", linhas.map((l) => l.replace("02/01 FARMACIA TESTE FORTALEZA 200,27", "02.01 FARMACIA TESTE FORTALEZA R$200,27")));
@@ -980,11 +980,45 @@ describe("vários arquivos: o que precisa do usuário antes de importar", () => 
     const item = (conferencia: { confere: boolean } | null, confirmarLeitura?: boolean) => ({
       id: 1, file: {} as File, status: "pronto" as const, mesRef: "", confirmarLeitura,
       analise: { formato: "pdf" as const, reconhecido: true, banco: "Bradesco", perfil: { id: 1, nome: "B", conta: "B", usaMesReferencia: true },
-        conferencia: conferencia && { rotulo: "Compras/Débitos", esperado: 10, lido: conferencia.confere ? 10 : 8, ...conferencia } },
+        conferencia: conferencia && { rotulo: "Compras/Débitos", esperado: 10, lido: conferencia.confere ? 10 : 8, soma: "gastos" as const, ...conferencia } },
     });
     expect(podeImportar(item({ confere: true }))).toBe(true);
     expect(podeImportar(item(null))).toBe(true); // fatura sem resumo conhecido: só o usuário confere
     expect(podeImportar(item({ confere: false }))).toBe(false);
     expect(podeImportar(item({ confere: false }, true))).toBe(true);
+  });
+});
+
+describe("revisão das linhas antes de importar", () => {
+  const lidas = [
+    { data: "2026-08-01", descricao: "LOJA A", valor: -10 },
+    { data: "2026-08-02", descricao: "LOJA B", valor: -20 },
+    { data: "2026-08-03", descricao: "LOJA C", valor: -30 },
+  ];
+
+  it("exclui, corrige e inclui na ordem da leitura, e a conferência acompanha", async () => {
+    const { aplicarAjustes } = await import("./ajustes");
+    const { reconferir } = await import("./conferencia");
+    const ajustes = {
+      total: 3, excluir: [0],
+      alterar: [{ i: 2, data: "2026-08-04", descricao: "LOJA C CORRIGIDA", valor: -35 }],
+      incluir: [{ data: "2026-08-05", descricao: "LOJA QUE FALTOU", valor: -5 }],
+    };
+    const finais = aplicarAjustes(lidas, ajustes, (_, l) => l);
+    expect(finais.map((l) => [l.descricao, l.valor])).toEqual([["LOJA B", -20], ["LOJA C CORRIGIDA", -35], ["LOJA QUE FALTOU", -5]]);
+    const conferencia = { rotulo: "Compras/Débitos", esperado: 60, lido: 60, confere: true, soma: "gastos" as const };
+    expect(reconferir(conferencia, finais)).toMatchObject({ lido: 60, confere: true });
+    expect(reconferir(conferencia, lidas.slice(1))).toMatchObject({ lido: 50, confere: false });
+  });
+
+  it("recusa índice fora da leitura, data impossível e valor zero", async () => {
+    const { ajustesSchema } = await import("./ajustes");
+    const ok = { total: 3, excluir: [], alterar: [], incluir: [] };
+    expect(ajustesSchema.safeParse(ok).success).toBe(true);
+    expect(ajustesSchema.safeParse({ ...ok, excluir: [3] }).success).toBe(false);
+    expect(ajustesSchema.safeParse({ ...ok, incluir: [{ data: "2026-02-30", descricao: "X", valor: -1 }] }).success).toBe(false);
+    expect(ajustesSchema.safeParse({ ...ok, incluir: [{ data: "1999-12-31", descricao: "X", valor: -1 }] }).success).toBe(false);
+    expect(ajustesSchema.safeParse({ ...ok, incluir: [{ data: "2026-08-01", descricao: "X", valor: 0 }] }).success).toBe(false);
+    expect(ajustesSchema.safeParse({ ...ok, incluir: [{ data: "2026-08-01", descricao: "   ", valor: -1 }] }).success).toBe(false);
   });
 });

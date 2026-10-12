@@ -14,6 +14,9 @@ import { chaveLancamento, decodificarTexto, ehPDF, extrairTextoPDF } from "@/lib
 import { bancoTipoDoPerfil, resolverConta } from "@/lib/contas";
 import type { SaldoDaImportacao } from "@/lib/importacoes";
 import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
+import { ajustesSchema, aplicarAjustes, dataDaLinha, type AjustesLeitura } from "@/lib/importacao/ajustes";
+import { categoriaNaFatura, type LancamentoImportado } from "@/lib/importacao/tipos";
+import { mapearCategoria } from "@/lib/categorias";
 
 const importacaoSchema = z.object({
   perfilId: idSchema,
@@ -44,6 +47,17 @@ export async function POST(req: NextRequest) {
   });
   if (!v.ok) return v.resposta;
   const { perfilId, mesReferencia: mesRefStr, conta: contaEscolhida } = v.dados;
+
+  // linhas excluídas, corrigidas ou incluídas pelo usuário na prévia (lib/importacao/ajustes.ts)
+  let ajustes: AjustesLeitura | null = null;
+  const ajustesTexto = formData.get("ajustes");
+  if (typeof ajustesTexto === "string" && ajustesTexto) {
+    let bruto: unknown;
+    try { bruto = JSON.parse(ajustesTexto); } catch { return erro400("Ajustes inválidos"); }
+    const va = validar(ajustesSchema, bruto);
+    if (!va.ok) return va.resposta;
+    ajustes = va.dados;
+  }
 
   const perfil = await prisma.perfilImportacao.findFirst({
     where: escopoDoUsuario(userId, { id: perfilId }),
@@ -97,12 +111,35 @@ export async function POST(req: NextRequest) {
 
   const memoriaMap = await carregarMemoriaCategorizacao(userId);
 
-  let lancamentos;
+  let lancamentos: LancamentoImportado[];
   try {
     lancamentos = importar(texto, fileName, perfilComConta as PerfilCompleto, memoriaMap, mesReferenciaManual);
   } catch (e) {
     console.error("Erro ao processar arquivo na importação", e);
     return erro400("Não foi possível processar o arquivo com o perfil selecionado.");
+  }
+
+  if (ajustes) {
+    // os índices só valem sobre a mesma leitura que o usuário revisou
+    if (lancamentos.length !== ajustes.total) {
+      return NextResponse.json({ error: "A leitura do arquivo não é mais a mesma da prévia. Abra o arquivo de novo e refaça a revisão." }, { status: 409 });
+    }
+    const fonte = lancamentos[0]?.fonte ?? `Importado ${perfil.nome}`;
+    lancamentos = aplicarAjustes(lancamentos, ajustes, (original, linha) => {
+      const valor = Math.round(linha.valor * 100) / 100;
+      const tipo: "Entrada" | "Saída" = valor >= 0 ? "Entrada" : "Saída";
+      const data = dataDaLinha(linha.data);
+      // descrição ou sinal novos: a categoria é calculada de novo (Memória e regras valem)
+      const mesmaCategoria = original && original.descricao === linha.descricao && Math.sign(original.valor) === Math.sign(valor);
+      const categoria = mesmaCategoria ? original.categoria : mapearCategoria(linha.descricao, "", tipo, memoriaMap);
+      return {
+        data, descricao: linha.descricao, valor, tipo,
+        categoria: perfil.usaMesReferencia ? categoriaNaFatura(linha.descricao, valor, categoria) : categoria,
+        conta: original?.conta ?? destino.nome,
+        fonte: original?.fonte ?? fonte,
+        mesReferencia: mesReferenciaManual ?? new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), 1)),
+      };
+    });
   }
 
   // Evita duplicatas (por usuário)

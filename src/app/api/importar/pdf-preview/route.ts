@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/session";
-import { detectarBancoPDF, parsePDF } from "@/lib/importacao/pdf";
+import { detectarBancoPDF } from "@/lib/importacao/pdf";
+import { importar, type PerfilCompleto } from "@/lib/importacao/engine";
 import { prisma } from "@/lib/db";
 import { escopoDoUsuario } from "@/lib/tenant";
 import { corpoGrandeDemais, erro400, lerArquivo } from "@/lib/validacao";
@@ -10,7 +11,7 @@ import { sugerirMesReferencia } from "@/lib/importacao/mes-referencia";
 import { documentoDeOutraPessoa, nomeParaConferir } from "@/lib/importacao/titular";
 import { conferirFatura, type ConferenciaFatura } from "@/lib/importacao/conferencia";
 
-const LIMITE_PREVIA = 1000; // uma fatura tem dezenas; isso só protege a resposta
+const LIMITE_PREVIA = 5000; // uma fatura tem dezenas; isso só protege a resposta (o mesmo limite dos ajustes)
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -44,7 +45,9 @@ export async function POST(req: NextRequest) {
   }
   const perfilId = perfil?.id ?? null;
 
-  // Pré-visualização: todas as linhas, para o usuário conferir antes de importar
+  // Pré-visualização: todas as linhas, para o usuário conferir e revisar antes de
+  // importar. Mesma leitura da importação (engine), com o perfil do banco quando há:
+  // os ajustes do usuário apontam para as linhas pela posição nesta lista.
   const perfilTemp = {
     nome: bancoNome,
     conta: "Prévia",
@@ -59,16 +62,19 @@ export async function POST(req: NextRequest) {
 
   const memoriaIA = new Map<string, string>();
   let preview: Array<{ data: string; descricao: string; valor: number }> = [];
+  let total = 0; // linhas lidas; a prévia só pode ser revisada se trouxer todas
   let mesReferenciaSugerido: string | null = null;
   let conferencia: ConferenciaFatura | null = null;
 
   try {
-    const lancamentos = parsePDF(texto, perfilTemp, memoriaIA, null);
+    const perfilLeitura = (perfil ? { ...perfil, conta: "Prévia" } : perfilTemp) as PerfilCompleto;
+    const lancamentos = importar(texto, file.name, perfilLeitura, memoriaIA, null);
+    total = lancamentos.length;
     // fatura: o vencimento do texto ou do nome do arquivo (o mesmo do modo de vários arquivos)
     if (perfil?.usaMesReferencia) mesReferenciaSugerido = sugerirMesReferencia(lancamentos.map((l) => l.data), texto, file.name);
     conferencia = conferirFatura(texto, lancamentos);
     preview = lancamentos.slice(0, LIMITE_PREVIA).map((l) => ({
-      data: l.data.toLocaleDateString("pt-BR", { timeZone: "UTC" }), // datas gravadas à meia-noite UTC
+      data: l.data.toISOString().slice(0, 10), // "AAAA-MM-DD": datas gravadas à meia-noite UTC
       descricao: l.descricao,
       valor: l.valor,
     }));
@@ -88,6 +94,6 @@ export async function POST(req: NextRequest) {
       texto, "pdf",
       nomeParaConferir(await prisma.userProfile.findUnique({ where: { userId }, select: { nomeCompleto: true, nome: true } })),
     ),
-    total: preview.length,
+    total,
   });
 }

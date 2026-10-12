@@ -2,7 +2,7 @@
 // Vantagem sobre CSV: estruturado, sem necessidade de mapeamento de colunas.
 // Suporta tanto OFX SGML (sem tags de fechamento) quanto OFX/XML.
 import { mapearCategoria, type FonteMemoria } from "../categorias";
-import { LancamentoImportado, PerfilConfig } from "./tipos";
+import { categoriaNaFatura, LancamentoImportado, PerfilConfig } from "./tipos";
 import { ehOFXCartao } from "./detectar";
 
 // Extrai o valor de uma tag, tolerando SGML (<TAG>valor) e XML (<TAG>valor</TAG>).
@@ -76,12 +76,9 @@ export function parseOFX(
 
     const v = perfil.inverterSinal ? -valor : valor;
     const tipo: "Entrada" | "Saída" = v >= 0 ? "Entrada" : "Saída";
-    let categoria = mapearCategoria(descricao, "", tipo, memoriaIA);
-    // Fatura: crédito não é renda. "PGTO DEBITO CONTA", "PAGAMENTO EFETUADO" quitam a
-    // fatura anterior; o resto é estorno de compra. Memória e histórico continuam valendo.
-    if (fatura && v > 0 && (!categoria || categoria === "Outras Entradas" || categoria === "Transferência Recebida")) {
-      categoria = /\b(pgto|pagto|pagamento)\b/i.test(descricao) ? "Pagamento de Cartão de Crédito" : "Estorno";
-    }
+    const categoria = fatura
+      ? categoriaNaFatura(descricao, v, mapearCategoria(descricao, "", tipo, memoriaIA))
+      : mapearCategoria(descricao, "", tipo, memoriaIA);
 
     const mesReferencia = perfil.usaMesReferencia && mesReferenciaManual
       ? mesReferenciaManual

@@ -8,7 +8,9 @@ import { useState } from "react";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import DestinoConta from "./DestinoConta";
 import AvisoOutraPessoa from "./AvisoOutraPessoa";
-import LeituraPDF, { AvisoConferencia, type LinhaLida } from "./LeituraPDF";
+import LeituraPDF, { AvisoConferencia, linhasRevisadas, type LinhaLida } from "./LeituraPDF";
+import { reconferir } from "@/lib/importacao/conferencia";
+import { temAjustes, type AjustesLeitura } from "@/lib/importacao/ajustes";
 
 export type StatusItem = "analisando" | "pronto" | "configurar" | "importando" | "importado" | "erro";
 
@@ -21,18 +23,27 @@ export interface ItemLote {
   conta?: string | null; // destino; null = há mais de uma conta do mesmo banco e tipo e falta escolher
   confirmarTitular?: boolean; // "é meu": documento cujo titular não bate com o nome do usuário
   confirmarLeitura?: boolean; // "conferi": a soma lida não bate com o resumo da fatura
+  linhas?: LinhaLida[];        // as linhas lidas do PDF, buscadas quando o usuário pede para ver
+  totalLinhas?: number;
+  ajustes?: AjustesLeitura | null; // revisão das linhas (vai junto na importação)
   resultado?: { conta?: string; novos: number; duplicados: number; processados: number; reembolsosVinculados?: number; saldoConta?: { conta: string; saldo: number; atualizado: boolean } | null };
   erro?: string;
 }
 
 const FORMATO: Record<string, string> = { ofx: "OFX", pdf: "PDF", csv: "CSV" };
 
+/** A conferência com o resumo da fatura, refeita com a revisão do usuário. */
+export const conferenciaDoItem = (i: ItemLote) => {
+  const c = i.analise?.conferencia ?? null;
+  return c && i.linhas && temAjustes(i.ajustes) ? reconferir(c, linhasRevisadas(i.linhas, i.ajustes)) : c;
+};
+
 /** Pronto e sem pendência do usuário: documento de outra pessoa só com o "é meu";
- *  fatura cuja soma não bate com o resumo só com o "conferi". */
+ *  fatura cuja soma não bate com o resumo só com o "conferi" (ou depois de revisada até bater). */
 export const podeImportar = (i: ItemLote) =>
   i.status === "pronto" && !!i.analise?.perfil &&
   (!i.analise.outraPessoa || !!i.confirmarTitular) &&
-  (i.analise.conferencia?.confere !== false || !!i.confirmarLeitura);
+  (conferenciaDoItem(i)?.confere !== false || !!i.confirmarLeitura);
 
 const fmtDia = (iso: string) => {
   const [, m, d] = iso.split("-");
@@ -46,6 +57,7 @@ interface Props {
   onConta: (id: number, conta: string | null) => void;
   onConfirmarTitular: (id: number, confirmado: boolean) => void;
   onConfirmarLeitura: (id: number, confirmado: boolean) => void;
+  onRevisao: (id: number, dados: Pick<ItemLote, "linhas" | "totalLinhas" | "ajustes">) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
   onAdicionar: (files: File[]) => void;
@@ -54,7 +66,7 @@ interface Props {
 }
 
 export default function ImportacaoLote({
-  itens, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
+  itens, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRevisao, onRemover, onConfigurar, onAdicionar, onImportarTodos, onRecomecar,
 }: Props) {
   const [categorizacao, setCategorizacao] = useState<string>("");
   const [categorizando, setCategorizando] = useState(false);
@@ -105,7 +117,7 @@ export default function ImportacaoLote({
         <ul className="divide-y divide-slate-100">
           {itens.map((item) => <Linha key={item.id} item={item} importando={importando}
             onMesRef={onMesRef} onConta={onConta} onConfirmarTitular={onConfirmarTitular} onConfirmarLeitura={onConfirmarLeitura}
-            onRemover={onRemover} onConfigurar={onConfigurar} />)}
+            onRevisao={onRevisao} onRemover={onRemover} onConfigurar={onConfigurar} />)}
         </ul>
       </div>
 
@@ -163,27 +175,30 @@ export default function ImportacaoLote({
   );
 }
 
-function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRemover, onConfigurar }: {
+function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConfirmarLeitura, onRevisao, onRemover, onConfigurar }: {
   item: ItemLote;
   importando: boolean;
   onMesRef: (id: number, mesRef: string) => void;
   onConta: (id: number, conta: string | null) => void;
   onConfirmarTitular: (id: number, confirmado: boolean) => void;
   onConfirmarLeitura: (id: number, confirmado: boolean) => void;
+  onRevisao: (id: number, dados: Pick<ItemLote, "linhas" | "totalLinhas" | "ajustes">) => void;
   onRemover: (id: number) => void;
   onConfigurar: (id: number) => void;
 }) {
   const a = item.analise;
+  const conferencia = conferenciaDoItem(item);
+  const qtd = item.linhas && temAjustes(item.ajustes) ? linhasRevisadas(item.linhas, item.ajustes).length : a?.total;
   // linhas lidas do PDF, buscadas só quando o usuário pede para ver
-  const [linhas, setLinhas] = useState<LinhaLida[] | null>(null);
   const [vendoLinhas, setVendoLinhas] = useState(false);
   const verLinhas = async () => {
     setVendoLinhas((v) => !v);
-    if (linhas) return;
+    if (item.linhas) return;
     const form = new FormData();
     form.append("file", item.file);
     const r = await fetch("/api/importar/pdf-preview", { method: "POST", body: form });
-    setLinhas(r.ok ? ((await r.json()).preview ?? []) : []);
+    const json = r.ok ? await r.json() : null;
+    onRevisao(item.id, { linhas: json?.preview ?? [], totalLinhas: json?.total ?? 0 });
   };
   const icone = {
     analisando: <span className="spinner" style={{ width: 16, height: 16 }} />,
@@ -211,7 +226,7 @@ function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConf
           {a?.reconhecido && a.perfil && (
             <div className="text-xs text-slate-500">
               <span className="badge bg-blue-50 text-blue-700 mr-1">{a.perfil.nome}</span>
-              {FORMATO[a.formato]} · {a.total} lançamento{a.total !== 1 ? "s" : ""}
+              {FORMATO[a.formato]} · {qtd} lançamento{qtd !== 1 ? "s" : ""}{temAjustes(item.ajustes) && " (revisado)"}
               {a.periodo && ` · ${fmtDia(a.periodo.inicio)} a ${fmtDia(a.periodo.fim)}`}
               {!!a.duplicados && (
                 <span className={a.novos === 0 ? "text-amber-600" : ""}>
@@ -228,10 +243,10 @@ function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConf
             </div>
           )}
 
-          {a?.conferencia && item.status === "pronto" && (
+          {conferencia && item.status === "pronto" && (
             <div className="space-y-1">
-              <AvisoConferencia compacto conferencia={a.conferencia} />
-              {!a.conferencia.confere && (
+              <AvisoConferencia compacto conferencia={conferencia} />
+              {!conferencia.confere && (
                 <label className="flex items-center gap-2 text-xs text-slate-700">
                   <input type="checkbox" checked={!!item.confirmarLeitura} onChange={(e) => onConfirmarLeitura(item.id, e.target.checked)} />
                   Conferi as linhas, importar assim mesmo
@@ -243,11 +258,15 @@ function Linha({ item, importando, onMesRef, onConta, onConfirmarTitular, onConf
           {a?.formato === "pdf" && a.reconhecido && item.status === "pronto" && (
             <div>
               <button type="button" onClick={() => void verLinhas()} className="text-xs text-blue-700 hover:text-blue-900">
-                {vendoLinhas ? "Esconder as linhas" : "Ver as linhas lidas"}
+                {vendoLinhas ? "Esconder as linhas" : temAjustes(item.ajustes) ? "Ver as linhas revisadas" : "Ver e revisar as linhas lidas"}
               </button>
               {vendoLinhas && (
                 <div className="mt-1">
-                  {linhas === null ? <div className="text-xs text-slate-400">Lendo…</div> : <LeituraPDF linhas={linhas} conferencia={null} />}
+                  {!item.linhas ? <div className="text-xs text-slate-400">Lendo…</div> : (
+                    // a conferência fica no aviso acima, que já acompanha a revisão
+                    <LeituraPDF linhas={item.linhas} conferencia={null} total={item.totalLinhas}
+                      ajustes={item.ajustes} onAjustes={(ajustes) => onRevisao(item.id, { ajustes })} />
+                  )}
                 </div>
               )}
             </div>

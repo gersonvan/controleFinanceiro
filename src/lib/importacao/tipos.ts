@@ -12,6 +12,16 @@ export interface LancamentoImportado {
   fonte: string;
 }
 
+/**
+ * Fatura de cartão: crédito não é renda. "PGTO DEBITO CONTA", "PAGAMENTO EFETUADO"
+ * quitam a fatura anterior; o resto é estorno de compra. Só troca categoria vazia
+ * ou de renda — Memória e histórico continuam valendo.
+ */
+export function categoriaNaFatura(descricao: string, valor: number, categoria: string): string {
+  if (valor <= 0 || (categoria && categoria !== "Outras Entradas" && categoria !== "Transferência Recebida")) return categoria;
+  return /\b(pgto|pagto|pagamento)\b/i.test(descricao) ? "Pagamento de Cartão de Crédito" : "Estorno";
+}
+
 // Espelha o model PerfilImportacao (campos usados pelo motor).
 export interface PerfilConfig {
   nome: string;

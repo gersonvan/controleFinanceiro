@@ -3,7 +3,7 @@
 // Requer PDFs digitais com texto embutido; PDFs escaneados (imagem) não funcionam.
 
 import { mapearCategoria, type FonteMemoria } from "../categorias";
-import { LancamentoImportado, PerfilConfig } from "./tipos";
+import { categoriaNaFatura, LancamentoImportado, PerfilConfig } from "./tipos";
 import { vencimentoNoTexto } from "./mes-referencia";
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -85,14 +85,8 @@ export function parsePDF(
   mesReferenciaManual: Date | null
 ): LancamentoImportado[] {
   const lancamentos = lerPDF(texto, perfil, memoriaIA, mesReferenciaManual);
-  // Fatura: crédito não é renda. O que não for o pagamento da fatura anterior é
-  // estorno de compra (como no OFX de cartão). Memória e regras continuam valendo.
   if (perfil.builtin?.endsWith("-cartao-pdf")) {
-    for (const l of lancamentos) {
-      if (l.valor > 0 && (!l.categoria || l.categoria === "Outras Entradas" || l.categoria === "Transferência Recebida")) {
-        l.categoria = /\b(pgto|pagto|pagamento)\b/i.test(l.descricao) ? "Pagamento de Cartão de Crédito" : "Estorno";
-      }
-    }
+    for (const l of lancamentos) l.categoria = categoriaNaFatura(l.descricao, l.valor, l.categoria);
   }
   return lancamentos;
 }

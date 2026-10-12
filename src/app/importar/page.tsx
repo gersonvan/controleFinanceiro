@@ -9,8 +9,9 @@ import { decodificarBytes } from "@/lib/importacao/decodificar";
 import ImportacaoLote, { podeImportar, type ItemLote } from "@/components/importacao/ImportacaoLote";
 import ImportacoesRecentes, { desfazer } from "@/components/importacao/ImportacoesRecentes";
 import AvisoOutraPessoa from "@/components/importacao/AvisoOutraPessoa";
-import LeituraPDF, { type LinhaLida } from "@/components/importacao/LeituraPDF";
+import LeituraPDF, { linhasRevisadas, type LinhaLida } from "@/components/importacao/LeituraPDF";
 import type { ConferenciaFatura } from "@/lib/importacao/conferencia";
+import { temAjustes, type AjustesLeitura } from "@/lib/importacao/ajustes";
 import type { AnaliseArquivo } from "@/app/api/importar/analisar/route";
 import { colunasDosPapeis, detectarFormato, detectarBancoOFX, detectarPerfilCSV, sugerirJuntarLinhas, sugerirPapeis, type Papel } from "@/lib/importacao/detectar";
 import MapeamentoColunas from "@/components/importacao/MapeamentoColunas";
@@ -101,8 +102,11 @@ function ImportarConteudo() {
   const [bancoNomePDF, setBancoNomePDF] = useState("");
   const [previewPDF, setPreviewPDF]   = useState<LinhaLida[]>([]);
   const [conferenciaPDF, setConferenciaPDF] = useState<ConferenciaFatura | null>(null);
+  const [totalPDF, setTotalPDF]       = useState(0); // linhas lidas no servidor
+  const [ajustesPDF, setAjustesPDF]   = useState<AjustesLeitura | null>(null); // revisão das linhas
   const [outraPessoaPDF, setOutraPessoaPDF] = useState<{ nome: string | null } | null>(null);
   const [contaPDF, setContaPDF]       = useState("");
+  const linhasPDF = linhasRevisadas(previewPDF, ajustesPDF); // como vão ser importadas
 
   // CSV
   const [preview, setPreview]         = useState<string[][]>([]);
@@ -148,6 +152,8 @@ function ImportarConteudo() {
     setBancoNomePDF("");
     setPreviewPDF([]);
     setConferenciaPDF(null);
+    setTotalPDF(0);
+    setAjustesPDF(null);
     setOutraPessoaPDF(null);
     setContaPDF("");
     setPreview([]);
@@ -197,6 +203,8 @@ function ImportarConteudo() {
       setBancoNomePDF(json.bancoNome ?? "Banco não identificado");
       setPreviewPDF(json.preview ?? []);
       setConferenciaPDF(json.conferencia ?? null);
+      setTotalPDF(json.total ?? 0);
+      setAjustesPDF(null);
       setOutraPessoaPDF(json.outraPessoa ?? null);
       setMesRef(json.mesReferenciaSugerido ?? vencimentoNoNome(file.name) ?? "");
 
@@ -305,6 +313,7 @@ function ImportarConteudo() {
     if (mRef) form.append("mesReferencia", mRef);
     if (contaDestino) form.append("conta", contaDestino);
     if (confirmarTitular) form.append("confirmarTitular", "1");
+    if (temAjustes(ajustesPDF)) form.append("ajustes", JSON.stringify(ajustesPDF));
     try {
       const res = await fetch("/api/importar", { method: "POST", body: form });
       const json = await res.json();
@@ -433,6 +442,7 @@ function ImportarConteudo() {
       if (item.analise!.perfil!.usaMesReferencia && item.mesRef) form.append("mesReferencia", item.mesRef);
       if (item.conta) form.append("conta", item.conta);
       if (item.confirmarTitular) form.append("confirmarTitular", "1");
+      if (temAjustes(item.ajustes)) form.append("ajustes", JSON.stringify(item.ajustes));
       try {
         const res = await fetch("/api/importar", { method: "POST", body: form });
         const json = await res.json();
@@ -494,6 +504,7 @@ function ImportarConteudo() {
           onConta={(id, conta) => atualizarItem(id, { conta })}
           onConfirmarTitular={(id, confirmarTitular) => atualizarItem(id, { confirmarTitular })}
           onConfirmarLeitura={(id, confirmarLeitura) => atualizarItem(id, { confirmarLeitura })}
+          onRevisao={(id, dados) => atualizarItem(id, dados)}
           onRemover={(id) => setLote((prev) => prev.filter((i) => i.id !== id))}
           onConfigurar={configurarDoLote}
           onAdicionar={(files) => void adicionarAoLote(files)}
@@ -563,7 +574,7 @@ function ImportarConteudo() {
           </div>
 
           {previewPDF.length > 0 ? (
-            <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} />
+            <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} total={totalPDF} ajustes={ajustesPDF} onAjustes={setAjustesPDF} />
           ) : (
             <p className="text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2" role="alert" data-leitura-vazia>
               Reconhecemos o documento, mas não conseguimos ler nenhum lançamento — o banco pode ter mudado o layout
@@ -585,10 +596,10 @@ function ImportarConteudo() {
             <button className="btn btn-secondary" onClick={resetar}>← Trocar arquivo</button>
             <button
               className="btn btn-primary flex-1 justify-center"
-              disabled={perfilPDF.usaMesReferencia && !mesRef || contaDestino === null || previewPDF.length === 0}
+              disabled={perfilPDF.usaMesReferencia && !mesRef || contaDestino === null || linhasPDF.length === 0}
               onClick={() => importar(perfilPDF.id, perfilPDF.usaMesReferencia ? mesRef : undefined)}
             >
-              📥 Importar {previewPDF.length} lançamento{previewPDF.length !== 1 ? "s" : ""}
+              📥 Importar {linhasPDF.length} lançamento{linhasPDF.length !== 1 ? "s" : ""}
             </button>
           </div>
         </div>
@@ -643,7 +654,9 @@ function ImportarConteudo() {
             </div>
           </div>
 
-          {previewPDF.length > 0 && <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} />}
+          {previewPDF.length > 0 && (
+            <LeituraPDF linhas={previewPDF} conferencia={conferenciaPDF} total={totalPDF} ajustes={ajustesPDF} onAjustes={setAjustesPDF} />
+          )}
 
           <p className="text-sm text-slate-500">
             {previewPDF.length === 0
@@ -666,7 +679,7 @@ function ImportarConteudo() {
 
               <button
                 className="btn btn-primary w-full justify-center"
-                disabled={!contaPDF || !mesRef}
+                disabled={!contaPDF || !mesRef || linhasPDF.length === 0}
                 onClick={async () => {
                   // Cria perfil genérico PDF e importa
                   const res = await fetch("/api/perfis", {
