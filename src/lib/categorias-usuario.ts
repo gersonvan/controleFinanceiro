@@ -13,7 +13,7 @@ import type { Grupo as GrupoFotografia } from "./planejamento";
 export async function linhasDoUsuario(userId: string) {
   return prisma.categoriaUsuario.findMany({
     where: escopoDoUsuario(userId),
-    select: { nome: true, nativa: true, grupo: true, destino: true },
+    select: { nome: true, nativa: true, grupo: true, destino: true, fatia: true },
     orderBy: { nome: "asc" },
   });
 }

@@ -1,5 +1,5 @@
 "use client";
-// Cartões do Dashboard: como você pagou, ritmo do mês e custo de dívida.
+// Cartões do Dashboard: como você pagou, 50/30/20, ritmo do mês e custo de dívida.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -8,6 +8,7 @@ import {
   COR_DIVIDA, DICA_ORIGEM, MEIO_INFO, buscar, fmt, fmtInteiro, intervalo, mesCurto, mesLongo,
   type RespostaDivida, type RespostaMeios, type RespostaRitmo,
 } from "./comum";
+import DivisaoDoMes, { type RespostaFatias } from "./DivisaoDoMes";
 
 interface Props { ano: number; mes: number }
 
@@ -15,6 +16,7 @@ export default function PaineisFinancas({ ano, mes }: Props) {
   const [meios, setMeios] = useState<RespostaMeios | null>(null);
   const [ritmo, setRitmo] = useState<RespostaRitmo | null>(null);
   const [divida, setDivida] = useState<RespostaDivida | null>(null);
+  const [fatias, setFatias] = useState<RespostaFatias | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -22,9 +24,10 @@ export default function PaineisFinancas({ ano, mes }: Props) {
       buscar<RespostaMeios>("/api/financas/meios", ano, mes),
       buscar<RespostaRitmo>("/api/financas/ritmo", ano, mes),
       buscar<RespostaDivida>("/api/financas/divida", ano, mes),
-    ]).then(([a, b, c]) => {
+      buscar<RespostaFatias>("/api/financas/fatias", ano, mes),
+    ]).then(([a, b, c, d]) => {
       if (!ativo) return;
-      setMeios(a); setRitmo(b); setDivida(c);
+      setMeios(a); setRitmo(b); setDivida(c); setFatias(d);
     });
     return () => { ativo = false; };
   }, [ano, mes]);
@@ -35,6 +38,7 @@ export default function PaineisFinancas({ ano, mes }: Props) {
   return (
     <div className="space-y-6">
       {meios && <ComoVocePagou dados={meios} chave={chave} query={query} />}
+      {fatias && <DivisaoDoMes dados={fatias} />}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {ritmo && <RitmoDoMes dados={ritmo} chave={chave} />}
         {divida && <CustoDivida dados={divida} chave={chave} query={query} />}

@@ -38,7 +38,8 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | `CategoriasProvider` / `useCategorias` | `src/components/Categorias.tsx` | Catálogo de categorias das finanças abertas (carregado no layout); base de `OpcoesCategorias`, da Fotografia e de Configurações → Categorias |
 | `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |
 | `DividirPainel` | `src/components/DividirPainel.tsx` | Painel lateral "Dividir" de Lançamentos: busca de gastos com filtro ao digitar, seleção múltipla, prévia da parte de cada gasto e "Desfazer divisão"; pré-marca o gasto sugerido pelo padrão e, depois de salvar, oferece dividir os Pix parecidos do mesmo pagador |
-| `PaineisFinancas` | `src/components/financas/PaineisFinancas.tsx` | Os três cartões mensais do dashboard (`/api/financas/*`) |
+| `PaineisFinancas` | `src/components/financas/PaineisFinancas.tsx` | Os cartões mensais do dashboard (`/api/financas/*`): como você pagou, 50/30/20, ritmo e custo de dívida |
+| `DivisaoDoMes` | `src/components/financas/DivisaoDoMes.tsx` | Cartão 50/30/20: renda, uma barra por fatia com a meta marcada, o que ficou sem fatia e as categorias de cada fatia |
 | `NavegadorMes` | `src/components/financas/NavegadorMes.tsx` | Cabeçalho das páginas `/financas/*`: voltar e trocar de mês pela URL (`?ano&mes`) |
 | `ContasTipo` | `src/components/ContasTipo.tsx` | Seção Contas de Configurações: alterna corrente/cartão (`/api/contas`) |
 | `CategoriaSelect` | `src/components/CategoriaSelect.tsx` | Select de categorias agrupado em Saídas/Entradas |

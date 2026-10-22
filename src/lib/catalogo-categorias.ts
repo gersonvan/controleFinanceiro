@@ -14,12 +14,15 @@ export const GRUPOS_PERSONALIZAVEIS = [
 export const MAX_PERSONALIZADAS = 50;
 
 /** Uma linha de CategoriaUsuario, como vem do banco (e como a tela recebe). */
-export interface LinhaCategoriaUsuario { nome: string; nativa: boolean; grupo: string | null; destino: string | null }
+export interface LinhaCategoriaUsuario {
+  nome: string; nativa: boolean; grupo: string | null; destino: string | null;
+  fatia?: string | null; // personalizada de gasto: a do 50/30/20 (lib/fatias.ts)
+}
 
 export interface Catalogo {
   grupos: { grupo: string; categorias: string[] }[]; // o que aparece nos seletores, por grupo
   ocultas: Map<string, string | null>;               // nativa oculta → destino (null = sem categoria)
-  personalizadas: { nome: string; grupo: string }[];
+  personalizadas: { nome: string; grupo: string; fatia: string | null }[];
   validas: Set<string>;                              // o que pode ser gravado
   entradas: Set<string>;                             // as de entrada (grupo Entradas)
 }
@@ -33,7 +36,7 @@ export function montarCatalogo(linhas: LinhaCategoriaUsuario[]): Catalogo {
     .map((l): [string, string | null] => [l.nome, l.destino]));
   const personalizadas = linhas
     .filter((l) => !l.nativa && !NATIVAS.has(l.nome))
-    .map((l) => ({ nome: l.nome, grupo: GRUPOS_PERSONALIZAVEIS.includes(l.grupo ?? "") ? l.grupo! : GRUPO_OUTRAS }))
+    .map((l) => ({ nome: l.nome, grupo: GRUPOS_PERSONALIZAVEIS.includes(l.grupo ?? "") ? l.grupo! : GRUPO_OUTRAS, fatia: l.fatia ?? null }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const grupos = [...GRUPOS_CATEGORIAS.map((g) => g.grupo), GRUPO_OUTRAS]
     .map((grupo) => ({

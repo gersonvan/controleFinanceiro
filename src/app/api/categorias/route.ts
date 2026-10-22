@@ -5,6 +5,7 @@
 //         { acao: "mostrar", nome }              → mostra de novo uma nativa oculta
 //         { acao: "renomear", nome, novoNome }   → renomeia uma personalizada (tudo acompanha)
 //         { acao: "excluir", nome, destino }     → exclui uma personalizada
+//         { acao: "fatia", nome, fatia }         → muda a fatia do 50/30/20 de uma personalizada de gasto
 // Ocultar e excluir exigem o destino do que já está na categoria: outra existente,
 // do mesmo lado (entrada/saída), ou null = sem categoria.
 import { NextRequest, NextResponse } from "next/server";
@@ -19,15 +20,21 @@ import {
   type Catalogo, type LinhaCategoriaUsuario,
 } from "@/lib/catalogo-categorias";
 import { desafiosAtivosNa, linhasDoUsuario, migrarCategoria } from "@/lib/categorias-usuario";
+import { FATIAS, fatiaDoGrupo } from "@/lib/fatias";
 
 const nome = z.string().trim().min(1).max(60);
-const criarSchema = z.object({ nome, grupo: z.string().refine((g) => GRUPOS_PERSONALIZAVEIS.includes(g), "Grupo inválido") });
+const fatia = z.enum(FATIAS as [string, ...string[]]);
+const criarSchema = z.object({
+  nome, grupo: z.string().refine((g) => GRUPOS_PERSONALIZAVEIS.includes(g), "Grupo inválido"),
+  fatia: fatia.nullable().optional(), // sem ela, a do grupo
+});
 // destino sem .optional(): a escolha é obrigatória (null = sem categoria)
 const acaoSchema = z.discriminatedUnion("acao", [
   z.object({ acao: z.literal("ocultar"), nome, destino: nome.nullable() }),
   z.object({ acao: z.literal("mostrar"), nome }),
   z.object({ acao: z.literal("renomear"), nome, novoNome: nome }),
   z.object({ acao: z.literal("excluir"), nome, destino: nome.nullable() }),
+  z.object({ acao: z.literal("fatia"), nome, fatia }),
 ]);
 
 export interface RespostaCategorias {
@@ -62,8 +69,12 @@ export async function POST(req: NextRequest) {
   if (problema) return erro400(problema);
 
   const criada = await prisma.categoriaUsuario.create({
-    data: dadosDoUsuario(userId, { nome: limparNome(v.dados.nome), nativa: false, grupo: v.dados.grupo }),
-    select: { nome: true, nativa: true, grupo: true, destino: true },
+    data: dadosDoUsuario(userId, {
+      nome: limparNome(v.dados.nome), nativa: false, grupo: v.dados.grupo,
+      // entrada não tem fatia; gasto: a escolhida ou a do grupo
+      fatia: v.dados.grupo === "Entradas" ? null : v.dados.fatia ?? fatiaDoGrupo(v.dados.grupo),
+    }),
+    select: { nome: true, nativa: true, grupo: true, destino: true, fatia: true },
   });
   return NextResponse.json(criada, { status: 201 });
 }
@@ -116,8 +127,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, migracao });
   }
 
-  // renomear e excluir: só as personalizadas
-  if (!personalizada) return erro400("Só dá para renomear ou excluir as categorias que você criou.");
+  // renomear, excluir e fatia: só as personalizadas
+  if (!personalizada) return erro400("Só dá para mudar as categorias que você criou.");
+
+  if (pedido.acao === "fatia") {
+    if (catalogo.entradas.has(pedido.nome)) return erro400("Categoria de entrada não tem fatia: ela é a renda.");
+    await prisma.categoriaUsuario.updateMany({ where: escopoDoUsuario(userId, { nome: pedido.nome, nativa: false }), data: { fatia: pedido.fatia } });
+    return NextResponse.json({ ok: true });
+  }
 
   if (pedido.acao === "renomear") {
     const novo = limparNome(pedido.novoNome);

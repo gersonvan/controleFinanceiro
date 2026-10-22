@@ -11,6 +11,7 @@ import {
 } from "@/lib/catalogo-categorias";
 import { GRUPOS_CATEGORIAS } from "@/lib/categorias";
 import { useEspaco } from "@/components/Espaco";
+import { FATIAS, fatiaDaCategoria, fatiaDoGrupo, INFO_FATIA, type Fatia } from "@/lib/fatias";
 
 const plural = (n: number, s: string, p = `${s}s`) => `${n} ${n === 1 ? s : p}`;
 
@@ -22,6 +23,7 @@ export default function CategoriasPage() {
   const [dados, setDados] = useState<RespostaCategorias | null>(null);
   const [novoNome, setNovoNome] = useState("");
   const [novoGrupo, setNovoGrupo] = useState("Pessoal e Lazer");
+  const [novaFatia, setNovaFatia] = useState<Fatia | null>(fatiaDoGrupo("Pessoal e Lazer"));
   const [acao, setAcao] = useState<Acao | null>(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -56,7 +58,7 @@ export default function CategoriasPage() {
   };
 
   const criar = async () => {
-    if (await enviar("POST", { nome: novoNome, grupo: novoGrupo }, (j) => `Categoria “${j.nome}” criada em ${novoGrupo}.`)) setNovoNome("");
+    if (await enviar("POST", { nome: novoNome, grupo: novoGrupo, fatia: novaFatia }, (j) => `Categoria “${j.nome}” criada em ${novoGrupo}.`)) setNovoNome("");
   };
 
   if (!dados) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
@@ -86,12 +88,20 @@ export default function CategoriasPage() {
           <div className="flex gap-2 flex-wrap">
             <input aria-label="Nome da categoria" placeholder="Ex.: Cachorro, Igreja, Escola das crianças" value={novoNome} maxLength={40}
               onChange={(e) => setNovoNome(e.target.value)} className="flex-1 min-w-48" />
-            <select aria-label="Grupo" value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)}>
+            <select aria-label="Grupo" value={novoGrupo} onChange={(e) => { setNovoGrupo(e.target.value); setNovaFatia(fatiaDoGrupo(e.target.value)); }}>
               {GRUPOS_PERSONALIZAVEIS.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
+            {novaFatia && (
+              <select aria-label="Fatia no 50/30/20" value={novaFatia} onChange={(e) => setNovaFatia(e.target.value as Fatia)}>
+                {FATIAS.map((f) => <option key={f} value={f}>{INFO_FATIA[f].nome}</option>)}
+              </select>
+            )}
             <button className="btn btn-primary" disabled={enviando || novoNome.trim().length < 2} onClick={() => void criar()}>Criar</button>
           </div>
-          <p className="text-xs text-slate-400">No grupo Entradas ela é de entrada; nos outros, de gasto. As regras automáticas não a conhecem: categorize o primeiro lançamento e a Memória aprende.</p>
+          <p className="text-xs text-slate-400">
+            No grupo Entradas ela é de entrada (renda); nos outros, de gasto — e você escolhe se, no 50/30/20 do dashboard, ela é
+            necessidade, desejo ou futuro. As regras automáticas não a conhecem: categorize o primeiro lançamento e a Memória aprende.
+          </p>
         </section>
       )}
 
@@ -106,6 +116,22 @@ export default function CategoriasPage() {
                     {nome}
                     {personalizada(nome) && <span className="ml-2 badge bg-blue-50 text-blue-700">sua</span>}
                     <span className="ml-2 text-xs text-slate-400">{plural(qtd(nome), "lançamento")}</span>
+                    {!personalizada(nome) && fatiaDaCategoria(catalogo, nome) && (
+                      <span className="ml-2 text-xs text-slate-400">· {INFO_FATIA[fatiaDaCategoria(catalogo, nome)!].nome.toLowerCase()}</span>
+                    )}
+                    {personalizada(nome) && !catalogo.entradas.has(nome) && !somenteVer && (
+                      // a fatia do 50/30/20 de uma categoria própria de gasto
+                      <select aria-label={`Fatia de ${nome}`} value={fatiaDaCategoria(catalogo, nome) ?? "desejos"} disabled={enviando}
+                        className="ml-2 text-xs py-0.5"
+                        onChange={(e) => {
+                          // o select é controlado: o valor escolhido é guardado antes de o React voltar ao atual
+                          const fatia = e.target.value as Fatia;
+                          void enviar("PATCH", { acao: "fatia", nome, fatia },
+                            () => `“${nome}” agora conta como ${INFO_FATIA[fatia].nome.toLowerCase()} no 50/30/20.`);
+                        }}>
+                        {FATIAS.map((f) => <option key={f} value={f}>{INFO_FATIA[f].nome}</option>)}
+                      </select>
+                    )}
                   </div>
                   {!somenteVer && (
                     <div className="flex items-center gap-3 text-xs ml-auto">

@@ -261,6 +261,7 @@ model CategoriaUsuario {
   nativa    Boolean  // true = nativa oculta; false = personalizada
   grupo     String?  // personalizada: o grupo onde aparece (define entrada ou saída)
   destino   String?  // nativa oculta: para onde vão regras e IA (null = sem categoria)
+  fatia     String?  // personalizada de gasto: "necessidades" | "desejos" | "futuro" (lib/fatias.ts; null = a do grupo)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
