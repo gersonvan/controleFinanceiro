@@ -11,7 +11,11 @@ export default defineConfig({
   // passar dos 5 s padrão com a máquina ocupada
   expect: { timeout: 15_000 },
   workers: 1, // os testes compartilham o banco
-  reporter: [["list"], ["html", { open: "never" }]],
+  forbidOnly: !!process.env.CI, // um test.only esquecido não pode passar no CI pulando o resto
+  // no CI, "github" anota as falhas direto nas linhas do PR
+  reporter: process.env.CI
+    ? [["github"], ["list"], ["html", { open: "never" }]]
+    : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3100",
     locale: "pt-BR",
