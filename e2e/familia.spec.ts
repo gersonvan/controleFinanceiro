@@ -87,3 +87,36 @@ test("monta o plano da família, salva, compara um cenário e recusa versão vel
   expect((await page.request.put("/api/familia", { data: { dados, versao } })).status()).toBe(400);
   expect(erros).toEqual([]);
 });
+
+test("traz a Fotografia do mês para o plano da família, sem repetir", async ({ page }) => {
+  const erros = vigiarErros(page);
+  await entrar(page, "Ana");
+  // plano só com as pessoas; a Fotografia da Ana (semente) tem salário, aluguel e mercado (variável)
+  const { versao } = await (await page.request.get("/api/familia")).json();
+  const dados = {
+    pessoas: [{ chave: "ana", nome: "Ana", tipo: "adulto" }, { chave: "bruno", nome: "Bruno", tipo: "adulto" }],
+    cenarios: [{ chave: "principal", nome: "Plano principal", principal: true, itens: [] }],
+  };
+  expect((await page.request.put("/api/familia", { data: { dados, versao } })).status()).toBe(200);
+
+  await page.goto("/planejamento?aba=familia");
+  await page.getByRole("button", { name: "📸 Trazer da minha Fotografia do mês" }).click();
+  const painel = page.locator("section[data-trazer-fotografia]");
+  await painel.getByLabel("Quem é você na casa").selectOption({ label: "Ana" });
+  await expect(painel).toContainText("1 renda e 1 conta");
+  await expect(painel).toContainText("1 gasto variável (o dia a dia, não é conta fixa)");
+  await painel.getByRole("button", { name: "Trazer" }).click();
+  await expect(page.getByRole("status")).toContainText("2 itens trazidos");
+  await expect(page.locator('[data-secao="rendas"] [data-item="Salário"]')).toBeVisible();
+  await expect(page.locator('[data-secao="contas"] [data-item="Aluguel"]')).toBeVisible();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("status")).toContainText("Plano salvo");
+
+  const salvo = (await (await page.request.get("/api/familia")).json()).dados.cenarios[0].itens as { tipo: string; descricao: string; valor: number; pessoa: string }[];
+  expect(salvo.map((i) => [i.tipo, i.descricao, i.valor, i.pessoa])).toEqual([["renda", "Salário", 6000, "ana"], ["conta", "Aluguel", 1800, "ana"]]);
+
+  // de novo: nada se repete
+  await page.getByRole("button", { name: "📸 Trazer da minha Fotografia do mês" }).click();
+  await expect(painel).toContainText("Nada novo para trazer");
+  expect(erros).toEqual([]);
+});

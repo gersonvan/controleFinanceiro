@@ -9,9 +9,11 @@ import { useCategorias } from "@/components/Categorias";
 import { useEspaco } from "@/components/Espaco";
 import { parseValor } from "@/lib/importacao/tipos";
 import {
-  compararCenarios, dadosVazios, duplicarCenario, grupoDoItem, novaChave, pagaContas, resumirCenario, TIPOS_PESSOA,
-  type Cenario, type DadosFamilia, type ItemFamilia, type Pessoa, type TipoPessoa,
+  compararCenarios, dadosVazios, duplicarCenario, grupoDoItem, novaChave, pagaContas, resumirCenario, TIPOS_PESSOA, trazerDaFotografia,
+  type Cenario, type DadosFamilia, type DaFotografia, type ItemFamilia, type Pessoa, type TipoPessoa,
 } from "@/lib/familia";
+import type { Catalogo } from "@/lib/catalogo-categorias";
+import type { ItemPlanejado } from "@/lib/planejamento";
 import { INFO_FATIA } from "@/lib/fatias";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -115,6 +117,14 @@ export default function PlanoFamilia() {
         onNovo={(nome) => { const novo = duplicarCenario(dados, cenario, nome); mudar((d) => { d.cenarios.push(novo); }); setAtual(novo.chave); }}
         onRenomear={(nome) => mudarCenario((c) => { c.nome = nome; })}
         onExcluir={() => { mudar((d) => { d.cenarios = d.cenarios.filter((c) => c.chave !== cenario.chave); }); setAtual(principal!.chave); }} />
+
+      {!desabilitado && pagadores.length > 0 && (
+        <TrazerDaFotografia pagadores={pagadores} cenario={cenario} catalogo={catalogo}
+          onTrazer={(itens, texto) => {
+            mudarCenario((c) => { c.itens.push(...itens); });
+            setAviso({ tipo: "ok", texto });
+          }} />
+      )}
 
       {aviso && (
         <div className={`text-sm rounded-lg px-3 py-2 border ${aviso.tipo === "ok" ? "text-green-800 bg-green-50 border-green-200" : "text-red-700 bg-red-50 border-red-200"}`}
@@ -411,6 +421,85 @@ function Comparacao({ comparacao }: { comparacao: ReturnType<typeof compararCena
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/**
+ * Traz a Fotografia do mês de quem está editando: as entradas viram renda e os
+ * gastos fixos, sazonais e parcelas viram contas pagas pela pessoa escolhida
+ * (lib/familia.ts, trazerDaFotografia). Mostra antes o que entra e o que fica de fora.
+ */
+function TrazerDaFotografia({ pagadores, cenario, catalogo, onTrazer }: {
+  pagadores: Pessoa[]; cenario: Cenario; catalogo: Catalogo; onTrazer: (itens: ItemFamilia[], aviso: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [pessoa, setPessoa] = useState(pagadores[0].chave);
+  const [fotografia, setFotografia] = useState<ItemPlanejado[] | null>(null);
+  const abrir = async () => {
+    setAberto(true);
+    if (fotografia) return;
+    const r = await fetch("/api/planejamento");
+    setFotografia(r.ok ? ((await r.json()).itens ?? []) : []);
+  };
+  const previa: DaFotografia | null = fotografia ? trazerDaFotografia(fotografia, pessoa, cenario, catalogo) : null;
+  const nome = pagadores.find((p) => p.chave === pessoa)?.nome ?? "";
+  const plural = (n: number, s: string, p = `${s}s`) => `${n} ${n === 1 ? s : p}`;
+
+  if (!aberto) {
+    return (
+      <button className="text-sm text-blue-700 hover:text-blue-900" onClick={() => void abrir()} data-trazer-fotografia>
+        📸 Trazer da minha Fotografia do mês
+      </button>
+    );
+  }
+  return (
+    <section className="card space-y-3 border-blue-200" data-trazer-fotografia>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-semibold text-slate-700">Trazer da minha Fotografia do mês</span>
+        <label className="flex items-center gap-2 text-slate-600 ml-auto">Na casa, você é
+          <select aria-label="Quem é você na casa" value={pessoa} onChange={(e) => setPessoa(e.target.value)} className="text-sm">
+            {pagadores.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
+          </select>
+        </label>
+      </div>
+      {!previa ? <div className="text-sm text-slate-400">Lendo a Fotografia…</div> : fotografia!.length === 0 ? (
+        <p className="text-sm text-slate-500">Sua Fotografia do mês está vazia. Preencha na aba Fotografia do mês e volte aqui.</p>
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">
+            {previa.novos.length === 0 ? "Nada novo para trazer: o que a Fotografia tem já está neste cenário." : (
+              <>Entram como de <strong>{nome}</strong>: {plural(previa.novos.filter((i) => i.tipo === "renda").length, "renda")} e{" "}
+                {plural(previa.novos.filter((i) => i.tipo === "conta").length, "conta")}, todas como “da casa” — depois ajuste quem paga e para quem.</>
+            )}
+          </p>
+          {previa.novos.length > 0 && (
+            <ul className="text-xs text-slate-600 grid sm:grid-cols-2 gap-x-6 gap-y-0.5">
+              {previa.novos.map((i) => (
+                <li key={i.chave} className="flex justify-between gap-2">
+                  <span className="truncate">{i.tipo === "renda" ? "renda · " : ""}{i.descricao}</span>
+                  <span className="whitespace-nowrap text-slate-500">{fmt(i.valor)}{i.periodicidade === "anual" ? "/ano" : "/mês"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(previa.repetidos + previa.variaveis + previa.quitadas) > 0 && (
+            <p className="text-xs text-slate-400">
+              Ficam de fora: {[previa.repetidos && `${plural(previa.repetidos, "item")} que já ${previa.repetidos === 1 ? "está" : "estão"} aqui`,
+                previa.variaveis && `${plural(previa.variaveis, "gasto variável", "gastos variáveis")} (o dia a dia, não é conta fixa)`,
+                previa.quitadas && `${plural(previa.quitadas, "parcela quitada", "parcelas quitadas")}`].filter(Boolean).join(", ")}.
+            </p>
+          )}
+        </>
+      )}
+      <div className="flex justify-end gap-2">
+        <button className="btn btn-secondary text-sm" onClick={() => setAberto(false)}>Cancelar</button>
+        <button className="btn btn-primary text-sm" disabled={!previa || previa.novos.length === 0}
+          onClick={() => {
+            onTrazer(previa!.novos, `${plural(previa!.novos.length, "item trazido", "itens trazidos")} da Fotografia para "${cenario.nome}". Confira quem paga e para quem, e salve.`);
+            setAberto(false);
+          }}>Trazer</button>
+      </div>
     </section>
   );
 }

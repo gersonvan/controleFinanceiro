@@ -8,6 +8,8 @@ import { z } from "zod";
 import { GRUPOS_CATEGORIAS } from "./categorias";
 import { grupoDaCategoria, type Catalogo } from "./catalogo-categorias";
 import { fatiaDaCategoria } from "./fatias";
+import { resolverCategoria } from "./catalogo-categorias";
+import { numeroParcela, valorMensal, type ItemPlanejado } from "./planejamento";
 
 export type TipoPessoa = "adulto" | "dependente" | "outro";
 export type Periodicidade = "mensal" | "anual";
@@ -183,4 +185,46 @@ export function duplicarCenario(dados: DadosFamilia, fonte: Cenario, nome: strin
     chave: novaChave(), nome, principal: false,
     itens: fonte.itens.map((i) => ({ ...i, chave: novaChave(), origem: fonte.principal ? i.chave : i.origem })),
   };
+}
+
+// ─── Da Fotografia do mês ─────────────────────────────────────────────────────
+
+const chaveRepeticao = (i: Pick<ItemFamilia, "tipo" | "descricao" | "pessoa">) =>
+  `${i.tipo}|${i.descricao.trim().toLowerCase()}|${i.pessoa}`;
+
+export interface DaFotografia { novos: ItemFamilia[]; repetidos: number; variaveis: number; quitadas: number }
+
+/**
+ * A Fotografia do mês de uma pessoa vira renda e contas pagas por ela no plano da
+ * família: entradas → renda; fixos e sazonais → contas (semanal vira mensal; anual
+ * continua anual); parcelas só enquanto faltam prestações. Os variáveis (o dia a
+ * dia) ficam de fora — não são contas fixas. O que o cenário já tem (mesmo tipo,
+ * descrição e pessoa) não se repete. Tudo entra como "da casa": o usuário ajusta.
+ */
+export function trazerDaFotografia(fotografia: ItemPlanejado[], pessoa: string, cenario: Cenario, c: Catalogo): DaFotografia {
+  const existentes = new Set(cenario.itens.map(chaveRepeticao));
+  const r: DaFotografia = { novos: [], repetidos: 0, variaveis: 0, quitadas: 0 };
+  for (const f of fotografia) {
+    if (f.grupo === "variavel") { r.variaveis++; continue; }
+    let descricao = f.descricao.trim();
+    if (f.grupo === "parcela") {
+      const n = numeroParcela(f);
+      if (n === null) { r.quitadas++; continue; }
+      descricao = `${descricao} (${n}/${f.parcelaTotal})`;
+    }
+    const anual = f.periodicidade === "anual" && f.grupo !== "parcela";
+    const valor = Math.round((anual ? f.valor : valorMensal(f)) * 100) / 100;
+    if (valor <= 0 || !descricao) continue;
+    const item: ItemFamilia = {
+      chave: novaChave(), tipo: f.grupo === "entrada" ? "renda" : "conta",
+      descricao: descricao.slice(0, 80), valor, periodicidade: anual ? "anual" : "mensal",
+      pessoa, para: null,
+      categoria: f.grupo === "entrada" ? null : resolverCategoria(c, f.categoria),
+      grupo: null, origem: null,
+    };
+    if (existentes.has(chaveRepeticao(item))) { r.repetidos++; continue; }
+    existentes.add(chaveRepeticao(item));
+    r.novos.push(item);
+  }
+  return r;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compararCenarios, dadosFamiliaSchema, duplicarCenario, resumirCenario, type DadosFamilia, type ItemFamilia } from "./familia";
+import { compararCenarios, dadosFamiliaSchema, duplicarCenario, resumirCenario, trazerDaFotografia, type DadosFamilia, type ItemFamilia } from "./familia";
 import { CATALOGO_PADRAO } from "./catalogo-categorias";
 
 const item = (p: Partial<ItemFamilia> & Pick<ItemFamilia, "chave" | "tipo" | "descricao" | "valor" | "pessoa">): ItemFamilia =>
@@ -68,5 +68,29 @@ describe("plano da família", () => {
     expect(dadosFamiliaSchema.safeParse(comItem(item({ chave: "x", tipo: "renda", descricao: "Mesada", valor: 50, pessoa: "leo" }))).success).toBe(false);
     expect(dadosFamiliaSchema.safeParse(comItem(item({ chave: "x", tipo: "conta", descricao: "X", valor: 50, pessoa: "ana", para: "ninguem" }))).success).toBe(false);
     expect(dadosFamiliaSchema.safeParse({ ...dados, cenarios: [dados.cenarios[0], { ...dados.cenarios[0], chave: "outro" }] }).success).toBe(false);
+  });
+});
+
+describe("trazer da Fotografia do mês", () => {
+  it("entradas viram renda e fixos/sazonais/parcelas viram contas da pessoa; variáveis e repetidos ficam de fora", () => {
+    const foto = [
+      { grupo: "entrada" as const, descricao: "Salário", categoria: "Salário", valor: 10000, periodicidade: "mensal" as const },
+      { grupo: "entrada" as const, descricao: "Consultorias", categoria: "Outras Entradas", valor: 3000, periodicidade: "mensal" as const },
+      { grupo: "fixo" as const, descricao: "Aluguel", categoria: "Aluguel", valor: 3000, periodicidade: "mensal" as const },
+      { grupo: "fixo" as const, descricao: "Feira", categoria: "Supermercado e Mercearia", valor: 150, periodicidade: "semanal" as const },
+      { grupo: "sazonal" as const, descricao: "IPVA", categoria: "Impostos e Tributos", valor: 3600, periodicidade: "anual" as const },
+      { grupo: "parcela" as const, descricao: "Geladeira", categoria: "Casa: Manutenção e Móveis", valor: 300, periodicidade: "mensal" as const, parcelaAtual: 3, parcelaTotal: 10 },
+      { grupo: "parcela" as const, descricao: "Celular", categoria: "Compras", valor: 200, periodicidade: "mensal" as const, parcelaAtual: 11, parcelaTotal: 10 },
+      { grupo: "variavel" as const, descricao: "Restaurantes", categoria: "Restaurantes e Lanches", valor: 800, periodicidade: "mensal" as const },
+    ];
+    // "Salário" e "Aluguel" da Ana já estão no plano principal
+    const r = trazerDaFotografia(foto, "ana", dados.cenarios[0], CATALOGO_PADRAO);
+    expect(r.novos.map((i) => [i.tipo, i.descricao, i.valor, i.periodicidade, i.pessoa, i.categoria])).toEqual([
+      ["renda", "Consultorias", 3000, "mensal", "ana", null],
+      ["conta", "Feira", 650, "mensal", "ana", "Supermercado e Mercearia"], // 150 × 52/12
+      ["conta", "IPVA", 3600, "anual", "ana", "Impostos e Tributos"],
+      ["conta", "Geladeira (3/10)", 300, "mensal", "ana", "Casa: Manutenção e Móveis"],
+    ]);
+    expect(r).toMatchObject({ repetidos: 2, variaveis: 1, quitadas: 1 });
   });
 });
