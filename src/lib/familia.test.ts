@@ -94,3 +94,22 @@ describe("trazer da Fotografia do mês", () => {
     expect(r).toMatchObject({ repetidos: 2, variaveis: 1, quitadas: 1 });
   });
 });
+
+describe("conferência antes de salvar", async () => {
+  const { problemasDoPlano, semLinhasVazias } = await import("./familia");
+  it("linha em branco sai; linha pela metade vira mensagem em português", () => {
+    const comItens = (itens: ItemFamilia[]) => ({ ...dados, cenarios: [{ ...dados.cenarios[0], itens }] });
+    const branco = item({ chave: "b", tipo: "renda", descricao: "", valor: 0, pessoa: "ana" });
+    expect(semLinhasVazias(comItens([branco])).cenarios[0].itens).toEqual([]);
+    expect(problemasDoPlano(comItens([
+      item({ chave: "x", tipo: "conta", descricao: "Aluguel", valor: 0, pessoa: "ana" }),
+      item({ chave: "y", tipo: "renda", descricao: "", valor: 500, pessoa: "bruno" }),
+      item({ chave: "z", tipo: "renda", descricao: "Mesada", valor: 50, pessoa: "leo" }),
+    ])).map((p) => p.texto)).toEqual([
+      "“Aluguel”: falta o valor",
+      "Renda de Bruno: falta a descrição",
+      "“Mesada”: Léo é dependente: não tem renda nem paga contas",
+    ]);
+    expect(problemasDoPlano(dados)).toEqual([]);
+  });
+});

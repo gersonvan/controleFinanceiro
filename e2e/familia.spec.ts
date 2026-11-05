@@ -120,3 +120,36 @@ test("traz a Fotografia do mês para o plano da família, sem repetir", async ({
   await expect(painel).toContainText("Nada novo para trazer");
   expect(erros).toEqual([]);
 });
+
+test("linha em branco é descartada e a incompleta vira mensagem clara, sem texto técnico", async ({ page }) => {
+  await entrar(page, "Ana");
+  const { versao } = await (await page.request.get("/api/familia")).json();
+  const dados = {
+    pessoas: [{ chave: "ana", nome: "Ana", tipo: "adulto" }],
+    cenarios: [{ chave: "principal", nome: "Plano principal", principal: true, itens: [] }],
+  };
+  expect((await page.request.put("/api/familia", { data: { dados, versao } })).status()).toBe(200);
+  await page.goto("/planejamento?aba=familia");
+
+  // o caso relatado: "Adicionar renda" e salvar sem preencher
+  await novaLinha(page, "rendas");
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("status")).toContainText("Plano salvo");
+  await expect(page.locator('[data-secao="rendas"] [data-item]')).toHaveCount(0);
+
+  // conta só com descrição: mensagem em português, linha destacada, nada de "dados.cenarios.0…"
+  const conta = await novaLinha(page, "contas");
+  await conta.getByLabel("Descrição da conta").fill("Aluguel");
+  await page.getByRole("button", { name: "Salvar" }).click();
+  const problemas = page.locator("[data-problemas]");
+  await expect(problemas).toContainText("“Aluguel”: falta o valor");
+  await expect(problemas).not.toContainText("dados.");
+  await expect(conta).toHaveClass(/ring-red-300/);
+
+  // corrigido, a mensagem some e salva
+  await conta.getByLabel("Valor da conta").fill("1500");
+  await conta.getByLabel("Valor da conta").blur();
+  await expect(problemas).toHaveCount(0);
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("status")).toContainText("Plano salvo");
+});

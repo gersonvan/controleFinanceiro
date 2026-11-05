@@ -228,3 +228,34 @@ export function trazerDaFotografia(fotografia: ItemPlanejado[], pessoa: string, 
   }
   return r;
 }
+
+// ─── Conferência antes de salvar ──────────────────────────────────────────────
+
+/** Linha que o usuário adicionou e deixou em branco (sem descrição e sem valor): sai ao salvar. */
+export function semLinhasVazias(d: DadosFamilia): DadosFamilia {
+  return { ...d, cenarios: d.cenarios.map((c) => ({ ...c, itens: c.itens.filter((i) => i.descricao.trim() || i.valor > 0) })) };
+}
+
+export interface Problema { cenario: string; item: string | null; texto: string }
+
+/** O que impede salvar, em palavras do usuário (a validação do servidor é a mesma, em termos técnicos). */
+export function problemasDoPlano(d: DadosFamilia): Problema[] {
+  const pessoas = new Map(d.pessoas.map((p) => [p.chave, p]));
+  const varios = d.cenarios.length > 1;
+  const problemas: Problema[] = [];
+  for (const c of d.cenarios) {
+    const onde = varios ? ` (cenário “${c.nome}”)` : "";
+    for (const i of c.itens) {
+      const quem = pessoas.get(i.pessoa);
+      const nome = i.descricao.trim() ? `“${i.descricao.trim()}”` : i.tipo === "renda" ? `Renda de ${quem?.nome ?? "alguém"}` : "Conta sem descrição";
+      const add = (texto: string) => problemas.push({ cenario: c.chave, item: i.chave, texto: `${nome}${onde}: ${texto}` });
+      if (!i.descricao.trim()) add("falta a descrição");
+      if (!(i.valor > 0)) add("falta o valor");
+      if (!quem) add(i.tipo === "renda" ? "escolha de quem é a renda" : "escolha quem paga");
+      else if (!pagaContas(quem)) add(`${quem.nome} é dependente: não tem renda nem paga contas`);
+      if (i.tipo === "conta" && i.para !== null && !pessoas.has(i.para)) add("escolha para quem é");
+    }
+    if (!c.nome.trim()) problemas.push({ cenario: c.chave, item: null, texto: "Um cenário está sem nome" });
+  }
+  return problemas;
+}

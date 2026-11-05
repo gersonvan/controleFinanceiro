@@ -9,7 +9,8 @@ import { useCategorias } from "@/components/Categorias";
 import { useEspaco } from "@/components/Espaco";
 import { parseValor } from "@/lib/importacao/tipos";
 import {
-  compararCenarios, dadosVazios, duplicarCenario, grupoDoItem, novaChave, pagaContas, resumirCenario, TIPOS_PESSOA, trazerDaFotografia,
+  compararCenarios, dadosVazios, duplicarCenario, grupoDoItem, novaChave, pagaContas, problemasDoPlano, resumirCenario, semLinhasVazias,
+  TIPOS_PESSOA, trazerDaFotografia,
   type Cenario, type DadosFamilia, type DaFotografia, type ItemFamilia, type Pessoa, type TipoPessoa,
 } from "@/lib/familia";
 import type { Catalogo } from "@/lib/catalogo-categorias";
@@ -45,17 +46,25 @@ export default function PlanoFamilia() {
   const [sujo, setSujo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string; detalhes?: string[] } | null>(null);
+  const [tentouSalvar, setTentouSalvar] = useState(false); // a partir daí, os problemas aparecem e somem enquanto o usuário corrige
 
+  const [erroCarga, setErroCarga] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
     let ativo = true;
-    fetch("/api/familia").then((r) => (r.ok ? r.json() : null)).then((j) => {
-      if (!ativo) return;
-      setDados(j?.dados ?? dadosVazios());
-      setVersao(j?.versao ?? 0);
-      setAtual((j?.dados?.cenarios ?? []).find((c: Cenario) => c.principal)?.chave ?? "principal");
-    });
+    // falha ao carregar não vira plano vazio: salvar por cima apagaria o que existe
+    fetch("/api/familia")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((j) => {
+        if (!ativo) return;
+        setDados(j.dados ?? dadosVazios());
+        setVersao(j.versao ?? 0);
+        setAtual((j.dados?.cenarios ?? []).find((c: Cenario) => c.principal)?.chave ?? "principal");
+        setErroCarga(false);
+      })
+      .catch(() => { if (ativo) setErroCarga(true); });
     return () => { ativo = false; };
-  }, []);
+  }, [tentativa]);
 
   // sair com alterações não salvas: o navegador pergunta
   useEffect(() => {
@@ -73,13 +82,24 @@ export default function PlanoFamilia() {
 
   const salvar = async () => {
     if (!dados) return;
-    setSalvando(true); setAviso(null);
+    // linha deixada em branco sai; o resto é conferido aqui, com mensagens em português
+    const limpo = semLinhasVazias(dados);
+    setTentouSalvar(true); setAviso(null);
+    if (problemasDoPlano(limpo).length > 0) return;
+    setSalvando(true);
     try {
-      const r = await fetch("/api/familia", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dados, versao }) });
+      const r = await fetch("/api/familia", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dados: limpo, versao }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setAviso({ tipo: "erro", texto: j.error ?? "Não foi possível salvar.", detalhes: j.detalhes }); return; }
-      setVersao(j.versao); setSujo(false);
+      if (!r.ok) {
+        // "Dados inválidos" traz detalhes técnicos (caminhos do validador): não servem ao usuário
+        const tecnico = r.status === 400 && j.error === "Dados inválidos";
+        setAviso({ tipo: "erro", texto: tecnico ? "O plano não pôde ser salvo. Confira os itens e tente de novo." : j.error ?? "Não foi possível salvar.", detalhes: tecnico ? undefined : j.detalhes });
+        return;
+      }
+      setDados(limpo); setVersao(j.versao); setSujo(false); setTentouSalvar(false);
       setAviso({ tipo: "ok", texto: `Plano salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.` });
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor. Suas alterações continuam na tela: tente salvar de novo." });
     } finally { setSalvando(false); }
   };
 
@@ -90,7 +110,19 @@ export default function PlanoFamilia() {
     () => (dados && cenario && principal && !cenario.principal ? compararCenarios(dados, principal, cenario, catalogo) : null),
     [dados, cenario, principal, catalogo]);
 
+  if (erroCarga && !dados) {
+    return (
+      <div className="card text-sm text-red-700 bg-red-50 border-red-200 flex items-center justify-between gap-3 flex-wrap" role="alert">
+        Não foi possível carregar o plano da família.
+        <button className="btn btn-secondary text-sm" onClick={() => { setErroCarga(false); setTentativa((t) => t + 1); }}>Tentar de novo</button>
+      </div>
+    );
+  }
   if (!dados || !cenario || !resumo) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
+
+  const problemas = tentouSalvar ? problemasDoPlano(semLinhasVazias(dados)) : [];
+  const comProblema = new Set(problemas.filter((p) => p.cenario === cenario.chave).map((p) => p.item));
+  const destaque = (i: ItemFamilia) => (comProblema.has(i.chave) ? "ring-1 ring-red-300 bg-red-50 rounded -mx-2 px-2 py-1" : "");
 
   const pagadores = dados.pessoas.filter(pagaContas);
   const mudarCenario = (f: (c: Cenario) => void) => mudar((d) => f(d.cenarios.find((c) => c.chave === cenario.chave)!));
@@ -126,6 +158,13 @@ export default function PlanoFamilia() {
           }} />
       )}
 
+      {problemas.length > 0 && (
+        <div className="text-sm rounded-lg px-3 py-2 border text-red-700 bg-red-50 border-red-200" role="alert" data-problemas>
+          Falta completar {problemas.length === 1 ? "um item" : `${problemas.length} itens`} antes de salvar (destacados em vermelho):
+          <ul className="list-disc pl-5 mt-1">{problemas.map((p, k) => <li key={k}>{p.texto}</li>)}</ul>
+        </div>
+      )}
+
       {aviso && (
         <div className={`text-sm rounded-lg px-3 py-2 border ${aviso.tipo === "ok" ? "text-green-800 bg-green-50 border-green-200" : "text-red-700 bg-red-50 border-red-200"}`}
           role={aviso.tipo === "ok" ? "status" : "alert"}>
@@ -142,7 +181,7 @@ export default function PlanoFamilia() {
             <h2 className="font-semibold text-slate-700">Renda</h2>
             {cenario.itens.filter((i) => i.tipo === "renda").length === 0 && <p className="text-sm text-slate-400">Nenhuma renda ainda.</p>}
             {cenario.itens.filter((i) => i.tipo === "renda").map((i) => (
-              <div key={`${cenario.chave}-${i.chave}`} className={`flex flex-wrap items-center gap-2 ${mudou(i) ? "bg-amber-50 -mx-2 px-2 py-1 rounded" : ""}`} data-item={i.descricao}>
+              <div key={`${cenario.chave}-${i.chave}`} className={`flex flex-wrap items-center gap-2 ${mudou(i) ? "bg-amber-50 -mx-2 px-2 py-1 rounded" : ""} ${destaque(i)}`} data-item={i.descricao}>
                 <select aria-label="De quem" value={i.pessoa} disabled={desabilitado} onChange={(e) => mudarItem(i.chave, { pessoa: e.target.value })} className="text-sm">
                   {pagadores.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
                 </select>
@@ -167,7 +206,7 @@ export default function PlanoFamilia() {
               <div key={grupo} className="space-y-2">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">{grupo}</h3>
                 {cenario.itens.filter((i) => i.tipo === "conta" && grupoDoItem(i, catalogo) === grupo).map((i) => (
-                  <div key={`${cenario.chave}-${i.chave}`} className={`space-y-1.5 border-b border-slate-100 pb-2 ${mudou(i) ? "bg-amber-50 -mx-2 px-2 pt-1 rounded" : ""}`} data-item={i.descricao}>
+                  <div key={`${cenario.chave}-${i.chave}`} className={`space-y-1.5 border-b border-slate-100 pb-2 ${mudou(i) ? "bg-amber-50 -mx-2 px-2 pt-1 rounded" : ""} ${destaque(i)}`} data-item={i.descricao}>
                     <div className="flex flex-wrap items-center gap-2">
                       <input aria-label="Descrição da conta" placeholder="Aluguel, escola, plano de saúde…" value={i.descricao} disabled={desabilitado} maxLength={80}
                         onChange={(e) => mudarItem(i.chave, { descricao: e.target.value })} className="text-sm basis-full sm:basis-auto sm:flex-1 min-w-0" />
