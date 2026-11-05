@@ -25,6 +25,8 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `PATCH` | `/api/perfis` | Alterna o campo `ativo` de um perfil por `id` | `src/app/api/perfis/route.ts:767` |
 | `DELETE` | `/api/perfis` | Remove um perfil personalizado (`builtin: null`) por `id` | `src/app/api/perfis/route.ts:781` |
 | `GET` | `/api/lancamentos/agrupados` | Lançamentos de uma categoria (ou `__sem__`) agrupados pela descrição exata | `src/app/api/lancamentos/agrupados/route.ts:22` |
+| `GET` | `/api/familia` | Plano da família das finanças abertas (`dados`: pessoas, cenários com rendas e contas) e `versao` | `src/app/api/familia/route.ts` |
+| `PUT` | `/api/familia` | Grava o plano inteiro (`dados`, `versao`); 409 se outra pessoa gravou antes; valida quem paga, para quem e as categorias | `src/app/api/familia/route.ts` |
 | `GET` | `/api/financas/fatias` | 50/30/20 do mês (`ano`, `mes`): renda, necessidades, desejos, futuro (aplicado + ficou na conta) e o que ficou sem fatia, com as categorias de cada parte | `src/app/api/financas/fatias/route.ts` |
 | `GET` | `/api/categorias` | Categorias do usuário (nativas ocultas com destino, personalizadas), lançamentos por categoria e as do sistema | `src/app/api/categorias/route.ts` |
 | `POST` | `/api/categorias` | Cria uma categoria personalizada (`nome`, `grupo`) | `src/app/api/categorias/route.ts` |

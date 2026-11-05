@@ -3,8 +3,9 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import FotografiaWizard from "@/components/planejamento/FotografiaWizard";
 import PlanejadoRealizado from "@/components/planejamento/PlanejadoRealizado";
+import PlanoFamilia from "@/components/planejamento/PlanoFamilia";
 
-type Aba = "fotografia" | "comparacao";
+type Aba = "fotografia" | "comparacao" | "familia";
 
 export default function PlanejamentoPage() {
   return (
@@ -16,17 +17,20 @@ export default function PlanejamentoPage() {
 
 function Planejamento() {
   const params = useSearchParams();
-  // /planejamento?aba=comparacao (link do dashboard)
-  const [aba, setAba] = useState<Aba>(() => (params.get("aba") === "comparacao" ? "comparacao" : "fotografia"));
+  // /planejamento?aba=comparacao (link do dashboard) ou ?aba=familia
+  const [aba, setAba] = useState<Aba>(() => {
+    const pedida = params.get("aba");
+    return pedida === "comparacao" || pedida === "familia" ? pedida : "fotografia";
+  });
   const [salvoEm, setSalvoEm] = useState<Date | null>(null);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className={`${aba === "familia" ? "max-w-6xl" : "max-w-3xl"} space-y-6`}>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Planejamento</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Sua fotografia do mês e o que os lançamentos mostram de verdade.
+            Sua fotografia do mês, o que os lançamentos mostram de verdade e o plano da família.
           </p>
         </div>
         {salvoEm && aba === "fotografia" && (
@@ -36,15 +40,16 @@ function Planejamento() {
         )}
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
         {([
           ["fotografia", "📸 Fotografia do mês"],
           ["comparacao", "📊 Planejado × Realizado"],
+          ["familia", "👨‍👩‍👧 Família"],
         ] as [Aba, string][]).map(([id, rotulo]) => (
           <button
             key={id}
             onClick={() => setAba(id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               aba === id ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -55,8 +60,10 @@ function Planejamento() {
 
       {aba === "fotografia" ? (
         <FotografiaWizard modo="pagina" onConcluir={() => setSalvoEm(new Date())} />
-      ) : (
+      ) : aba === "comparacao" ? (
         <PlanejadoRealizado onIrParaFotografia={() => setAba("fotografia")} />
+      ) : (
+        <PlanoFamilia />
       )}
     </div>
   );

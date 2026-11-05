@@ -267,3 +267,15 @@ model CategoriaUsuario {
 
   @@unique([userId, nome])
 }
+
+/// Plano da família (src/lib/familia.ts): pessoas da casa, renda de cada uma e as
+/// contas fixas com quem paga, num plano principal e em cenários. Um registro por
+/// dono das finanças; `dados` é validado por dadosFamiliaSchema a cada gravação e
+/// `versao` impede que duas pessoas sobrescrevam a edição uma da outra.
+model PlanoFamilia {
+  userId    String   @id
+  dados     Json
+  versao    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
