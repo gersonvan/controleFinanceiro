@@ -25,8 +25,12 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `PATCH` | `/api/perfis` | Alterna o campo `ativo` de um perfil por `id` | `src/app/api/perfis/route.ts:767` |
 | `DELETE` | `/api/perfis` | Remove um perfil personalizado (`builtin: null`) por `id` | `src/app/api/perfis/route.ts:781` |
 | `GET` | `/api/lancamentos/agrupados` | Lançamentos de uma categoria (ou `__sem__`) agrupados pela descrição exata | `src/app/api/lancamentos/agrupados/route.ts:22` |
-| `GET` | `/api/familia` | Plano da família das finanças abertas (`dados`: pessoas, cenários com rendas e contas) e `versao` | `src/app/api/familia/route.ts` |
-| `PUT` | `/api/familia` | Grava o plano inteiro (`dados`, `versao`); 409 se outra pessoa gravou antes; valida quem paga, para quem e as categorias | `src/app/api/familia/route.ts` |
+| `GET` | `/api/familia?plano=` | Planos da família de quem está logado (não das finanças abertas): `eu`, `planos`, `convites` e o plano pedido (ou o primeiro) com `dados` (sem a renda e as contas pessoais que os outros membros mantêm privadas), `ocultas`, `versao`, membros, categorias aceitas (nativas + personalizadas dos membros) e `vistos` | `src/app/api/familia/route.ts` |
+| `POST` | `/api/familia` | Cria um plano (`nome`); quem cria entra como membro e pessoa adulta | `src/app/api/familia/route.ts` |
+| `PUT` | `/api/familia` | Grava o plano inteiro (`plano`, `dados`, `versao`, `vistos?`); 409 traz o plano atual (na visão de quem salva) para o app juntar as edições; repõe os itens privados dos outros; 400 se incluir renda ou conta pessoal privada de outro membro; categoria que não existe mais vira vazia; item novo sem autor recebe quem salvou | `src/app/api/familia/route.ts` |
+| `PATCH` | `/api/familia` | `acao`: renomear, convidar, remover (quem criou); aceitar, recusar, sair (leva os itens privados), pessoa ("quem sou eu na casa"; os privados vão junto), privacidade (`mostrarRenda`, `mostrarPessoais`), vistos (o membro) | `src/app/api/familia/route.ts` |
+| `DELETE` | `/api/familia?plano=` | Exclui o plano (só quem criou) | `src/app/api/familia/route.ts` |
+| `GET` | `/api/familia/fotografia` | A Fotografia do mês de quem está logado (sempre a própria), para trazer ao plano | `src/app/api/familia/fotografia/route.ts` |
 | `GET` | `/api/financas/fatias` | 50/30/20 do mês (`ano`, `mes`): renda, necessidades, desejos, futuro (aplicado + ficou na conta) e o que ficou sem fatia, com as categorias de cada parte | `src/app/api/financas/fatias/route.ts` |
 | `GET` | `/api/categorias` | Categorias do usuário (nativas ocultas com destino, personalizadas), lançamentos por categoria e as do sistema | `src/app/api/categorias/route.ts` |
 | `POST` | `/api/categorias` | Cria uma categoria personalizada (`nome`, `grupo`) | `src/app/api/categorias/route.ts` |

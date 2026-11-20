@@ -12,3 +12,8 @@ export function CategoriasProvider({ linhas, children }: { linhas: LinhaCategori
   const catalogo = useMemo(() => montarCatalogo(linhas), [linhas]);
   return <CategoriasContexto.Provider value={catalogo}>{children}</CategoriasContexto.Provider>;
 }
+
+/** Um catálogo diferente do das finanças abertas (ex.: o do plano da família, com as categorias de todos os membros). */
+export function CatalogoProvider({ catalogo, children }: { catalogo: Catalogo; children: React.ReactNode }) {
+  return <CategoriasContexto.Provider value={catalogo}>{children}</CategoriasContexto.Provider>;
+}

@@ -113,3 +113,131 @@ describe("conferência antes de salvar", async () => {
     expect(problemasDoPlano(dados)).toEqual([]);
   });
 });
+
+describe("Fotografia: o que mudou desde a última vez", async () => {
+  const { novidadesDaFotografia, aplicarDaFotografia } = await import("./familia");
+  const foto = (salario: number, parcela = 3) => [
+    { grupo: "entrada" as const, descricao: "Salário", categoria: "Salário", valor: salario, periodicidade: "mensal" as const },
+    { grupo: "parcela" as const, descricao: "Geladeira", categoria: "Casa: Manutenção e Móveis", valor: 300, periodicidade: "mensal" as const, parcelaAtual: parcela, parcelaTotal: 10 },
+    { grupo: "fixo" as const, descricao: "Internet", categoria: "Internet e Telefonia", valor: 120, periodicidade: "mensal" as const },
+  ];
+  const vazio = { ...dados.cenarios[0], itens: [] as ItemFamilia[] };
+
+  it("salário que subiu vem como valor alterado; a parcela do mês seguinte não se repete", () => {
+    const primeira = trazerDaFotografia(foto(10000), "ana", vazio, CATALOGO_PADRAO, "Ana");
+    expect(primeira.novos.map((i) => [i.descricao, i.por, i.fonte])).toEqual([
+      ["Salário", "Ana", "fotografia"], ["Geladeira (3/10)", "Ana", "fotografia"], ["Internet", "Ana", "fotografia"],
+    ]);
+    const cenario = structuredClone(vazio);
+    aplicarDaFotografia(cenario, primeira);
+
+    const depois = trazerDaFotografia(foto(11000, 4), "ana", cenario, CATALOGO_PADRAO, "Ana");
+    expect(depois.novos).toEqual([]);
+    expect(depois.alterados.map((a) => [a.descricao, a.antes, a.valor])).toEqual([["Salário", 10000, 11000]]);
+    expect(depois.repetidos).toBe(2); // geladeira (4/10) é a mesma conta; internet igual
+    aplicarDaFotografia(cenario, depois);
+    expect(cenario.itens.find((i) => i.descricao === "Salário")?.valor).toBe(11000);
+  });
+
+  it("só avisa do que não foi trazido nem dispensado; quem nunca trouxe vê tudo", () => {
+    const previa = trazerDaFotografia(foto(10000), "ana", vazio, CATALOGO_PADRAO);
+    expect(novidadesDaFotografia(previa, null).novos).toHaveLength(3);
+    expect(novidadesDaFotografia(previa, previa.assinaturas).novos).toHaveLength(0);
+    // dispensou com salário 10.000; a Fotografia passou a 11.000: só o salário volta a aparecer
+    const nova = trazerDaFotografia(foto(11000), "ana", vazio, CATALOGO_PADRAO);
+    expect(novidadesDaFotografia(nova, previa.assinaturas).novos.map((i) => i.descricao)).toEqual(["Salário"]);
+  });
+});
+
+describe("plano compartilhado", async () => {
+  const { mesclarPlanos, categoriasDoPlano, pessoaSugerida } = await import("./familia");
+  const copia = () => structuredClone(dados);
+  const itens = (d: DadosFamilia) => d.cenarios[0].itens;
+
+  it("edições em linhas (ou campos) diferentes se juntam", () => {
+    const base = copia(), meu = copia(), deles = copia();
+    itens(meu).find((i) => i.chave === "c1")!.valor = 3200;                  // eu: aluguel
+    itens(meu).push(item({ chave: "n1", tipo: "conta", descricao: "Academia", valor: 120, pessoa: "ana", para: "ana" }));
+    itens(deles).find((i) => i.chave === "c1")!.categoria = "Condomínio";    // ela: mesma linha, outro campo
+    itens(deles).find((i) => i.chave === "r2")!.valor = 9000;                // ela: salário do Bruno
+    deles.cenarios[0].itens = itens(deles).filter((i) => i.chave !== "c7");  // ela: tirou o streaming
+    const { dados: m, conflitos } = mesclarPlanos(base, meu, deles);
+    expect(conflitos).toEqual([]);
+    const c1 = itens(m).find((i) => i.chave === "c1")!;
+    expect([c1.valor, c1.categoria]).toEqual([3200, "Condomínio"]);
+    expect(itens(m).find((i) => i.chave === "r2")?.valor).toBe(9000);
+    expect(itens(m).some((i) => i.chave === "c7")).toBe(false);
+    expect(itens(m).some((i) => i.chave === "n1")).toBe(true);
+    expect(dadosFamiliaSchema.safeParse(m).success).toBe(true);
+  });
+
+  it("os dois mexeram no mesmo campo: fica o que foi salvo antes e vira aviso; alterar vence tirar", () => {
+    const base = copia(), meu = copia(), deles = copia();
+    itens(meu).find((i) => i.chave === "c1")!.valor = 3200;
+    itens(deles).find((i) => i.chave === "c1")!.valor = 3100;
+    meu.cenarios[0].itens = itens(meu).filter((i) => i.chave !== "c2");      // eu tirei a escola…
+    itens(deles).find((i) => i.chave === "c2")!.valor = 1700;                // …que ela reajustou
+    const { dados: m, conflitos } = mesclarPlanos(base, meu, deles);
+    expect(itens(m).find((i) => i.chave === "c1")?.valor).toBe(3100);
+    expect(itens(m).find((i) => i.chave === "c2")?.valor).toBe(1700);
+    expect(conflitos).toEqual(["“Aluguel”", "“Escola Léo”"]);
+  });
+
+  it("categorias: as nativas e as personalizadas de qualquer membro", () => {
+    const linhas = categoriasDoPlano([
+      [{ nome: "Pets", nativa: false, grupo: "Pessoal e Lazer", destino: null, fatia: "desejos" }, { nome: "Academia", nativa: true, grupo: null, destino: null }],
+      [{ nome: "pets", nativa: false, grupo: "Outras", destino: null }, { nome: "Igreja", nativa: false, grupo: "Outras", destino: null }],
+    ]);
+    expect(linhas.map((l) => l.nome)).toEqual(["Pets", "Igreja"]); // a nativa oculta por um membro não some do plano
+  });
+
+  it("sugere como pessoa do membro o adulto com o mesmo nome, se ninguém o escolheu", () => {
+    expect(pessoaSugerida(dados, "bruno", [])).toBe("bruno");
+    expect(pessoaSugerida(dados, "Bruno", ["bruno"])).toBeNull();
+    expect(pessoaSugerida(dados, "Léo", [])).toBeNull(); // dependente não paga contas
+  });
+});
+
+describe("privacidade: renda e contas pessoais", async () => {
+  const { semOcultos, reporOcultos, problemasDePrivacidade, transferirPrivados } = await import("./familia");
+  const ana = { pessoa: "ana", renda: true, pessoais: true }; // o que a Ana esconde do Bruno
+  const chaves = (d: DadosFamilia, c = 0) => d.cenarios[c].itens.map((i) => i.chave);
+
+  it("quem não é a Ana não recebe a renda nem as contas pessoais dela; as da casa continuam", () => {
+    const visao = semOcultos(dados, [ana]);
+    expect(chaves(visao)).toEqual(["r2", "r3", "c1", "c2", "c3", "c5", "c6", "c7"]); // sem r1 (salário) e c4 (pessoal)
+    expect(semOcultos(dados, [{ ...ana, pessoais: false }]).cenarios[0].itens.some((i) => i.chave === "c4")).toBe(true);
+  });
+
+  it("ao salvar, os itens privados voltam ao lugar; cenário novo recebe cópia dos privados do principal", () => {
+    const visao = structuredClone(semOcultos(dados, [ana]));
+    visao.cenarios[0].itens.find((i) => i.chave === "c1")!.valor = 3100;
+    visao.cenarios[0].itens = visao.cenarios[0].itens.filter((i) => i.chave !== "c3");
+    visao.cenarios.push({ chave: "turno", nome: "Um turno", principal: false, itens: visao.cenarios[0].itens.map((i) => ({ ...i, chave: `t-${i.chave}`, origem: i.chave })) });
+    const salvo = reporOcultos(visao, dados, [ana]);
+    expect(chaves(salvo)).toEqual(["r1", "r2", "r3", "c1", "c2", "c4", "c5", "c6", "c7"]); // c4 ficou depois do c2 (o c3 saiu)
+    expect(salvo.cenarios[0].itens.find((i) => i.chave === "c1")?.valor).toBe(3100);
+    const copias = salvo.cenarios[1].itens.filter((i) => i.origem === "r1" || i.origem === "c4");
+    expect(copias.map((i) => i.descricao)).toEqual(["Salário", "Plano de saúde dos pais"]);
+    expect(dadosFamiliaSchema.safeParse(salvo).success).toBe(true);
+  });
+
+  it("outro membro não inclui a renda nem conta pessoal da Ana", () => {
+    const visao = structuredClone(semOcultos(dados, [ana]));
+    visao.cenarios[0].itens.push(item({ chave: "x", tipo: "renda", descricao: "Bônus", valor: 500, pessoa: "ana" }));
+    visao.cenarios[0].itens.push(item({ chave: "y", tipo: "conta", descricao: "Academia", valor: 100, pessoa: "ana", para: "ana" }));
+    visao.cenarios[0].itens.push(item({ chave: "z", tipo: "conta", descricao: "Luz", valor: 200, pessoa: "ana" })); // da casa: pode
+    expect(problemasDePrivacidade(visao, [ana]).map((p) => p.texto)).toEqual([
+      "“Bônus”: a renda de Ana é privada — só Ana inclui a própria",
+      "“Academia”: as contas pessoais de Ana são privadas — só Ana inclui as próprias (ou deixe como da casa)",
+    ]);
+  });
+
+  it("quem troca de pessoa leva os privados; quem sai os leva embora", () => {
+    const moveu = transferirPrivados(dados, ana, "apto");
+    expect(moveu.cenarios[0].itens.filter((i) => i.pessoa === "apto").map((i) => i.chave)).toEqual(["r1", "r3", "c4", "c6"]);
+    expect(moveu.cenarios[0].itens.find((i) => i.chave === "c4")?.para).toBe("apto");
+    expect(moveu.cenarios[0].itens.find((i) => i.chave === "c1")?.pessoa).toBe("ana"); // a da casa fica
+    expect(chaves(transferirPrivados(dados, ana, null))).toEqual(["r2", "r3", "c1", "c2", "c3", "c5", "c6", "c7"]);
+  });
+});

@@ -1,14 +1,16 @@
 // Plano da família: as pessoas da casa (adultos, dependentes e "outros", como um
 // imóvel alugado que tem renda e contas próprias), a renda de cada um e as contas
 // fixas com quem paga e para quem são. Um cenário principal e cópias dele para
-// simular alternativas (ex.: escola integral × um turno). Fica nas finanças de
-// quem criou (model PlanoFamilia); os outros adultos veem ou ajudam pelo
-// compartilhamento. Funções puras — a rota /api/familia só guarda e confere.
+// simular alternativas (ex.: escola integral × um turno). O plano não é das
+// finanças de ninguém: tem membros (model MembroPlano), cada um ligado a uma pessoa
+// do plano, que trazem a própria Fotografia do mês e editam juntos (edições
+// simultâneas em linhas diferentes se juntam: mesclarPlanos). Funções puras — as
+// rotas /api/familia só guardam e conferem.
 import { z } from "zod";
 import { GRUPOS_CATEGORIAS } from "./categorias";
 import { grupoDaCategoria, type Catalogo } from "./catalogo-categorias";
 import { fatiaDaCategoria } from "./fatias";
-import { resolverCategoria } from "./catalogo-categorias";
+import { resolverCategoria, type LinhaCategoriaUsuario } from "./catalogo-categorias";
 import { numeroParcela, valorMensal, type ItemPlanejado } from "./planejamento";
 
 export type TipoPessoa = "adulto" | "dependente" | "outro";
@@ -27,6 +29,8 @@ export interface ItemFamilia {
   categoria: string | null;   // conta: categoria do usuário (grupo e 50/30/20)
   grupo: string | null;       // conta: agrupamento livre (ex.: "Apartamento Passaré"); null = o da categoria
   origem: string | null;      // num cenário: o item do principal que ele copia
+  por?: string | null;        // quem incluiu (nome do membro)
+  fonte?: "fotografia" | null; // veio da Fotografia do mês de quem incluiu
 }
 
 export interface Cenario { chave: string; nome: string; principal: boolean; itens: ItemFamilia[] }
@@ -59,6 +63,8 @@ const itemSchema = z.object({
   categoria: z.string().trim().max(60).nullable(),
   grupo: z.string().trim().max(40).nullable(),
   origem: chave.nullable(),
+  por: z.string().trim().max(60).nullable().optional(),
+  fonte: z.enum(["fotografia"]).nullable().optional(),
 });
 export const dadosFamiliaSchema = z.object({
   pessoas: z.array(z.object({ chave, nome: texto(40), tipo: z.enum(["adulto", "dependente", "outro"]) })).max(20),
@@ -189,21 +195,41 @@ export function duplicarCenario(dados: DadosFamilia, fonte: Cenario, nome: strin
 
 // ─── Da Fotografia do mês ─────────────────────────────────────────────────────
 
-const chaveRepeticao = (i: Pick<ItemFamilia, "tipo" | "descricao" | "pessoa">) =>
-  `${i.tipo}|${i.descricao.trim().toLowerCase()}|${i.pessoa}`;
+/** "Geladeira (3/10)" e "Geladeira (4/10)" são a mesma conta: o número da parcela muda todo mês. */
+const semParcela = (descricao: string) => descricao.trim().replace(/\s*\(\d+\/\d+\)$/, "").toLowerCase();
+const chaveRepeticao = (i: Pick<ItemFamilia, "tipo" | "descricao" | "pessoa">) => `${i.tipo}|${semParcela(i.descricao)}|${i.pessoa}`;
 
-export interface DaFotografia { novos: ItemFamilia[]; repetidos: number; variaveis: number; quitadas: number }
+/**
+ * Identifica um item da Fotografia com o valor: o que o membro já trouxe ou
+ * dispensou fica guardado (MembroPlano.vistos) e só o que é novo ou mudou de
+ * valor vira aviso.
+ */
+export const assinaturaFotografia = (i: Pick<ItemFamilia, "tipo" | "descricao" | "valor" | "periodicidade">) =>
+  `${i.tipo}|${semParcela(i.descricao)}|${i.valor.toFixed(2)}|${i.periodicidade}`;
+
+/** Item que já está no plano, mas com outro valor na Fotografia (ex.: salário que subiu). */
+export interface Alterado { chave: string; descricao: string; tipo: ItemFamilia["tipo"]; antes: number; valor: number; periodicidade: Periodicidade }
+export interface DaFotografia {
+  novos: ItemFamilia[];
+  alterados: Alterado[];
+  repetidos: number;  // já estão no plano, com o mesmo valor
+  variaveis: number;
+  quitadas: number;
+  assinaturas: string[]; // tudo o que a Fotografia oferece agora (para marcar como visto)
+}
 
 /**
  * A Fotografia do mês de uma pessoa vira renda e contas pagas por ela no plano da
  * família: entradas → renda; fixos e sazonais → contas (semanal vira mensal; anual
  * continua anual); parcelas só enquanto faltam prestações. Os variáveis (o dia a
  * dia) ficam de fora — não são contas fixas. O que o cenário já tem (mesmo tipo,
- * descrição e pessoa) não se repete. Tudo entra como "da casa": o usuário ajusta.
+ * descrição e pessoa) não se repete; se o valor mudou, vem como "alterado". Tudo
+ * entra como "da casa": o usuário ajusta.
  */
-export function trazerDaFotografia(fotografia: ItemPlanejado[], pessoa: string, cenario: Cenario, c: Catalogo): DaFotografia {
-  const existentes = new Set(cenario.itens.map(chaveRepeticao));
-  const r: DaFotografia = { novos: [], repetidos: 0, variaveis: 0, quitadas: 0 };
+export function trazerDaFotografia(fotografia: ItemPlanejado[], pessoa: string, cenario: Cenario, c: Catalogo, por: string | null = null): DaFotografia {
+  const existentes = new Map(cenario.itens.map((i) => [chaveRepeticao(i), i]));
+  const r: DaFotografia = { novos: [], alterados: [], repetidos: 0, variaveis: 0, quitadas: 0, assinaturas: [] };
+  const vistos = new Set<string>();
   for (const f of fotografia) {
     if (f.grupo === "variavel") { r.variaveis++; continue; }
     let descricao = f.descricao.trim();
@@ -220,13 +246,230 @@ export function trazerDaFotografia(fotografia: ItemPlanejado[], pessoa: string, 
       descricao: descricao.slice(0, 80), valor, periodicidade: anual ? "anual" : "mensal",
       pessoa, para: null,
       categoria: f.grupo === "entrada" ? null : resolverCategoria(c, f.categoria),
-      grupo: null, origem: null,
+      grupo: null, origem: null, por, fonte: "fotografia",
     };
-    if (existentes.has(chaveRepeticao(item))) { r.repetidos++; continue; }
-    existentes.add(chaveRepeticao(item));
-    r.novos.push(item);
+    if (vistos.has(chaveRepeticao(item))) continue; // repetido dentro da própria Fotografia
+    vistos.add(chaveRepeticao(item));
+    r.assinaturas.push(assinaturaFotografia(item));
+    const ja = existentes.get(chaveRepeticao(item));
+    if (!ja) { r.novos.push(item); continue; }
+    if (Math.abs(ja.valor - item.valor) < 0.005 && ja.periodicidade === item.periodicidade) { r.repetidos++; continue; }
+    r.alterados.push({ chave: ja.chave, descricao: ja.descricao, tipo: ja.tipo, antes: ja.valor, valor: item.valor, periodicidade: item.periodicidade });
   }
   return r;
+}
+
+/** Só o que o membro ainda não trouxe nem dispensou (vistos = null: nunca trouxe nada, tudo é novo). */
+export function novidadesDaFotografia(d: DaFotografia, vistos: string[] | null): DaFotografia {
+  if (!vistos) return d;
+  const ja = new Set(vistos);
+  return {
+    ...d,
+    novos: d.novos.filter((i) => !ja.has(assinaturaFotografia(i))),
+    alterados: d.alterados.filter((a) => !ja.has(assinaturaFotografia(a))),
+  };
+}
+
+/** Aplica no cenário o que veio da Fotografia: inclui os novos e atualiza o valor dos alterados. */
+export function aplicarDaFotografia(cenario: Cenario, d: Pick<DaFotografia, "novos" | "alterados">) {
+  for (const a of d.alterados) {
+    const i = cenario.itens.find((x) => x.chave === a.chave);
+    if (i) { i.valor = a.valor; i.periodicidade = a.periodicidade; }
+  }
+  cenario.itens.push(...d.novos);
+}
+
+// ─── Plano compartilhado ──────────────────────────────────────────────────────
+
+/**
+ * As categorias que o plano aceita: as nativas e as personalizadas de qualquer
+ * membro (cada um tem as suas). As nativas que um membro ocultou continuam valendo
+ * aqui — o plano é de todos.
+ */
+export function categoriasDoPlano(linhasPorMembro: LinhaCategoriaUsuario[][]): LinhaCategoriaUsuario[] {
+  const vistas = new Map<string, LinhaCategoriaUsuario>();
+  for (const linhas of linhasPorMembro) {
+    for (const l of linhas) {
+      if (!l.nativa && !vistas.has(l.nome.toLowerCase())) vistas.set(l.nome.toLowerCase(), { ...l, destino: null });
+    }
+  }
+  return [...vistas.values()];
+}
+
+/** A pessoa do plano com o mesmo nome do membro (sugestão para "quem é você na casa"), se ninguém a escolheu. */
+export function pessoaSugerida(d: DadosFamilia, nome: string, jaEscolhidas: (string | null)[]): string | null {
+  const n = nome.trim().toLowerCase();
+  if (!n) return null;
+  const p = d.pessoas.find((x) => pagaContas(x) && x.nome.trim().toLowerCase() === n && !jaEscolhidas.includes(x.chave));
+  return p?.chave ?? null;
+}
+
+// ─── Privacidade ──────────────────────────────────────────────────────────────
+// As contas da casa (sem "para quem" ou para um dependente, ou para outra pessoa)
+// são de todos. A renda de um membro e as contas pessoais dele (pagas por ele,
+// para ele) só aparecem para os outros se ele quiser. O servidor tira esses itens
+// antes de enviar o plano (semOcultos) e os repõe quando outro membro salva
+// (reporOcultos) — esconder só na tela não bastaria.
+
+/** O que um membro esconde dos outros: a pessoa do plano que ele é e o que fica privado. */
+export interface Ocultacao { pessoa: string; renda: boolean; pessoais: boolean }
+
+/** Conta pessoal: paga pela pessoa e para ela mesma (academia, streaming…). */
+export const contaPessoal = (i: Pick<ItemFamilia, "tipo" | "pessoa" | "para">) => i.tipo === "conta" && i.para === i.pessoa;
+
+export function itemOculto(i: ItemFamilia, ocultas: Ocultacao[]): boolean {
+  const o = ocultas.find((x) => x.pessoa === i.pessoa);
+  return !!o && ((i.tipo === "renda" && o.renda) || (contaPessoal(i) && o.pessoais));
+}
+
+/** O plano como um membro o vê: sem a renda e as contas pessoais que os outros mantêm privadas. */
+export function semOcultos(d: DadosFamilia, ocultas: Ocultacao[]): DadosFamilia {
+  if (ocultas.length === 0) return d;
+  return { ...d, cenarios: d.cenarios.map((c) => ({ ...c, itens: c.itens.filter((i) => !itemOculto(i, ocultas)) })) };
+}
+
+/**
+ * O que um membro salvou (sem os itens privados dos outros) + os itens privados
+ * que já estavam no plano, cada um de volta ao lugar. Cenário novo criado por ele
+ * recebe uma cópia dos privados do principal, para a comparação continuar certa.
+ */
+export function reporOcultos(enviado: DadosFamilia, atual: DadosFamilia, ocultas: Ocultacao[]): DadosFamilia {
+  if (ocultas.length === 0) return enviado;
+  const principal = atual.cenarios.find((c) => c.principal);
+  const cenarios = enviado.cenarios.map((c) => {
+    const antes = atual.cenarios.find((x) => x.chave === c.chave);
+    if (!antes) {
+      const copias = (principal?.itens ?? []).filter((i) => itemOculto(i, ocultas)).map((i) => ({ ...i, chave: novaChave(), origem: i.chave }));
+      return { ...c, itens: [...c.itens, ...copias] };
+    }
+    const itens = [...c.itens];
+    let anterior: string | null = null;
+    for (const i of antes.itens) {
+      if (itemOculto(i, ocultas)) {
+        // logo depois do item que vinha antes dele (se ainda existir), senão no começo
+        itens.splice(anterior === null ? 0 : itens.findIndex((x) => x.chave === anterior) + 1, 0, i);
+      }
+      if (itens.some((x) => x.chave === i.chave)) anterior = i.chave;
+    }
+    return { ...c, itens };
+  });
+  return { ...enviado, cenarios };
+}
+
+/** Itens que um membro não pode incluir nem alterar: a renda e as contas pessoais que outro mantém privadas. */
+export function problemasDePrivacidade(d: DadosFamilia, ocultas: Ocultacao[]): Problema[] {
+  const nome = new Map(d.pessoas.map((p) => [p.chave, p.nome]));
+  const varios = d.cenarios.length > 1;
+  const problemas: Problema[] = [];
+  for (const c of d.cenarios) {
+    for (const i of c.itens) {
+      if (!itemOculto(i, ocultas)) continue;
+      const quem = nome.get(i.pessoa) ?? "essa pessoa";
+      const rotulo = `${i.descricao.trim() ? `“${i.descricao.trim()}”` : i.tipo === "renda" ? `Renda de ${quem}` : "Conta sem descrição"}${varios ? ` (cenário “${c.nome}”)` : ""}`;
+      problemas.push({
+        cenario: c.chave, item: i.chave,
+        texto: i.tipo === "renda"
+          ? `${rotulo}: a renda de ${quem} é privada — só ${quem} inclui a própria`
+          : `${rotulo}: as contas pessoais de ${quem} são privadas — só ${quem} inclui as próprias (ou deixe como da casa)`,
+      });
+    }
+  }
+  return problemas;
+}
+
+/**
+ * Os itens privados de um membro quando ele deixa de ser `de`: vão para a nova
+ * pessoa dele (`para`) ou, se ele sai do plano, saem junto — senão ficariam à vista.
+ */
+export function transferirPrivados(d: DadosFamilia, o: Ocultacao, para: string | null): DadosFamilia {
+  const meu = (i: ItemFamilia) => itemOculto(i, [o]);
+  return {
+    ...d,
+    cenarios: d.cenarios.map((c) => ({
+      ...c,
+      itens: para === null
+        ? c.itens.filter((i) => !meu(i))
+        : c.itens.map((i) => (meu(i) ? { ...i, pessoa: para, para: i.tipo === "conta" ? para : null } : i)),
+    })),
+  };
+}
+
+const igual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Junta campo a campo o que cada lado mudou desde a base. Campo mudado pelos dois,
+ * de jeitos diferentes, é conflito: fica o que foi salvo antes ("deles").
+ */
+function mesclarCampos<T extends object>(base: T, meu: T, deles: T, rotulo: string, conflitos: string[], ignorar: string[] = []): T {
+  const out = { ...deles } as Record<string, unknown>;
+  const b = base as Record<string, unknown>, m = meu as Record<string, unknown>, d = deles as Record<string, unknown>;
+  let conflito = false;
+  for (const k of new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(d)])) {
+    if (ignorar.includes(k)) continue;
+    if (igual(m[k], b[k]) || igual(m[k], d[k])) continue; // eu não mudei, ou mudamos igual
+    if (igual(d[k], b[k])) { out[k] = m[k]; continue; }   // só eu mudei
+    conflito = true;
+  }
+  if (conflito) conflitos.push(rotulo);
+  return out as T;
+}
+
+/**
+ * Junta duas listas pela chave: o que cada lado incluiu entra; o que um lado tirou
+ * sai, a não ser que o outro tenha alterado (aí fica, e vira aviso).
+ */
+function mesclarLista<T extends { chave: string }>(
+  base: T[], meu: T[], deles: T[], rotulo: (x: T) => string, conflitos: string[],
+  mesclar: (b: T, m: T, d: T) => T,
+): T[] {
+  const B = new Map(base.map((x) => [x.chave, x]));
+  const M = new Map(meu.map((x) => [x.chave, x]));
+  const D = new Map(deles.map((x) => [x.chave, x]));
+  const out: T[] = [];
+  for (const d of deles) {
+    const b = B.get(d.chave), m = M.get(d.chave);
+    if (!b) { out.push(m && !igual(m, d) ? mesclar(d, m, d) : d); continue; } // incluído por eles
+    if (!m) {                                    // eu tirei
+      if (!igual(b, d)) { conflitos.push(rotulo(d)); out.push(d); }
+      continue;
+    }
+    out.push(mesclar(b, m, d));
+  }
+  for (const m of meu) {
+    if (D.has(m.chave)) continue;
+    const b = B.get(m.chave);
+    if (!b) { out.push(m); continue; }           // incluído por mim
+    if (!igual(b, m)) { conflitos.push(rotulo(m)); out.push(m); } // eles tiraram, eu alterei
+  }
+  return out;
+}
+
+export interface Mescla { dados: DadosFamilia; conflitos: string[] }
+
+/**
+ * Edição simultânea: "base" é o plano que eu carreguei, "meu" é como deixei e
+ * "deles" é o que outra pessoa salvou nesse meio-tempo. O que cada um mudou em
+ * linhas (ou campos) diferentes se junta; o que os dois mudaram no mesmo campo
+ * fica como a outra pessoa salvou e é listado em `conflitos`.
+ */
+export function mesclarPlanos(base: DadosFamilia, meu: DadosFamilia, deles: DadosFamilia): Mescla {
+  const conflitos: string[] = [];
+  const pessoas = mesclarLista(base.pessoas, meu.pessoas, deles.pessoas, (p) => p.nome, conflitos,
+    (b, m, d) => mesclarCampos(b, m, d, m.nome, conflitos));
+  const cenarios = mesclarLista(base.cenarios, meu.cenarios, deles.cenarios, (c) => `cenário “${c.nome}”`, conflitos,
+    (b, m, d) => {
+      const onde = d.principal ? "" : ` (cenário “${d.nome}”)`;
+      const c = mesclarCampos(b, m, d, `cenário “${d.nome}”`, conflitos, ["itens"]);
+      c.itens = mesclarLista(b.itens, m.itens, d.itens, (i) => `“${i.descricao || "item sem descrição"}”${onde}`, conflitos,
+        (bi, mi, di) => mesclarCampos(bi, mi, di, `“${di.descricao || mi.descricao || "item sem descrição"}”${onde}`, conflitos));
+      return c;
+    });
+  // exatamente um principal (os dois lados não trocam o principal, mas por garantia)
+  if (cenarios.filter((c) => c.principal).length !== 1) {
+    const p = deles.cenarios.find((c) => c.principal)?.chave;
+    for (const c of cenarios) c.principal = c.chave === p;
+  }
+  return { dados: { pessoas, cenarios }, conflitos: [...new Set(conflitos)] };
 }
 
 // ─── Conferência antes de salvar ──────────────────────────────────────────────

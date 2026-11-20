@@ -10,7 +10,8 @@
 | `Conta` | Tipo de cada conta do usuário (`corrente` ou `cartao`), chaveada pelo mesmo nome gravado em `Lancamento.conta`; decide como os gastos entram nos painéis de meio de pagamento | `prisma/schema.prisma:Conta`, `src/lib/contas.ts` |
 | `Reembolso` | Vínculo "Dividir" entre um Pix recebido (categoria Reembolso) e os gastos que ele devolve, com a parte atribuída a cada um; a soma fica em `Lancamento.valorReembolsado` e todas as somas de gasto usam o valor líquido | `prisma/schema.prisma:Reembolso`, `src/lib/reembolso.ts` |
 | `MemoriaIA` | Regra de correção de categoria vinculada a uma descrição exata; base de conhecimento por usuário | `prisma/schema.prisma:MemoriaIA` |
-| `PlanoFamilia` | Plano da família de um dono de finanças: pessoas, rendas, contas fixas com quem paga e para quem, em cenários (JSON validado) | `prisma/schema.prisma:PlanoFamilia`, `src/lib/familia.ts` |
+| `PlanoFamilia` | Plano da família compartilhado (não é das finanças de ninguém): pessoas, rendas, contas fixas com quem paga e para quem, em cenários (JSON validado), `versao` e quem salvou por último | `prisma/schema.prisma:PlanoFamilia`, `src/lib/familia.ts` |
+| `MembroPlano` | Quem participa de um plano: convidado até aceitar, a pessoa do plano que ele é, o que mostra aos outros (`mostrarRenda`, `mostrarPessoais` — privados por padrão) e o que da Fotografia dele já foi trazido ou dispensado (`vistos`) | `prisma/schema.prisma:MembroPlano`, `src/lib/familia-servidor.ts` |
 | `CategoriaUsuario` | Categorias de cada dono de finanças: nativa oculta (com o destino do que cairia nela) ou personalizada (com o grupo) | `prisma/schema.prisma:CategoriaUsuario`, `src/lib/catalogo-categorias.ts` |
 | `PerfilImportacao` | Configuração de mapeamento de colunas e metadados para um banco/formato de importação específico | `prisma/schema.prisma:PerfilImportacao` |
 
