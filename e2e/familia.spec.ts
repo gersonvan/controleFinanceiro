@@ -95,7 +95,7 @@ test("cria o plano, monta, salva, compara um cenário e recusa dados inválidos"
   await preencher(ipva, "conta", "IPVA", "3600");
   await ipva.getByLabel("Periodicidade").selectOption("anual");
   await ipva.getByLabel("Quem paga").selectOption({ label: "Bruno" });
-  await ipva.getByLabel("Grupo").fill("Carro");
+  await ipva.getByLabel("Agrupar em").fill("Carro");
 
   await salvar(page);
   await expect(aviso(page)).toContainText("Plano salvo");

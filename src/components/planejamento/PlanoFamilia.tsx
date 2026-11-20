@@ -447,8 +447,10 @@ function EditorPlano({ inicial, eu, onSujo, onRenomeado, onSaiu }: {
                         </label>
                         <CategoriaSelect value={i.categoria ?? ""} placeholder="Categoria…" className="text-xs py-1 min-w-0 w-full sm:w-44"
                           onChange={(categoria) => mudarItem(i.chave, { categoria: categoria || null })} />
-                        <input aria-label="Grupo" placeholder="grupo (opcional)" value={i.grupo ?? ""} maxLength={40}
-                          onChange={(e) => mudarItem(i.chave, { grupo: e.target.value || null })} className="text-xs py-1 min-w-0 w-full sm:w-32" />
+                        {/* grupo livre: junta contas de uma mesma coisa (Carro, Apartamento…) na lista e em "Por grupo"; vazio = o da categoria */}
+                        <input aria-label="Agrupar em (opcional)" placeholder="agrupar em (ex.: Carro)" value={i.grupo ?? ""} maxLength={40}
+                          title="Opcional. Junta contas de uma mesma coisa, mesmo de categorias diferentes — ex.: IPVA, seguro e licenciamento em “Carro”. Aparece como título na lista e no resumo “Por grupo”. Vazio: fica no grupo da categoria."
+                          onChange={(e) => mudarItem(i.chave, { grupo: e.target.value || null })} className="text-xs py-1 min-w-0 w-full col-span-2 sm:w-48" />
                         {mudou(i) && <span className="badge bg-amber-100 text-amber-800 col-span-2 justify-self-start">{i.origem ? "mudou neste cenário" : "só neste cenário"}</span>}
                         {autor(i) && <span className="col-span-2 text-slate-400" data-autor>{autor(i)}</span>}
                       </div>
@@ -775,6 +777,7 @@ function Resumo({ resumo, ocultas, pessoas }: { resumo: ReturnType<typeof resumi
         <section className="card space-y-1.5">
           <h2 className="font-semibold text-slate-700">Por grupo</h2>
           {grupos.map((g) => <Linha key={g.grupo} rotulo={g.grupo} valor={g.total} />)}
+          <p className="text-xs text-slate-400">Cada conta entra no grupo da categoria, ou no que você escrever em “agrupar em” (ex.: Carro, Apartamento).</p>
         </section>
       )}
 
