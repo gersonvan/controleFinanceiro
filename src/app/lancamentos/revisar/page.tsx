@@ -70,12 +70,13 @@ export default function RevisarPage() {
         <Link href="/lancamentos" className="btn btn-secondary">← Lançamentos</Link>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+      {/* abas: a linha de baixo é uma sombra interna (não borda), para a aba ativa não passar da caixa e não aparecer barra de rolagem */}
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-slate-200)]">
         {ABAS.map((a) => (
           <button
             key={a.id}
             onClick={() => { setAba(a.id); setAviso(""); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
               aba === a.id ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >

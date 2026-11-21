@@ -40,7 +40,8 @@ function Planejamento() {
         )}
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+      {/* abas: a linha de baixo é uma sombra interna (não borda), para a aba ativa não passar da caixa e não aparecer barra de rolagem */}
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-slate-200)]">
         {([
           ["fotografia", "📸 Fotografia do mês"],
           ["comparacao", "📊 Planejado × Realizado"],
@@ -49,7 +50,7 @@ function Planejamento() {
           <button
             key={id}
             onClick={() => setAba(id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               aba === id ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
