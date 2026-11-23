@@ -12,7 +12,7 @@ Todas as rotas são Next.js API Routes (App Router). A autenticação é obrigat
 | `PUT` | `/api/lancamentos` | Recategorização em lote (por `ids`, `descricaoContem` ou `categoriaErrada`) | `src/app/api/lancamentos/route.ts:427` |
 | `DELETE` | `/api/lancamentos` | Remove um lançamento por `id` (query param) | `src/app/api/lancamentos/route.ts:402` |
 | `GET` | `/api/resumo` | Totais de entradas/saídas/saldo e breakdown por categoria com filtros | `src/app/api/resumo/route.ts:975` |
-| `GET` | `/api/dashboard` | Totais, breakdown por categoria, por mês e por conta para um período | `src/app/api/dashboard/route.ts:173` |
+| `GET` | `/api/dashboard?ano=&mes=` | Totais do período (mês ou ano: entradas, saídas, saldo, investido), saídas por categoria (todas, "Sem categoria" inclusive) e por conta, e entradas × saídas mês a mês (no mês: os 6 meses até ele; no ano: janeiro até o mês atual), pelo mês de referência (`agregarDashboard`, `src/lib/dashboard.ts`) | `src/app/api/dashboard/route.ts` |
 | `GET` | `/api/matriz` | Matriz de gastos por categoria e descrição normalizada, agrupada por mês | `src/app/api/matriz/route.ts:517` |
 | `GET` | `/api/emprestimos` | Resumo de empréstimos agrupados por pessoa com status (aberto/parcial/quitado) | `src/app/api/emprestimos/route.ts:275` |
 | `GET` | `/api/previsao` | Previsões de despesas para os próximos 12 meses (parcelamentos + gastos fixos) | `src/app/api/previsao/route.ts:825` |

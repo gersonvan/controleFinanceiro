@@ -1,325 +1,188 @@
 "use client";
+// Dashboard: começa pelo mês corrente. De cima para baixo: o resumo do período
+// (saldo, entradas, saídas, guardado; no mês, as saídas contra o plano e onde o mês
+// deve fechar), "Fique de olho" (só o que pede atenção), para onde foi o dinheiro,
+// 50/30/20 e como você pagou (só no mês: são cálculos mensais) e o mês a mês.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-} from "recharts";
-import PaineisFinancas from "@/components/financas/PaineisFinancas";
+import { montarAvisos, projecaoDasSaidas, type DadosDashboard, type DesafioResumo } from "@/lib/dashboard";
+import { buscar, mesLongo, type RespostaDivida, type RespostaMeios, type RespostaRitmo } from "@/components/financas/comum";
+import { ComoVocePagou, RitmoDoMes } from "@/components/financas/CartoesDoMes";
+import DivisaoDoMes, { type RespostaFatias } from "@/components/financas/DivisaoDoMes";
+import ResumoDoPeriodo from "@/components/dashboard/ResumoDoPeriodo";
+import FiqueDeOlho from "@/components/dashboard/FiqueDeOlho";
+import ParaOndeFoi from "@/components/dashboard/ParaOndeFoi";
+import UltimosMeses from "@/components/dashboard/UltimosMeses";
 
-const CORES = [
-  "#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6",
-  "#ec4899","#14b8a6","#f97316","#6366f1","#84cc16",
-  "#06b6d4","#a855f7","#e11d48","#0ea5e9","#d97706",
-];
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-const fmt = (v: number | undefined) =>
-  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+// guardados com o período a que pertencem: trocar de mês não mostra os do mês anterior
+interface DoMes {
+  periodo: string;
+  meios: RespostaMeios | null;
+  ritmo: RespostaRitmo | null;
+  divida: RespostaDivida | null;
+  fatias: RespostaFatias | null;
+}
+interface Desafios { economiaAcumulada: number; emCurso: DesafioResumo[]; sugestoes: { titulo: string; motivo: string }[] }
+interface Plano { periodo: string; saidas: { planejado: number; realizado: number }; totalLancamentos: number; temFotografia: boolean }
 
-interface DashData {
-  totalEntradas: number;
-  totalSaidas: number;
-  saldo: number;
-  investido: number;
-  porCategoria: [string, number][];
-  porMes: [string, { entradas: number; saidas: number }][];
-  porConta: [string, number][];
+async function json<T>(url: string): Promise<T | null> {
+  try {
+    const r = await fetch(url);
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
 }
 
-const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-
 export default function Dashboard() {
-  const anoAtual = new Date().getFullYear();
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
   const [ano, setAno] = useState(anoAtual);
-  const [mes, setMes] = useState<number | "">("");
-  const [data, setData] = useState<DashData | null>(null);
+  const [mes, setMes] = useState<number | "">(mesAtual);
+  const [data, setData] = useState<DadosDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [doMesCarregado, setDoMes] = useState<DoMes | null>(null);
+  const [planoCarregado, setPlano] = useState<Plano | null>(null);
+  const [verRitmo, setVerRitmo] = useState(false);
   // null = ainda não sabemos; false = fotografia pendente; true = concluída
   const [fotografiaFeita, setFotografiaFeita] = useState<boolean | null>(null);
-  const [reserva, setReserva] = useState<{ emConta: number; disponivel: number; bloqueado: number; total: number; geral: number } | null>(null);
-  const [comparacao, setComparacao] = useState<{ saidas: { planejado: number; realizado: number }; totalLancamentos: number } | null>(null);
-  const [desafios, setDesafios] = useState<{
-    economiaAcumulada: number;
-    emCurso: { titulo: string; estado: string; medida: string; meta: number; resultado: number | null }[];
-    sugestoes: { titulo: string; motivo: string }[];
-  } | null>(null);
+  const [reserva, setReserva] = useState<{ emConta: number; disponivel: number; bloqueado: number } | null>(null);
+  const [desafios, setDesafios] = useState<Desafios | null>(null);
 
+  // o que não depende do período
   useEffect(() => {
     let ativo = true;
-    fetch("/api/desafios")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (ativo && json) setDesafios(json); })
-      .catch(() => {});
-    return () => { ativo = false; };
-  }, []);
-
-  useEffect(() => {
-    if (fotografiaFeita !== true) return;
-    let ativo = true;
-    fetch("/api/planejamento/realizado")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (ativo && json?.temFotografia) setComparacao(json); })
-      .catch(() => {});
-    return () => { ativo = false; };
-  }, [fotografiaFeita]);
-
-  useEffect(() => {
-    let ativo = true;
-    fetch("/api/reservas")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (ativo && json?.reservas?.length) setReserva(json.totais); })
-      .catch(() => {});
+    void json<{ fotografiaConcluidaEm: string | null }>("/api/planejamento").then((j) => { if (ativo && j) setFotografiaFeita(!!j.fotografiaConcluidaEm); });
+    void json<{ reservas: unknown[]; totais: { emConta: number; disponivel: number; bloqueado: number } }>("/api/reservas")
+      .then((j) => { if (ativo && j?.reservas?.length) setReserva(j.totais); });
+    void json<Desafios>("/api/desafios").then((j) => { if (ativo && j) setDesafios(j); });
     return () => { ativo = false; };
   }, []);
 
   useEffect(() => {
     let ativo = true;
-    fetch("/api/planejamento")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => { if (ativo && json) setFotografiaFeita(!!json.fotografiaConcluidaEm); })
-      .catch(() => {});
-    return () => { ativo = false; };
-  }, []);
-
-  useEffect(() => {
-    let ativo = true;
-    async function carregar() {
     const params = new URLSearchParams({ ano: String(ano) });
     if (mes !== "") params.set("mes", String(mes));
-    const res = await fetch(`/api/dashboard?${params}`);
-    const json = await res.json();
-      if (ativo) {
-        setData(json);
-        setLoading(false);
-      }
-    }
-    void carregar();
+    void json<DadosDashboard>(`/api/dashboard?${params}`).then((j) => {
+      if (!ativo) return;
+      setData(j);
+      setLoading(false);
+    });
     return () => { ativo = false; };
   }, [ano, mes]);
 
+  // cálculos mensais: só com um mês escolhido
+  useEffect(() => {
+    let ativo = true;
+    if (mes === "") return;
+    void Promise.all([
+      buscar<RespostaMeios>("/api/financas/meios", ano, mes),
+      buscar<RespostaRitmo>("/api/financas/ritmo", ano, mes),
+      buscar<RespostaDivida>("/api/financas/divida", ano, mes),
+      buscar<RespostaFatias>("/api/financas/fatias", ano, mes),
+    ]).then(([meios, ritmo, divida, fatias]) => { if (ativo) setDoMes({ periodo: `${ano}-${mes}`, meios, ritmo, divida, fatias }); });
+    return () => { ativo = false; };
+  }, [ano, mes]);
+
+  useEffect(() => {
+    let ativo = true;
+    if (mes === "" || fotografiaFeita !== true) return;
+    void json<Plano>(`/api/planejamento/realizado?ano=${ano}&mes=${mes}`).then((j) => { if (ativo && j?.temFotografia) setPlano({ ...j, periodo: `${ano}-${mes}` }); });
+    return () => { ativo = false; };
+  }, [ano, mes, fotografiaFeita]);
+
+  const periodo = `${ano}-${mes}`;
+  const doMes = doMesCarregado?.periodo === periodo ? doMesCarregado : null;
+  const plano = planoCarregado?.periodo === periodo ? planoCarregado : null;
   const anos = Array.from({ length: 5 }, (_, i) => anoAtual - i);
-  // Painéis mensais: mês escolhido; em "Ano todo", o mês corrente (ou dezembro de anos passados)
-  const mesPaineis = mes !== "" ? mes : ano === anoAtual ? new Date().getMonth() + 1 : 12;
+  const mesAberto = mes !== "";
+  const mesCorrente = mesAberto && ano === anoAtual && mes === mesAtual;
+  const chave = mesAberto ? `${ano}-${String(mes).padStart(2, "0")}` : null;
+  const query = mesAberto ? `?ano=${ano}&mes=${mes}` : `?ano=${ano}`;
+  const diasNoMes = mesAberto ? new Date(ano, mes, 0).getDate() : 0;
+  const nomeMes = chave ? mesLongo(chave) : "";
+
+  const subtitulo = !mesAberto ? `${ano}, o ano todo` : `${MESES[mes - 1]} de ${ano}${mesCorrente ? ` · hoje é dia ${hoje.getDate()} de ${diasNoMes}` : ""}`;
+  const avisos = montarAvisos({
+    mesLongo: mesAberto ? nomeMes : null, query,
+    divida: doMes?.divida ?? null, semFatia: doMes?.fatias?.semFatia.valor ?? null,
+    reserva, desafios,
+  });
+  const vazio = data && data.porCategoria.length === 0 && data.totalEntradas === 0 && data.totalSaidas === 0;
+  const ritmo = doMes?.ritmo ?? null;
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+    <div className="space-y-5 max-w-6xl">
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5" data-periodo>{subtitulo}</p>
+        </div>
         <div className="flex gap-2">
-          <select value={mes} onChange={(e) => setMes(e.target.value === "" ? "" : parseInt(e.target.value))}>
-            <option value="">Ano todo</option>
+          <select aria-label="Mês" value={mes} onChange={(e) => { setMes(e.target.value === "" ? "" : parseInt(e.target.value)); setVerRitmo(false); }}>
             {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            <option value="">Ano todo</option>
           </select>
-          <select value={ano} onChange={(e) => setAno(parseInt(e.target.value))}>
+          <select aria-label="Ano" value={ano} onChange={(e) => { setAno(parseInt(e.target.value)); setVerRitmo(false); }}>
             {anos.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
       </div>
 
-      {fotografiaFeita === false && (
-        <div className="card flex items-center justify-between gap-4 flex-wrap border-blue-200 bg-blue-50">
-          <div>
-            <div className="font-semibold text-slate-800">📸 Faça sua fotografia do mês</div>
-            <div className="text-sm text-slate-600 mt-0.5">
-              Cinco minutos para registrar o que entra, o que sai e quanto sobra. Depois comparamos com seus lançamentos.
-            </div>
-          </div>
-          <Link href="/planejamento" className="btn btn-primary">Começar</Link>
-        </div>
-      )}
-
-      {comparacao && (() => {
-        const dif = comparacao.saidas.planejado - comparacao.saidas.realizado;
-        const semLancamentos = comparacao.totalLancamentos === 0;
-        return (
-          <Link href="/planejamento?aba=comparacao" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors">
-            <div>
-              <div className="text-sm text-slate-500">📸 Este mês vs. sua fotografia</div>
-              <div className="text-slate-800 mt-0.5">
-                {semLancamentos ? (
-                  <>Planejado <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> de saídas · nenhum lançamento registrado neste mês ainda</>
-                ) : (
-                  <>
-                    Saídas: <span className="font-semibold">{fmt(comparacao.saidas.realizado)}</span> de{" "}
-                    <span className="font-semibold">{fmt(comparacao.saidas.planejado)}</span> planejados ·{" "}
-                    <span className={dif >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-                      {dif >= 0 ? `${fmt(dif)} dentro do plano` : `${fmt(-dif)} acima do plano`}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-            <span className="text-sm text-blue-600">Ver comparação →</span>
-          </Link>
-        );
-      })()}
-
-      {reserva && (
-        <Link href="/reserva" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors">
-          <div>
-            <div className="text-sm text-slate-500">💰 Reserva</div>
-            <div className="text-slate-800 mt-0.5">
-              Em conta <span className={`font-semibold ${reserva.emConta >= 0 ? "text-slate-800" : "text-red-700"}`}>{fmt(reserva.emConta)}</span>
-              {" · "}aplicado <span className="font-semibold text-emerald-700">{fmt(reserva.disponivel)}</span>
-              {reserva.bloqueado > 0 && <> · <span className="font-semibold text-slate-600">{fmt(reserva.bloqueado)}</span> bloqueado</>}
-            </div>
-          </div>
-          <span className="text-sm text-blue-600">Ver reserva →</span>
-        </Link>
-      )}
-
-      {desafios && (desafios.emCurso.length > 0 || desafios.sugestoes.length > 0 || desafios.economiaAcumulada > 0) && (
-        <Link href="/desafios" className="card flex items-center justify-between gap-4 flex-wrap hover:border-blue-300 transition-colors" data-card="desafios">
-          <div className="min-w-0">
-            <div className="text-sm text-slate-500">
-              🎯 Desafios
-              {desafios.emCurso.length > 0 && <> · {desafios.emCurso.length} em andamento</>}
-              {desafios.economiaAcumulada > 0 && <> · economia acumulada <span className="font-semibold text-emerald-700">{fmt(desafios.economiaAcumulada)}</span></>}
-            </div>
-            <div className="text-slate-800 mt-0.5">
-              {desafios.emCurso.length > 0 ? (() => {
-                const d = desafios.emCurso[0];
-                const r = d.resultado ?? 0;
-                const situacao = d.estado === "agendado" ? "começa em breve"
-                  : d.estado === "aguardando" ? "aguardando extrato"
-                  : d.medida === "sobra" ? (r >= 0 ? `sobra de ${fmt(r)} até agora` : `${fmt(-r)} no vermelho até agora`)
-                  : d.meta > 0 ? `${fmt(r)} de ${fmt(d.meta)}`
-                  : r > 0 ? `${fmt(r)} até agora` : "nada até agora";
-                return <><span className="font-semibold">{d.titulo}</span> · {situacao}</>;
-              })() : desafios.sugestoes.length > 0 ? (
-                <>Sugerido: <span className="font-semibold">{desafios.sugestoes[0].titulo}</span> · <span className="text-slate-500">{desafios.sugestoes[0].motivo}</span></>
-              ) : "Nenhum desafio em andamento"}
-            </div>
-          </div>
-          <span className="text-sm text-blue-600">Ver desafios →</span>
-        </Link>
-      )}
-
       {loading ? (
         <div className="flex justify-center py-20"><div className="spinner" /></div>
-      ) : data && data.porCategoria.length === 0 && data.porMes.length === 0 && data.totalEntradas === 0 && data.totalSaidas === 0 ? (
-        <div className="card text-center py-14 space-y-4">
-          <div className="text-4xl">📂</div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">Nenhum lançamento em {mes ? `${MESES[mes - 1]}/${ano}` : ano}</h2>
-            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              O dashboard ganha vida com seus lançamentos. Importe o extrato do banco ou comece registrando à mão.
-            </p>
-          </div>
-          <div className="flex justify-center gap-3 flex-wrap">
-            <Link href="/importar" className="btn btn-primary">📂 Importar extrato</Link>
-            <Link href="/lancamentos?novo=1" className="btn btn-secondary">✏️ Lançar à mão</Link>
-          </div>
-        </div>
-      ) : data ? (
+      ) : !data ? (
+        <p className="card text-sm text-red-700 bg-red-50 border-red-200" role="alert">Não foi possível carregar o Dashboard. Recarregue a página.</p>
+      ) : vazio ? (
         <>
-          <div className={`grid grid-cols-1 sm:grid-cols-3 ${data.investido ? "lg:grid-cols-4" : ""} gap-4`}>
-            {[
-              { label: "Total Entradas", valor: data.totalEntradas, classe: "valor-positivo", nota: "" },
-              { label: "Total Saídas", valor: data.totalSaidas, classe: "valor-negativo", nota: "" },
-              { label: "Saldo", valor: data.saldo, classe: data.saldo >= 0 ? "valor-positivo" : "valor-negativo", nota: "" },
-              ...(data.investido > 0
-                ? [{ label: "Guardado", valor: data.investido, classe: "text-emerald-700", nota: "aplicado menos resgatado — fora das saídas" }]
-                : data.investido < 0
-                ? [{ label: "Resgatado da reserva", valor: -data.investido, classe: "text-amber-700", nota: "resgates menos aplicações — cobriu gastos" }]
-                : []),
-            ].map((k) => (
-              <div key={k.label} className="card">
-                <div className="text-sm text-slate-500 mb-1">{k.label}</div>
-                <div className={`text-2xl font-bold ${k.classe}`}>{fmt(k.valor)}</div>
-                {k.nota && <div className="text-xs text-slate-400 mt-0.5">{k.nota}</div>}
-              </div>
-            ))}
-          </div>
-
-          <PaineisFinancas ano={ano} mes={mesPaineis} />
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card">
-              <h2 className="font-semibold text-slate-700 mb-4">Gastos por Categoria</h2>
-              {data.porCategoria.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={data.porCategoria.map(([name, value]) => ({ name, value }))}
-                      cx="50%" cy="50%" outerRadius={90}
-                      dataKey="value"
-                    >
-                      {data.porCategoria.map((_, i) => (
-                        <Cell key={i} fill={CORES[i % CORES.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v) => fmt(v as number)} />
-                    <Legend
-                      formatter={(value: string) => value.length > 20 ? value.slice(0, 18) + "…" : value}
-                      wrapperStyle={{ fontSize: 11 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center text-slate-400 py-10">Sem dados</div>
-              )}
+          <FiqueDeOlho avisos={avisos} />
+          <div className="card text-center py-14 space-y-4">
+            <div className="text-4xl" aria-hidden>📂</div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">Nenhum lançamento em {mesAberto ? `${nomeMes} de ${ano}` : ano}</h2>
+              <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+                O Dashboard ganha vida com seus lançamentos. Importe o extrato do banco ou comece registrando à mão.
+              </p>
             </div>
-
-            <div className="card">
-              <h2 className="font-semibold text-slate-700 mb-4">Top Categorias (Saídas)</h2>
-              <div className="space-y-2.5">
-                {data.porCategoria.slice(0, 8).map(([cat, val], i) => {
-                  const max = data.porCategoria[0]?.[1] || 1;
-                  return (
-                    <div key={cat}>
-                      <div className="flex justify-between text-sm mb-0.5">
-                        <span className="text-slate-600 truncate">{cat}</span>
-                        <span className="font-medium text-slate-800 ml-2 shrink-0">{fmt(val)}</span>
-                      </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full">
-                        <div
-                          className="h-1.5 rounded-full transition-all"
-                          style={{ width: `${(val / max) * 100}%`, background: CORES[i % CORES.length] }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="flex justify-center gap-3 flex-wrap">
+              <Link href="/importar" className="btn btn-primary">Importar extrato</Link>
+              <Link href="/lancamentos?novo=1" className="btn btn-secondary">Lançar à mão</Link>
             </div>
           </div>
-
-          {!mes && data.porMes.length > 0 && (
-            <div className="card">
-              <h2 className="font-semibold text-slate-700 mb-4">Evolução Mensal</h2>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data.porMes.map(([key, v]) => ({
-                  mes: MESES[parseInt(key.split("-")[1]) - 1],
-                  Entradas: v.entradas,
-                  Saídas: v.saidas,
-                }))}>
-                  <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => fmt(v as number)} />
-                  <Legend />
-                  <Bar dataKey="Entradas" fill="#10b981" radius={[3,3,0,0]} />
-                  <Bar dataKey="Saídas" fill="#ef4444" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {data.porConta.length > 0 && (
-            <div className="card">
-              <h2 className="font-semibold text-slate-700 mb-4">Gastos por Conta</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {data.porConta.map(([conta, val]) => (
-                  <div key={conta} className="text-center p-4 rounded-lg bg-slate-50 border border-slate-100">
-                    <div className="text-xs text-slate-500 mb-1">{conta}</div>
-                    <div className="font-bold text-slate-800">{fmt(val)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
-      ) : null}
+      ) : (
+        <>
+          <ResumoDoPeriodo
+            titulo={mesAberto ? `${nomeMes}${mesCorrente ? " até agora" : ""}` : String(ano)}
+            dados={data} mesAberto={mesAberto}
+            progressoDoMes={mesCorrente ? hoje.getDate() / diasNoMes : null}
+            diaDeHoje={mesCorrente ? `dia ${hoje.getDate()}` : null}
+            plano={plano ? { ...plano.saidas, totalLancamentos: plano.totalLancamentos } : null}
+            fotografiaFeita={fotografiaFeita}
+            projecao={plano && mesCorrente ? projecaoDasSaidas(plano.saidas.realizado, ritmo) : null}
+            ritmoAberto={verRitmo}
+            onRitmo={ritmo && chave ? () => setVerRitmo((v) => !v) : null} />
+          {verRitmo && ritmo && chave && <RitmoDoMes dados={ritmo} chave={chave} />}
+
+          <FiqueDeOlho avisos={avisos} />
+
+          <div className={`grid grid-cols-1 ${mesAberto ? "lg:grid-cols-2" : ""} gap-5 items-start`}>
+            <ParaOndeFoi periodo={mesAberto ? nomeMes : String(ano)} porCategoria={data.porCategoria} porConta={data.porConta} total={data.totalSaidas} />
+            {mesAberto && (
+              <div className="flex flex-col gap-5">
+                {doMes?.fatias && <DivisaoDoMes dados={doMes.fatias} />}
+                {doMes?.meios && <ComoVocePagou dados={doMes.meios} divida={doMes.divida} query={query} />}
+              </div>
+            )}
+          </div>
+
+          <UltimosMeses titulo={mesAberto ? "Últimos 6 meses" : `Mês a mês em ${ano}`} meses={data.porMes}
+            emAndamento={ano === anoAtual ? `${anoAtual}-${String(mesAtual).padStart(2, "0")}` : null} />
+        </>
+      )}
     </div>
   );
 }

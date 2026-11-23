@@ -12,7 +12,7 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 
 | Rota | Arquivo | Descrição | Acesso |
 |---|---|---|---|
-| `/` | `src/app/page.tsx` | Dashboard com totais, gráficos de categorias e evolução mensal; lembrete da fotografia enquanto não feita, card Planejado × Realizado do mês quando feita, estado vazio com CTAs de importar/lançar à mão; cartões Como você pagou, Ritmo do mês e Custo de dívida (`PaineisFinancas`) | Requer autenticação + onboarding |
+| `/` | `src/app/page.tsx` | Dashboard (remodelado em 23/11), abre no mês corrente: resumo do período (`ResumoDoPeriodo`: saldo, entradas, saídas, guardado; no mês, saídas × plano da Fotografia com a marca de hoje e a projeção; sem Fotografia, o convite para fazer; no ano, a média por mês; "Ver o ritmo dia a dia" abre o `RitmoDoMes`), "Fique de olho" (`FiqueDeOlho`), para onde foi o dinheiro (`ParaOndeFoi`), 50/30/20 e Como você pagou (só no mês), mês a mês (`UltimosMeses`); estado vazio com CTAs de importar/lançar à mão | Requer autenticação + onboarding |
 | `/financas/meios` | `src/app/financas/meios/page.tsx` | Como você pagou: 6 meses por meio de pagamento (barras empilhadas + tabela com média e guardado); navega por mês | Requer autenticação + onboarding |
 | `/financas/divida` | `src/app/financas/divida/page.tsx` | Custo de dívida: 12 meses de juros/IOF/multas, de onde vem e o que fazer | Requer autenticação + onboarding |
 | `/planejamento` | `src/app/planejamento/page.tsx` | Abas Fotografia do mês (wizard) e Planejado × Realizado; `?aba=comparacao` abre a segunda | Requer autenticação + onboarding |
@@ -39,8 +39,9 @@ O projeto utiliza o **Next.js App Router** (introduzido no Next.js 13) com Turbo
 | `CategoriasProvider` / `useCategorias` | `src/components/Categorias.tsx` | Catálogo de categorias das finanças abertas (carregado no layout); base de `OpcoesCategorias`, da Fotografia e de Configurações → Categorias |
 | `ComoBaixarExtrato` | `src/components/ComoBaixarExtrato.tsx` | Instruções de onde obter OFX/PDF/CSV; usado no onboarding e em `/importar` |
 | `DividirPainel` | `src/components/DividirPainel.tsx` | Painel lateral "Dividir" de Lançamentos: busca de gastos com filtro ao digitar, seleção múltipla, prévia da parte de cada gasto e "Desfazer divisão"; pré-marca o gasto sugerido pelo padrão e, depois de salvar, oferece dividir os Pix parecidos do mesmo pagador |
-| `PaineisFinancas` | `src/components/financas/PaineisFinancas.tsx` | Os cartões mensais do dashboard (`/api/financas/*`): como você pagou, 50/30/20, ritmo e custo de dívida |
-| `DivisaoDoMes` | `src/components/financas/DivisaoDoMes.tsx` | Cartão 50/30/20: renda, uma barra por fatia com a meta marcada, o que ficou sem fatia e as categorias de cada fatia |
+| `ComoVocePagou`, `RitmoDoMes` | `src/components/financas/CartoesDoMes.tsx` | Cartões mensais do dashboard (`/api/financas/*`): a divisão dos gastos por meio de pagamento, com a linha do custo de dívida em 12 meses; o gasto acumulado dia a dia × média, com projeção |
+| `DivisaoDoMes` | `src/components/financas/DivisaoDoMes.tsx` | Cartão 50/30/20 compacto: uma barra por fatia com a meta marcada e as categorias de cada fatia (o que ficou sem fatia vai para o "Fique de olho") |
+| `ResumoDoPeriodo`, `FiqueDeOlho`, `ParaOndeFoi`, `UltimosMeses` | `src/components/dashboard/` | Os blocos do Dashboard; avisos e totais vêm de `src/lib/dashboard.ts` (`montarAvisos`, `agregarDashboard`, `projecaoDasSaidas`) |
 | `NavegadorMes` | `src/components/financas/NavegadorMes.tsx` | Cabeçalho das páginas `/financas/*`: voltar e trocar de mês pela URL (`?ano&mes`) |
 | `ContasTipo` | `src/components/ContasTipo.tsx` | Seção Contas de Configurações: alterna corrente/cartão (`/api/contas`) |
 | `CategoriaSelect` | `src/components/CategoriaSelect.tsx` | Select de categorias agrupado em Saídas/Entradas |
