@@ -114,10 +114,19 @@ function LancamentosContent() {
   const [nomeJunto, setNomeJunto]             = useState("");
   const [nomesExistentes, setNomesExistentes] = useState<string[]>([]);
 
-  const [filtros, setFiltros] = useState({
-    busca: "", conta: "", categoria: "", tipo: "",
-    dataInicio: initMes.i, dataFim: initMes.f,
-    pessoa: searchParams.get("pessoa") || "",
+  // Filtros podem chegar pela URL (ex.: Planejado × Realizado abre a categoria do mês):
+  // ?categoria=…&tipo=Saída&dataInicio=AAAA-MM-DD&dataFim=AAAA-MM-DD
+  const [filtros, setFiltros] = useState(() => {
+    const data = (k: string) => { const v = searchParams.get(k) ?? ""; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; };
+    const tipo = searchParams.get("tipo") ?? "";
+    const inicio = data("dataInicio"), fim = data("dataFim");
+    return {
+      busca: "", conta: "",
+      categoria: searchParams.get("categoria") ?? "",
+      tipo: tipo === "Entrada" || tipo === "Saída" ? tipo : "",
+      dataInicio: inicio && fim ? inicio : initMes.i, dataFim: inicio && fim ? fim : initMes.f,
+      pessoa: searchParams.get("pessoa") || "",
+    };
   });
 
   const showToast = (msg: string) => {
@@ -732,7 +741,7 @@ function TabelaResumo({ resumo }: { resumo: ResumoFiltro }) {
           <span className="font-semibold text-red-700">↓ Saídas</span>
           <span className="text-xs text-slate-400">({catsSaida.length} categorias)</span>
         </div>
-        <span className="font-bold valor-negativo">{fmt(resumo.totalSaidas)}</span>
+        <span className="font-bold valor-negativo" data-total-saidas>{fmt(resumo.totalSaidas)}</span>
       </button>
       {aberto === "saidas" && (
         <div className="bg-red-50/20">

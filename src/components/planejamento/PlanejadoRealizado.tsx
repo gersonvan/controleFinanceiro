@@ -8,6 +8,19 @@ import { ROTULO_GRUPO } from "@/lib/planejamento";
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+// Os lançamentos que formam o "Realizado" de uma categoria no mês: as saídas dela no período.
+function linkLancamentos(categoria: string, ano: number, mes: number) {
+  const dois = (n: number) => String(n).padStart(2, "0");
+  const fim = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  const p = new URLSearchParams({
+    categoria: categoria === "Sem categoria" ? "__sem__" : categoria,
+    tipo: "Saída",
+    dataInicio: `${ano}-${dois(mes)}-01`,
+    dataFim: `${ano}-${dois(mes)}-${dois(fim)}`,
+  });
+  return `/lancamentos?${p}`;
+}
+
 export default function PlanejadoRealizado({ onIrParaFotografia }: { onIrParaFotografia: () => void }) {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
@@ -31,7 +44,7 @@ export default function PlanejadoRealizado({ onIrParaFotografia }: { onIrParaFot
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-sm text-slate-500">Quanto você planejou gastar e quanto os lançamentos mostram.</p>
+        <p className="text-sm text-slate-500">Quanto você planejou gastar e quanto os lançamentos mostram. Clique numa categoria para ver de onde vem o valor.</p>
         <div className="flex gap-2">
           <select value={mes} onChange={(e) => setMes(parseInt(e.target.value))}>
             {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
@@ -76,7 +89,7 @@ export default function PlanejadoRealizado({ onIrParaFotografia }: { onIrParaFot
                 </tr>
               </thead>
               <tbody>
-                {dados.linhas.map((l) => <LinhaTabela key={l.categoria} linha={l} />)}
+                {dados.linhas.map((l) => <LinhaTabela key={l.categoria} linha={l} href={linkLancamentos(l.categoria, ano, mes)} />)}
                 {dados.linhas.length === 0 && (
                   <tr><td colSpan={5} className="text-center text-slate-400 py-8">Nenhuma saída planejada.</td></tr>
                 )}
@@ -88,13 +101,17 @@ export default function PlanejadoRealizado({ onIrParaFotografia }: { onIrParaFot
             <div className="card p-0 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100">
                 <h3 className="font-semibold text-slate-700">Gastos que não estavam na fotografia</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Vale decidir: entram no plano ou são exceção deste mês?</p>
+                <p className="text-xs text-slate-500 mt-0.5">Vale decidir: entram no plano ou são exceção deste mês? Clique numa categoria para ver os lançamentos.</p>
               </div>
               <table>
                 <tbody>
                   {dados.naoPlanejado.map((l) => (
                     <tr key={l.categoria} className="border-b border-slate-100 last:border-0">
-                      <td className="px-4 py-2 text-slate-700">{l.categoria}</td>
+                      <td className="px-4 py-2">
+                        <Link href={linkLancamentos(l.categoria, ano, mes)} className="text-slate-700 hover:text-blue-600 hover:underline" data-ver-lancamentos>
+                          {l.categoria}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2 text-right valor-negativo">{fmt(l.realizado)}</td>
                     </tr>
                   ))}
@@ -139,7 +156,7 @@ function Cartoes({ dados }: { dados: Comparacao }) {
   );
 }
 
-function LinhaTabela({ linha }: { linha: LinhaComparacao }) {
+function LinhaTabela({ linha, href }: { linha: LinhaComparacao; href: string }) {
   const diferenca = linha.planejado - linha.realizado;
   const pct = linha.planejado > 0 ? Math.min(100, (linha.realizado / linha.planejado) * 100) : 0;
   const estourou = linha.realizado > linha.planejado;
@@ -147,7 +164,9 @@ function LinhaTabela({ linha }: { linha: LinhaComparacao }) {
   return (
     <tr className="border-b border-slate-100 last:border-0">
       <td className="px-4 py-2">
-        <div className="text-slate-700">{linha.categoria}</div>
+        <Link href={href} className="text-slate-700 hover:text-blue-600 hover:underline" title="Ver os lançamentos desta categoria no mês" data-ver-lancamentos>
+          {linha.categoria}
+        </Link>
         <div className="text-xs text-slate-400">{linha.grupos.map((g) => ROTULO_GRUPO[g]).join(" · ")}</div>
       </td>
       <td className="px-4 py-2 text-right text-slate-600">{fmt(linha.planejado)}</td>
